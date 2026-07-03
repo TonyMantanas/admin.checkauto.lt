@@ -11,14 +11,21 @@ export function initAdminRuntime(pageController) {
   var SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
   var ADMIN_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-bookings';
+  var ADMIN_BASE_PATH = (
+    window.location.pathname === '/admin' ||
+    window.location.pathname.startsWith('/admin/')
+  ) ? '/admin' : '';
+  function adminPath(path) {
+    return ADMIN_BASE_PATH + path;
+  }
   var PATHS = {
-    dashboard: '/admin/',
-    bookings: '/admin/bookings/',
-    availability: '/admin/availability/',
-    customers: '/admin/customers/',
-    invoices: '/admin/invoices/',
-    marketing: '/admin/marketing/',
-    login: '/admin/login/'
+    dashboard: adminPath('/'),
+    bookings: adminPath('/bookings/'),
+    availability: adminPath('/availability/'),
+    customers: adminPath('/customers/'),
+    invoices: adminPath('/invoices/'),
+    marketing: adminPath('/marketing/'),
+    login: adminPath('/login/')
   };
   var SESSION_KEY = 'checkauto-admin-session';
   var DASHBOARD_CACHE_KEY = 'checkauto-admin-dashboard-cache';
