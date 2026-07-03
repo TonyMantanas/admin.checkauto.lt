@@ -41,16 +41,16 @@ export function renderShell(page) {
           </section>
         `).join('')}
       </nav>
+      <div class="admin-sidebar-account">
+        <div class="admin-sidebar-user">
+          <p class="admin-sync-state" data-admin-sync-state data-state="synced">Synced</p>
+          <p data-admin-user></p>
+        </div>
+        <div class="admin-shell-actions">
+          <button class="admin-button admin-button-secondary" type="button" data-admin-refresh>Refresh</button>
+          <button class="admin-button admin-button-ghost" type="button" data-admin-logout>Sign out</button>
+        </div>
+      </div>
     </aside>
-    <header class="admin-topbar">
-      <div>
-        <p class="admin-sync-state" data-admin-sync-state data-state="synced">Synced</p>
-        <p data-admin-user></p>
-      </div>
-      <div class="admin-shell-actions">
-        <button class="admin-button admin-button-secondary" type="button" data-admin-refresh>Refresh</button>
-        <button class="admin-button admin-button-ghost" type="button" data-admin-logout>Sign out</button>
-      </div>
-    </header>
   `;
 }
