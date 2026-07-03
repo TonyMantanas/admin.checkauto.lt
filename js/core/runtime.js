@@ -2475,19 +2475,26 @@ export function initAdminRuntime(pageController) {
       if (!button.dataset.busyOriginalText) {
         button.dataset.busyOriginalText = button.textContent;
         button.dataset.busyOriginalDisabled = button.disabled ? 'true' : 'false';
+        button.dataset.busyOriginalAriaLabel = button.getAttribute('aria-label') || '';
       }
-      button.textContent = label || 'Working...';
       button.disabled = true;
       button.classList.add('is-loading');
       button.setAttribute('aria-busy', 'true');
+      button.setAttribute('aria-label', label || 'Working...');
       return;
     }
 
     if (button.dataset.busyOriginalText) {
       button.textContent = button.dataset.busyOriginalText;
       button.disabled = button.dataset.busyOriginalDisabled === 'true';
+      if (button.dataset.busyOriginalAriaLabel) {
+        button.setAttribute('aria-label', button.dataset.busyOriginalAriaLabel);
+      } else {
+        button.removeAttribute('aria-label');
+      }
       delete button.dataset.busyOriginalText;
       delete button.dataset.busyOriginalDisabled;
+      delete button.dataset.busyOriginalAriaLabel;
     } else {
       button.disabled = false;
     }

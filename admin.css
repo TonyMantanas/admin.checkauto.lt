@@ -382,6 +382,7 @@ p {
 
 .admin-shell-actions .admin-button {
   flex: 1 1 0;
+  min-width: 0;
 }
 
 .admin-nav {
@@ -415,11 +416,15 @@ p {
   justify-content: center;
   gap: 0.4rem;
   padding: 0.4rem 0.7rem;
+  position: relative;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
   font-size: var(--font-size-sm);
   font-weight: 750;
   line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   transition: background var(--duration-fast) var(--ease-out),
     border-color var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out),
@@ -463,14 +468,20 @@ p {
   opacity: 0.62;
 }
 
-.admin-button.is-loading::before {
+.admin-button::before {
   content: "";
   width: 0.85em;
   height: 0.85em;
   border: 2px solid currentColor;
   border-right-color: transparent;
   border-radius: 999px;
+  flex: 0 0 auto;
+  opacity: 0;
+}
+
+.admin-button.is-loading::before {
   animation: admin-spin 0.65s linear infinite;
+  opacity: 1;
 }
 
 @keyframes admin-spin {
