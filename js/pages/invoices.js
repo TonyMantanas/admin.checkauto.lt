@@ -16,8 +16,8 @@ export function renderStaticPage(root) {
             <h2>Ledger</h2>
           </div>
           <div class="admin-segmented" data-invoice-filters>
-            <button class="is-active" type="button" data-invoice-filter="all">All</button>
-            <button type="button" data-invoice-filter="unpaid">Unpaid</button>
+            <button type="button" data-invoice-filter="all">All</button>
+            <button class="is-active" type="button" data-invoice-filter="unpaid">Unpaid</button>
             <button type="button" data-invoice-filter="paid">Paid</button>
             <button type="button" data-invoice-filter="void">Void</button>
           </div>

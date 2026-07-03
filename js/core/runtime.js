@@ -56,7 +56,7 @@ export function initAdminRuntime(pageController) {
     maintenancePreview: null,
     filter: 'pending',
     slotFilter: 'all',
-    invoiceFilter: 'all',
+    invoiceFilter: 'unpaid',
     bookingSort: 'asc',
     selectedBookingId: null,
     selectedSlotId: null,
@@ -357,18 +357,17 @@ export function initAdminRuntime(pageController) {
     return Boolean(record && record.legal_hold_until && new Date(record.legal_hold_until) > new Date());
   }
 
-  function customerRedactionBlockReasons(customer, bookings, invoices) {
+  function customerRedactionBlockReasons(customer, bookings) {
     var reasons = [];
     if (hasActiveLegalHold(customer)) reasons.push('active legal hold');
     if (customer.marketing_consent_status === 'opted_in') reasons.push('active marketing consent');
     if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('active booking');
     if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('booking legal hold');
-    if (invoices.length) reasons.push('invoice dependency');
     if (customer.pii_redacted_at) reasons.push('already redacted');
     return reasons;
   }
 
-  function customerDeleteBlockReasons(customer, bookings, invoices) {
+  function customerDeleteBlockReasons(customer, bookings) {
     var reasons = [];
     if (!customer.pii_redacted_at) reasons.push('redact profile first');
     if (hasActiveLegalHold(customer)) reasons.push('active legal hold');
@@ -376,7 +375,6 @@ export function initAdminRuntime(pageController) {
     if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('active booking');
     if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('booking legal hold');
     if (bookings.some(function (booking) { return !booking.pii_redacted_at; })) reasons.push('unredacted linked booking');
-    if (invoices.length) reasons.push('invoice dependency');
     return reasons;
   }
 
@@ -1026,6 +1024,42 @@ export function initAdminRuntime(pageController) {
     });
   }
 
+  function openSlotDeleteDialog(slot) {
+    if (!slot || !slot.recurrence_series_id) {
+      return openConfirmDialog(confirmOptionsForAction('deleteSlot')).then(function (confirmed) {
+        return confirmed ? 'single' : null;
+      });
+    }
+
+    return new Promise(function (resolve) {
+      var root = ensureConfirmRoot();
+      root.hidden = false;
+      root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
+        '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
+          '<div class="admin-modal-header">' +
+            '<div><span class="section-label">Confirm</span><h2>Delete availability</h2></div>' +
+          '</div>' +
+          '<p>This slot is part of a weekly series.</p>' +
+          '<div class="admin-action-buttons admin-modal-actions">' +
+            '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Only this slot</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Whole series</button>' +
+          '</div>' +
+        '</section>';
+      document.body.classList.add('admin-modal-open');
+
+      function finish(value) {
+        closeConfirmDialog();
+        resolve(value);
+      }
+
+      $('[data-confirm-no]', root).addEventListener('click', function () { finish(null); });
+      $('[data-confirm-single]', root).addEventListener('click', function () { finish('single'); });
+      $('[data-confirm-series]', root).addEventListener('click', function () { finish('series'); });
+      $('[data-confirm-no]', root).focus();
+    });
+  }
+
   function openMarketingSendConfirm(subject, body) {
     return new Promise(function (resolve) {
       var root = ensureConfirmRoot();
@@ -1128,6 +1162,12 @@ export function initAdminRuntime(pageController) {
         title: 'Delete availability',
         message: 'Delete this availability slot entirely?',
         confirmLabel: 'Delete slot',
+        danger: true
+      },
+      deleteSlotSeries: {
+        title: 'Delete availability series',
+        message: 'Delete every open slot in this weekly series?',
+        confirmLabel: 'Delete series',
         danger: true
       },
       redactBookingPii: {
@@ -1923,10 +1963,10 @@ export function initAdminRuntime(pageController) {
     var invoices = invoicesForCustomer(customer.id);
     var events = eventsForCustomer(customer.id).slice(0, 8);
     var holdActive = hasActiveLegalHold(customer);
-    var redactionBlockReasons = customerRedactionBlockReasons(customer, bookings, invoices);
+    var redactionBlockReasons = customerRedactionBlockReasons(customer, bookings);
     var redactionDisabled = redactionBlockReasons.length > 0;
     var redactionBlockText = redactionDisabled ? 'Blocked: ' + redactionBlockReasons.join(', ') + '.' : '';
-    var deleteBlockReasons = customerDeleteBlockReasons(customer, linkedBookings, invoices);
+    var deleteBlockReasons = customerDeleteBlockReasons(customer, linkedBookings);
     var deleteDisabled = deleteBlockReasons.length > 0;
     var deleteBlockText = deleteDisabled ? 'Blocked: ' + deleteBlockReasons.join(', ') + '.' : '';
     var erasureRequestDisabled = Boolean(customer.erasure_requested_at);
@@ -1976,8 +2016,8 @@ export function initAdminRuntime(pageController) {
           detailRow('Erasure completed', customer.erasure_completed_at ? formatDateTime(customer.erasure_completed_at) : 'Not completed') +
           detailRow('Redacted at', customer.pii_redacted_at ? formatDateTime(customer.pii_redacted_at) : 'Not redacted') +
         '</div>' +
-        '<p class="admin-detail-note">Redacting the customer profile also redacts and detaches linked non-active bookings. Invoice records stay untouched.</p>' +
-        '<p class="admin-detail-note">Deleting removes a redacted profile from Customers after invoice, legal-hold, marketing, and linked-booking checks pass.</p>' +
+        '<p class="admin-detail-note">Redacting the customer profile also redacts linked non-active bookings. Invoice records stay retained.</p>' +
+        '<p class="admin-detail-note">Deleting removes a redacted profile and linked non-active bookings after legal-hold, marketing, and active-booking checks pass.</p>' +
         (redactionDisabled ? '<p class="admin-detail-note admin-detail-note-warning">' + escapeHtml(redactionBlockText) + '</p>' : '') +
         (deleteDisabled ? '<p class="admin-detail-note admin-detail-note-warning">' + escapeHtml(deleteBlockText) + '</p>' : '') +
         (holdActive ? renderReleaseHoldForm(customer) : renderSetHoldForm(customer, addDaysYmd(todayYmd(), 180))) +
@@ -2414,6 +2454,7 @@ export function initAdminRuntime(pageController) {
       resendInvoice: 'Sending...',
       voidInvoice: 'Voiding...',
       deleteSlot: 'Deleting...',
+      deleteSlotSeries: 'Deleting...',
       updateSlot: 'Saving...',
       createSlot: 'Creating...',
       setCustomerLegalHold: 'Saving...',
@@ -2489,11 +2530,12 @@ export function initAdminRuntime(pageController) {
     target.dataset.state = tone || 'synced';
   }
 
-  async function runAction(payload, confirmAction, trigger) {
+  async function runAction(payload, confirmAction, trigger, options) {
+    var opts = options || {};
     try {
-      var options = confirmOptionsForAction(confirmAction || payload.action);
-      if (options) {
-        var confirmed = await openConfirmDialog(options);
+      var confirmOptions = confirmOptionsForAction(confirmAction || payload.action);
+      if (confirmOptions && !opts.skipConfirm) {
+        var confirmed = await openConfirmDialog(confirmOptions);
         if (!confirmed) return;
       }
       setButtonBusy(trigger, true, busyLabelForAction(confirmAction || payload.action));
@@ -2511,6 +2553,14 @@ export function initAdminRuntime(pageController) {
         setButtonBusy(trigger, false);
       }
     }
+  }
+
+  async function deleteSlotWithChoice(slotId, trigger) {
+    var slot = slotById(slotId);
+    var scope = await openSlotDeleteDialog(slot);
+    if (!scope) return;
+    var action = scope === 'series' ? 'deleteSlotSeries' : 'deleteSlot';
+    await runAction({ action: action, slotId: slotId }, action, trigger, { skipConfirm: true });
   }
 
   async function handleActionSubmit(event) {
@@ -2864,6 +2914,9 @@ export function initAdminRuntime(pageController) {
 
     var repeat = data.get('repeatWeekly') === 'on';
     var weeks = repeat ? Number(data.get('repeatWeeks')) || 1 : 1;
+    var recurrenceSeriesId = repeat && weeks > 1 && window.crypto && window.crypto.randomUUID
+      ? window.crypto.randomUUID()
+      : null;
     var failures = [];
     var created = 0;
     setFormBusy(form, true, busyLabelForAction('createSlot'));
@@ -2884,7 +2937,8 @@ export function initAdminRuntime(pageController) {
           assignedStaffId: data.get('assignedStaffId') || null,
           startAt: occurrence.startAt,
           endAt: occurrence.endAt,
-          internalNote: data.get('internalNote') || null
+          internalNote: data.get('internalNote') || null,
+          recurrenceSeriesId: recurrenceSeriesId
         });
         created += 1;
       } catch (error) {
@@ -2939,10 +2993,11 @@ export function initAdminRuntime(pageController) {
       var booking = bookingBySlot[slot.id];
       var status = booking ? booking.status : 'available';
       var hasActiveBooking = booking && isActiveBookingStatus(booking.status);
+      var seriesMeta = slot.recurrence_series_id ? ' - Weekly series' : '';
       return '<div class="admin-slot-item' + (slot.id === querySlotId ? ' is-selected' : '') + '" data-tone="' + escapeHtml(statusTone(status)) + '">' +
         '<div>' +
           '<div class="admin-booking-title">' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '</div>' +
-          '<div class="admin-slot-meta">' + escapeHtml(service) + ' - ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned') + ' - ' + escapeHtml(statusLabel(status)) + '</div>' +
+          '<div class="admin-slot-meta">' + escapeHtml(service) + ' - ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned') + ' - ' + escapeHtml(statusLabel(status) + seriesMeta) + '</div>' +
           (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' - ' + booking.customer_name) + '</a>' : '') +
         '</div>' +
         '<div class="admin-slot-actions">' +
@@ -2953,7 +3008,7 @@ export function initAdminRuntime(pageController) {
 
     $all('[data-delete-slot]', slotList).forEach(function (button) {
       button.addEventListener('click', async function () {
-        await runAction({ action: 'deleteSlot', slotId: button.dataset.deleteSlot }, 'deleteSlot', button);
+        await deleteSlotWithChoice(button.dataset.deleteSlot, button);
       });
     });
   }
@@ -3325,7 +3380,7 @@ export function initAdminRuntime(pageController) {
       deleteButton.addEventListener('click', async function () {
         var slotId = String(($('[data-admin-slot-id]', form) || {}).value || '').trim();
         if (!slotId) return;
-        await runAction({ action: 'deleteSlot', slotId: slotId }, 'deleteSlot', deleteButton);
+        await deleteSlotWithChoice(slotId, deleteButton);
       });
     }
 
