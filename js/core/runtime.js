@@ -1,4 +1,4 @@
-import { ICONS } from './icons.js?v=20260727';
+import { ICONS } from './icons.js?v=20260727-2';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -2022,6 +2022,8 @@ export function initAdminRuntime(pageController) {
     var assigned = staffById(booking.assigned_to_staff_id);
     var requested = formatRange(booking.requested_start_at, booking.requested_end_at);
     var finalTime = booking.final_start_at ? formatRange(booking.final_start_at, booking.final_end_at) : 'Not confirmed yet';
+    var reviewTimeLabel = booking.final_start_at ? 'Scheduled time' : 'Requested time';
+    var reviewTime = booking.final_start_at ? finalTime : requested;
     var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(booking.vehicle_location || '');
     var customer = customerForBooking(booking);
 
@@ -2033,16 +2035,39 @@ export function initAdminRuntime(pageController) {
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h3>Timing</h3>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Service', serviceNameForBooking(booking)) +
-          detailRow('Requested time', requested) +
-          detailRow('Final time', finalTime) +
-          detailRow('Assigned to', assigned ? assigned.display_name : 'Unassigned') +
-          detailRow('Expires at', booking.pending_expires_at ? formatDateTime(booking.pending_expires_at) : '') +
+      '<section class="admin-detail-section admin-booking-overview">' +
+        '<span class="admin-section-kicker">Review first</span>' +
+        '<h3>Booking details</h3>' +
+        '<div class="admin-booking-overview-grid">' +
+          '<div class="admin-booking-primary-fact">' +
+            '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
+            '<strong>' + escapeHtml(reviewTime) + '</strong>' +
+            '<span>' + escapeHtml(serviceNameForBooking(booking)) + '</span>' +
+          '</div>' +
+          '<div class="admin-booking-key-facts">' +
+            '<div class="admin-booking-key-fact">' +
+              '<span>Vehicle</span>' +
+              '<strong>' + escapeHtml(booking.vehicle || 'Not provided') + '</strong>' +
+              '<span>' + escapeHtml(booking.vehicle_location || 'Location not provided') + '</span>' +
+            '</div>' +
+            '<div class="admin-booking-key-fact">' +
+              '<span>Customer</span>' +
+              '<strong>' + escapeHtml(booking.customer_name || 'Not provided') + '</strong>' +
+              '<span>' + escapeHtml(booking.customer_phone || booking.customer_email || 'Contact not provided') + '</span>' +
+            '</div>' +
+            '<div class="admin-booking-key-fact">' +
+              '<span>Assigned to</span>' +
+              '<strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong>' +
+              '<span>' + escapeHtml(booking.status === 'pending' ? 'Awaiting review' : statusLabel(booking.status)) + '</span>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
-      '</div>' +
+        '<div class="admin-booking-overview-meta">' +
+          (booking.final_start_at ? '<span>Originally requested: <strong>' + escapeHtml(requested) + '</strong></span>' : '') +
+          (booking.pending_expires_at ? '<span>Expires: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
+        '</div>' +
+      '</section>' +
+      renderRequestActions(booking) +
       '<div class="admin-detail-section">' +
         '<h2>Customer</h2>' +
         '<div class="admin-detail-list">' +
@@ -2068,8 +2093,7 @@ export function initAdminRuntime(pageController) {
           (booking.listing_url ? '<a href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">Listing</a>' : '') +
         '</div>' +
       '</div>' +
-      renderBookingInvoiceActions(booking) +
-      renderRequestActions(booking);
+      renderBookingInvoiceActions(booking);
 
     var modal = openModal(html, 'lg');
 
@@ -2217,8 +2241,8 @@ export function initAdminRuntime(pageController) {
 
   function renderRequestActions(booking) {
     if (booking.status === 'pending') {
-      return '<div class="admin-detail-section">' +
-        '<h2>Confirmation</h2>' +
+      return '<div class="admin-detail-section admin-booking-decision">' +
+        '<h2>Review decision</h2>' +
         '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
           '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
           '<div class="admin-action-grid">' +
@@ -2232,8 +2256,8 @@ export function initAdminRuntime(pageController) {
           '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm booking</button></div>' +
         '</form>' +
       '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h2>Rejection</h2>' +
+      '<div class="admin-detail-section admin-booking-rejection">' +
+        '<h2>Reject booking</h2>' +
         '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
           '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
           '<label>Customer-visible reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
@@ -2245,7 +2269,7 @@ export function initAdminRuntime(pageController) {
     }
 
     if (booking.status === 'confirmed') {
-      return '<div class="admin-detail-section">' +
+      return '<div class="admin-detail-section admin-booking-decision">' +
         '<h2>Actions</h2>' +
         '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
           '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
@@ -2424,6 +2448,10 @@ export function initAdminRuntime(pageController) {
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
+      '<div class="admin-detail-section admin-customer-bookings-section">' +
+        '<h2>Bookings (' + escapeHtml(bookings.length) + ')</h2>' +
+        renderCustomerBookings(bookings) +
+      '</div>' +
       '<div class="admin-detail-section">' +
         '<h3>Contact</h3>' +
         '<div class="admin-detail-list">' +
@@ -2437,10 +2465,6 @@ export function initAdminRuntime(pageController) {
           '<a href="mailto:' + escapeHtml(customer.email) + '">Email</a>' +
           (customer.phone ? '<a href="tel:' + escapeHtml(customer.phone) + '">Call</a>' : '') +
         '</div>' +
-      '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h2>Bookings</h2>' +
-        renderCustomerBookings(bookings) +
       '</div>' +
       '<div class="admin-detail-section">' +
         '<h2>Invoices</h2>' +
@@ -2503,11 +2527,21 @@ export function initAdminRuntime(pageController) {
       var start = booking.final_start_at || booking.requested_start_at;
       var end = booking.final_end_at || booking.requested_end_at;
       var invoice = activeInvoiceForBooking(booking.id);
-      return '<button class="admin-mini-item" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' +
-        '<span><strong>' + escapeHtml(booking.public_reference) + '</strong> ' + escapeHtml(statusLabel(booking.status)) + '</span>' +
-        '<span>' + escapeHtml(formatRange(start, end)) + '</span>' +
-        '<span>' + escapeHtml(booking.vehicle || 'No vehicle') + '</span>' +
-        '<span>' + escapeHtml(paymentLabel(booking.payment_status)) + ' - ' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
+      var service = serviceNameForBooking(booking);
+      var time = formatRange(start, end);
+      var vehicle = booking.vehicle || 'No vehicle';
+      var status = statusLabel(booking.status);
+      var payment = paymentLabel(booking.payment_status);
+      var invoiceStatus = invoiceStatusLabel(invoice);
+      var bookingLabel = [service, time, status, vehicle, booking.public_reference, payment, invoiceStatus].join(', ');
+      return '<button class="admin-mini-item admin-customer-booking" type="button" aria-label="' + escapeHtml('Open booking: ' + bookingLabel) + '" data-open-booking="' + escapeHtml(booking.id) + '">' +
+        '<span class="admin-customer-booking-main">' +
+          '<strong>' + escapeHtml(service) + '</strong>' +
+          '<span class="admin-customer-booking-time">' + escapeHtml(time) + '</span>' +
+        '</span>' +
+        '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(status) + '</span>' +
+        '<span class="admin-customer-booking-vehicle">' + escapeHtml(vehicle) + '</span>' +
+        '<span class="admin-customer-booking-meta">' + escapeHtml(booking.public_reference) + ' · ' + escapeHtml(payment) + ' · ' + escapeHtml(invoiceStatus) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }

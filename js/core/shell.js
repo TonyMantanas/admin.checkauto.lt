@@ -1,5 +1,5 @@
-import { PATHS } from './routes.js?v=20260727';
-import { ICONS } from './icons.js?v=20260727';
+import { PATHS } from './routes.js?v=20260727-2';
+import { ICONS } from './icons.js?v=20260727-2';
 
 const groups = [
   {

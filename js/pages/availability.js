@@ -1,4 +1,4 @@
-import { ICONS } from '../core/icons.js?v=20260727';
+import { ICONS } from '../core/icons.js?v=20260727-2';
 
 export const page = 'availability';
 
