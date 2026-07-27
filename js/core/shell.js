@@ -1,24 +1,5 @@
-import { PATHS } from './routes.js';
-
-const ICONS = {
-  menu: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M4 7h16M4 12h16M4 17h16"></path>
-    </svg>
-  `,
-  refresh: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
-      <path d="M20 4v7h-7"></path>
-    </svg>
-  `,
-  signOut: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M10 5H5v14h5"></path>
-      <path d="M14 8l4 4-4 4M18 12H9"></path>
-    </svg>
-  `
-};
+import { PATHS } from './routes.js?v=20260727';
+import { ICONS } from './icons.js?v=20260727';
 
 const groups = [
   {

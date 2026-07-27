@@ -1,14 +1,4 @@
-const SORT_EARLIEST = `
-  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M8 6h10M8 12h7M8 18h4M4 18V6m0 0L2 8m2-2 2 2"></path>
-  </svg>
-`;
-
-const SORT_LATEST = `
-  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="M8 6h4M8 12h7M8 18h10M4 6v12m0 0-2-2m2 2 2-2"></path>
-  </svg>
-`;
+import { ICONS } from '../core/icons.js?v=20260727';
 
 export const page = 'bookings';
 
@@ -32,8 +22,8 @@ export function renderStaticPage(root) {
             <button type="button" data-filter="all" aria-pressed="false">All</button>
           </div>
           <div class="admin-segmented" data-admin-booking-sort role="group" aria-label="Sort bookings">
-            <button class="is-active admin-segmented-icon" type="button" data-booking-sort="asc" aria-pressed="true" aria-label="Earliest first" title="Earliest first">${SORT_EARLIEST}</button>
-            <button class="admin-segmented-icon" type="button" data-booking-sort="desc" aria-pressed="false" aria-label="Latest first" title="Latest first">${SORT_LATEST}</button>
+            <button class="is-active admin-segmented-icon" type="button" data-booking-sort="asc" aria-pressed="true" aria-label="Earliest first" title="Earliest first">${ICONS.sortAscending}</button>
+            <button class="admin-segmented-icon" type="button" data-booking-sort="desc" aria-pressed="false" aria-label="Latest first" title="Latest first">${ICONS.sortDescending}</button>
           </div>
         </div>
         <div class="admin-booking-list" data-admin-booking-list></div>

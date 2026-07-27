@@ -1,25 +1,4 @@
-const ICONS = {
-  add: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 5v14M5 12h14"></path>
-    </svg>
-  `,
-  previous: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m15 18-6-6 6-6"></path>
-    </svg>
-  `,
-  next: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="m9 6 6 6-6 6"></path>
-    </svg>
-  `,
-  close: `
-    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M6 6l12 12M18 6 6 18"></path>
-    </svg>
-  `
-};
+import { ICONS } from '../core/icons.js?v=20260727';
 
 export const page = 'availability';
 

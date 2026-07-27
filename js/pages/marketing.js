@@ -1,9 +1,4 @@
-const SEND_ICON = `
-  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="m21 3-7.5 18-3.2-7.3L3 10.5 21 3Z"></path>
-    <path d="m10.3 13.7 4-4"></path>
-  </svg>
-`;
+import { ICONS } from '../core/icons.js?v=20260727';
 
 export const page = 'marketing';
 
@@ -26,7 +21,7 @@ export function renderStaticPage(root) {
           <p class="admin-helper-text" id="marketing-message-help">A consent and unsubscribe footer is added automatically.</p>
           <div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>
           <div class="admin-action-buttons">
-            <button class="admin-button admin-button-primary" type="submit" aria-describedby="marketing-audience-help">${SEND_ICON}<span>Send email</span></button>
+            <button class="admin-button admin-button-primary" type="submit" aria-describedby="marketing-audience-help">${ICONS.send}<span>Send email</span></button>
           </div>
         </form>
       </section>

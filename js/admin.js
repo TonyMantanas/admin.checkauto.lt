@@ -1,26 +1,26 @@
-import { api } from './core/api.js';
-import { auth } from './core/auth.js';
-import { calendar } from './core/calendar.js';
-import { controls } from './core/controls.js';
-import { drawers } from './core/drawers.js';
-import { formatters } from './core/formatting.js';
-import { modals } from './core/modals.js';
-import { realtime } from './core/realtime.js';
-import { PATHS, PAGE_TITLES } from './core/routes.js';
-import { initAdminRuntime } from './core/runtime.js';
-import { renderShell } from './core/shell.js';
-import { state } from './core/state.js';
-import { toast } from './core/toast.js';
-import { validators } from './core/validation.js';
+import { api } from './core/api.js?v=20260727';
+import { auth } from './core/auth.js?v=20260727';
+import { calendar } from './core/calendar.js?v=20260727';
+import { controls } from './core/controls.js?v=20260727';
+import { drawers } from './core/drawers.js?v=20260727';
+import { formatters } from './core/formatting.js?v=20260727';
+import { modals } from './core/modals.js?v=20260727';
+import { realtime } from './core/realtime.js?v=20260727';
+import { PATHS, PAGE_TITLES } from './core/routes.js?v=20260727';
+import { initAdminRuntime } from './core/runtime.js?v=20260727';
+import { renderShell } from './core/shell.js?v=20260727';
+import { state } from './core/state.js?v=20260727';
+import { toast } from './core/toast.js?v=20260727';
+import { validators } from './core/validation.js?v=20260727';
 
 const pageControllers = {
-  dashboard: () => import('./pages/dashboard.js'),
-  bookings: () => import('./pages/bookings.js'),
-  availability: () => import('./pages/availability.js'),
-  customers: () => import('./pages/customers.js'),
-  invoices: () => import('./pages/invoices.js'),
-  marketing: () => import('./pages/marketing.js'),
-  login: () => import('./pages/login.js')
+  dashboard: () => import('./pages/dashboard.js?v=20260727'),
+  bookings: () => import('./pages/bookings.js?v=20260727'),
+  availability: () => import('./pages/availability.js?v=20260727'),
+  customers: () => import('./pages/customers.js?v=20260727'),
+  invoices: () => import('./pages/invoices.js?v=20260727'),
+  marketing: () => import('./pages/marketing.js?v=20260727'),
+  login: () => import('./pages/login.js?v=20260727')
 };
 
 function createContext(page) {

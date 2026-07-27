@@ -1,3 +1,5 @@
+import { ICONS } from './icons.js?v=20260727';
+
 /* ==========================================================================
    admin.js - CheckAuto admin app
 
@@ -85,8 +87,8 @@ export function initAdminRuntime(pageController) {
   var slotEditorReturnFocusSelector = '';
   var slotEditorBaseline = '';
   var calendarMediaQuery = null;
-  var ICON_BACK = '<svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>';
-  var ICON_CLOSE = '<svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>';
+  var ICON_BACK = ICONS.back;
+  var ICON_CLOSE = ICONS.close;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -1776,7 +1778,7 @@ export function initAdminRuntime(pageController) {
 
   function calendarIsCompact() {
     if (calendarMediaQuery) return Boolean(calendarMediaQuery.matches);
-    return Boolean(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
   }
 
   function applyCalendarLayout(calendar) {
@@ -1788,7 +1790,7 @@ export function initAdminRuntime(pageController) {
 
   function setupCalendarMedia() {
     if (!window.matchMedia || calendarMediaQuery) return;
-    calendarMediaQuery = window.matchMedia('(max-width: 720px)');
+    calendarMediaQuery = window.matchMedia('(max-width: 820px)');
     var handleChange = function () {
       renderCalendar();
     };

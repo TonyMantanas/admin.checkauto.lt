@@ -1,14 +1,4 @@
-const CHEVRON_PREVIOUS = `
-  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="m15 18-6-6 6-6"></path>
-  </svg>
-`;
-
-const CHEVRON_NEXT = `
-  <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
-    <path d="m9 6 6 6-6 6"></path>
-  </svg>
-`;
+import { ICONS } from '../core/icons.js?v=20260727';
 
 export const page = 'dashboard';
 
@@ -27,9 +17,9 @@ export function renderStaticPage(root, context) {
         <div class="admin-panel-header admin-panel-header-compact">
           <h2 id="dashboard-schedule-title" data-admin-calendar-title>Today</h2>
           <div class="admin-calendar-controls">
-            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period">${CHEVRON_PREVIOUS}</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period">${ICONS.previous}</button>
             <button class="admin-button admin-button-secondary" type="button" data-calendar-today>Today</button>
-            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period">${CHEVRON_NEXT}</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period">${ICONS.next}</button>
             <div class="admin-segmented" data-calendar-view role="group" aria-label="Schedule view">
               <button class="is-active" type="button" data-view="week" aria-pressed="true">Week</button>
               <button type="button" data-view="day" aria-pressed="false">Day</button>
