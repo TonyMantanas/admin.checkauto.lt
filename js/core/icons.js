@@ -5,13 +5,20 @@ function icon(name) {
 export const ICONS = Object.freeze({
   add: icon('plus'),
   back: icon('arrow-left'),
+  booking: icon('calendar-event'),
   close: icon('x'),
+  email: icon('mail'),
+  external: icon('external-link'),
+  invoice: icon('file-invoice'),
+  map: icon('map-pin'),
   menu: icon('menu'),
   next: icon('chevron-right'),
+  phone: icon('phone'),
   previous: icon('chevron-left'),
   refresh: icon('refresh'),
   send: icon('send'),
   signOut: icon('logout'),
   sortAscending: icon('sort-ascending'),
-  sortDescending: icon('sort-descending')
+  sortDescending: icon('sort-descending'),
+  user: icon('user')
 });

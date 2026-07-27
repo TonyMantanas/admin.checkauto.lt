@@ -1,4 +1,4 @@
-import { ICONS } from './icons.js?v=20260727-2';
+import { ICONS } from './icons.js?v=20260727-3';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -88,7 +88,15 @@ export function initAdminRuntime(pageController) {
   var slotEditorBaseline = '';
   var calendarMediaQuery = null;
   var ICON_BACK = ICONS.back;
+  var ICON_BOOKING = ICONS.booking;
   var ICON_CLOSE = ICONS.close;
+  var ICON_EMAIL = ICONS.email;
+  var ICON_EXTERNAL = ICONS.external;
+  var ICON_INVOICE = ICONS.invoice;
+  var ICON_MAP = ICONS.map;
+  var ICON_PHONE = ICONS.phone;
+  var ICON_REFRESH = ICONS.refresh;
+  var ICON_USER = ICONS.user;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -522,22 +530,22 @@ export function initAdminRuntime(pageController) {
 
   function customerRedactionBlockReasons(customer, bookings) {
     var reasons = [];
-    if (hasActiveLegalHold(customer)) reasons.push('active legal hold');
-    if (customer.marketing_consent_status === 'opted_in') reasons.push('active marketing consent');
-    if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('active booking');
-    if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('booking legal hold');
-    if (customer.pii_redacted_at) reasons.push('already redacted');
+    if (hasActiveLegalHold(customer)) reasons.push('a legal hold is active');
+    if (customer.marketing_consent_status === 'opted_in') reasons.push('withdraw marketing permission first');
+    if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('finish or cancel active bookings first');
+    if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('a linked booking has a legal hold');
+    if (customer.pii_redacted_at) reasons.push('the profile is already redacted');
     return reasons;
   }
 
   function customerDeleteBlockReasons(customer, bookings) {
     var reasons = [];
-    if (!customer.pii_redacted_at) reasons.push('redact profile first');
-    if (hasActiveLegalHold(customer)) reasons.push('active legal hold');
-    if (customer.marketing_consent_status === 'opted_in') reasons.push('active marketing consent');
-    if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('active booking');
-    if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('booking legal hold');
-    if (bookings.some(function (booking) { return !booking.pii_redacted_at; })) reasons.push('unredacted linked booking');
+    if (!customer.pii_redacted_at) reasons.push('redact personal data first');
+    if (hasActiveLegalHold(customer)) reasons.push('a legal hold is active');
+    if (customer.marketing_consent_status === 'opted_in') reasons.push('withdraw marketing permission first');
+    if (bookings.some(function (booking) { return ['pending', 'confirmed'].includes(booking.status); })) reasons.push('finish or cancel active bookings first');
+    if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) reasons.push('a linked booking has a legal hold');
+    if (bookings.some(function (booking) { return !booking.pii_redacted_at; })) reasons.push('a linked booking still contains personal data');
     return reasons;
   }
 
@@ -554,17 +562,17 @@ export function initAdminRuntime(pageController) {
   function statusLabel(status) {
     return {
       available: 'Available',
-      pending: 'Pending',
+      pending: 'Needs review',
       confirmed: 'Confirmed',
       rejected: 'Rejected',
       cancelled: 'Cancelled',
-      completed: 'Done',
+      completed: 'Completed',
       expired: 'Expired',
       open: 'Available',
       sent: 'Sent',
       failed: 'Failed',
-      partial: 'Partial',
-      sending: 'Sending'
+      partial: 'Partially sent',
+      sending: 'Sending now'
     }[status] || status;
   }
 
@@ -574,21 +582,58 @@ export function initAdminRuntime(pageController) {
     if (status === 'confirmed') return 'confirmed';
     if (status === 'completed') return 'completed';
     if (status === 'sent') return 'completed';
-    if (status === 'failed') return 'pending';
+    if (['rejected', 'cancelled', 'expired', 'failed'].includes(status)) return status;
     if (status === 'partial' || status === 'sending') return 'confirmed';
     return 'neutral';
+  }
+
+  function bookingStatusDescription(status) {
+    return {
+      pending: 'The requested time still needs an admin decision.',
+      confirmed: 'The time is scheduled and the customer has been notified.',
+      completed: 'The service is finished. Payment and invoicing can now be reviewed.',
+      rejected: 'The request was declined and is no longer active.',
+      cancelled: 'The confirmed booking was cancelled.',
+      expired: 'The request was not confirmed before its review deadline.'
+    }[status] || 'Current booking workflow state.';
   }
 
   function invoiceStatusLabel(invoice) {
     if (!invoice) return 'No invoice';
     if (invoice.invoice_status === 'void') return 'Void';
-    return invoice.payment_status === 'paid' ? 'Paid' : 'Unpaid';
+    if (invoice.payment_status === 'paid') return 'Paid';
+    if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) return 'Overdue';
+    return 'Unpaid';
   }
 
   function invoiceTone(invoice) {
     if (!invoice) return 'available';
-    if (invoice.invoice_status === 'void') return 'completed';
-    return invoice.payment_status === 'paid' ? 'completed' : 'pending';
+    if (invoice.invoice_status === 'void') return 'void';
+    return invoice.payment_status === 'paid' ? 'paid' : 'unpaid';
+  }
+
+  function invoiceStatusDescription(invoice) {
+    if (invoice.invoice_status === 'void') {
+      return 'This invoice is cancelled for accounting. Its number and PDF remain retained.';
+    }
+    if (invoice.payment_status === 'paid') {
+      return 'Payment has been recorded. The invoice remains available as a retained record.';
+    }
+    if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) {
+      return 'Payment is overdue. The PDF can be reviewed or resent to the customer.';
+    }
+    return 'Payment has not been recorded. The PDF can be reviewed or resent.';
+  }
+
+  function emailStatusLabel(status) {
+    return {
+      sent: 'Sent successfully',
+      delivered: 'Delivered',
+      failed: 'Delivery failed',
+      bounced: 'Delivery bounced',
+      pending: 'Waiting to send',
+      not_sent: 'Not sent'
+    }[status] || (status ? String(status).replace(/_/g, ' ') : 'Not sent');
   }
 
   function paymentLabel(status) {
@@ -1426,9 +1471,24 @@ export function initAdminRuntime(pageController) {
         confirmLabel: 'Mark done'
       },
       markCustomerErasureRequest: {
-        title: 'Mark erasure request',
-        message: 'Record that this customer requested erasure? This only records the request; retained invoice, legal-hold, or active operational records are not deleted.',
-        confirmLabel: 'Mark request'
+        title: 'Record erasure request',
+        message: 'Record that this customer requested erasure? This documents the request only. It does not redact or delete retained invoice, legal-hold, or active operational records.',
+        confirmLabel: 'Record request'
+      },
+      setCustomerLegalHold: {
+        title: 'Start legal hold',
+        message: 'Start this legal hold? Redaction and deletion will be blocked until the hold is released or expires.',
+        confirmLabel: 'Start legal hold'
+      },
+      releaseCustomerLegalHold: {
+        title: 'Release legal hold',
+        message: 'Release this legal hold? Eligible redaction and deletion actions can become available again. No data is deleted by this action.',
+        confirmLabel: 'Release hold'
+      },
+      withdrawCustomerMarketingConsent: {
+        title: 'Withdraw marketing permission',
+        message: 'Stop future marketing emails to this customer? Transactional booking and invoice messages are unaffected.',
+        confirmLabel: 'Withdraw permission'
       },
       createAndSendInvoice: {
         title: 'Create and send invoice',
@@ -1475,15 +1535,15 @@ export function initAdminRuntime(pageController) {
         danger: true
       },
       redactCustomerPii: {
-        title: 'Redact customer profile',
-        message: 'Redact this customer profile? This cannot be undone.',
-        confirmLabel: 'Redact customer',
+        title: 'Redact personal data',
+        message: 'Permanently remove direct identifiers from this profile and linked non-active bookings? Invoice records remain retained. This cannot be undone.',
+        confirmLabel: 'Redact personal data',
         danger: true
       },
       deleteCustomerProfile: {
-        title: 'Delete customer profile',
-        message: 'Delete this redacted customer profile from the customer list? This cannot be undone.',
-        confirmLabel: 'Delete profile',
+        title: 'Delete redacted profile',
+        message: 'Permanently delete this eligible redacted profile and linked non-active bookings? Retained invoices are not deleted. This cannot be undone.',
+        confirmLabel: 'Delete redacted profile',
         danger: true
       },
       sendMarketingCampaign: {
@@ -2026,11 +2086,31 @@ export function initAdminRuntime(pageController) {
     var reviewTime = booking.final_start_at ? finalTime : requested;
     var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(booking.vehicle_location || '');
     var customer = customerForBooking(booking);
+    var vehicleActions =
+      (booking.vehicle_location
+        ? '<a class="admin-context-action" href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">' + ICON_MAP + '<span>Open map</span></a>'
+        : '') +
+      (booking.listing_url
+        ? '<a class="admin-context-action" href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">' + ICON_EXTERNAL + '<span>Open listing</span></a>'
+        : '');
+    var customerActions =
+      (booking.customer_phone
+        ? '<a class="admin-context-action" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>Call</span></a>'
+        : '') +
+      (booking.customer_email
+        ? '<a class="admin-context-action" href="mailto:' + escapeHtml(booking.customer_email) + '">' + ICON_EMAIL + '<span>Email</span></a>'
+        : '') +
+      (customer
+        ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
+        : '');
 
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
+          '<div class="admin-modal-status-line">' +
+            '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
+            '<span class="admin-status-explanation">' + escapeHtml(bookingStatusDescription(booking.status)) + '</span>' +
+          '</div>' +
           '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
@@ -2049,50 +2129,27 @@ export function initAdminRuntime(pageController) {
               '<span>Vehicle</span>' +
               '<strong>' + escapeHtml(booking.vehicle || 'Not provided') + '</strong>' +
               '<span>' + escapeHtml(booking.vehicle_location || 'Location not provided') + '</span>' +
+              (vehicleActions ? '<div class="admin-context-actions">' + vehicleActions + '</div>' : '') +
             '</div>' +
             '<div class="admin-booking-key-fact">' +
               '<span>Customer</span>' +
               '<strong>' + escapeHtml(booking.customer_name || 'Not provided') + '</strong>' +
-              '<span>' + escapeHtml(booking.customer_phone || booking.customer_email || 'Contact not provided') + '</span>' +
-            '</div>' +
-            '<div class="admin-booking-key-fact">' +
-              '<span>Assigned to</span>' +
-              '<strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong>' +
-              '<span>' + escapeHtml(booking.status === 'pending' ? 'Awaiting review' : statusLabel(booking.status)) + '</span>' +
+              '<span>' + escapeHtml(booking.customer_phone || 'Phone not provided') + '</span>' +
+              '<span>' + escapeHtml(booking.customer_email || 'Email not provided') + '</span>' +
+              (customerActions ? '<div class="admin-context-actions">' + customerActions + '</div>' : '') +
             '</div>' +
           '</div>' +
         '</div>' +
         '<div class="admin-booking-overview-meta">' +
+          '<span>Assigned to: <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></span>' +
           (booking.final_start_at ? '<span>Originally requested: <strong>' + escapeHtml(requested) + '</strong></span>' : '') +
           (booking.pending_expires_at ? '<span>Expires: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
         '</div>' +
       '</section>' +
       renderRequestActions(booking) +
-      '<div class="admin-detail-section">' +
-        '<h2>Customer</h2>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Name', booking.customer_name) +
-          detailRow('Email', booking.customer_email) +
-          detailRow('Phone', booking.customer_phone) +
-        '</div>' +
-        '<div class="admin-quick-actions">' +
-          '<a href="tel:' + escapeHtml(booking.customer_phone) + '">Call</a>' +
-          '<a href="mailto:' + escapeHtml(booking.customer_email) + '">Email</a>' +
-          (customer ? '<button class="admin-link-button" type="button" data-open-customer="' + escapeHtml(customer.id) + '">Open customer profile</button>' : '') +
-        '</div>' +
-      '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h2>Vehicle</h2>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Vehicle', booking.vehicle) +
-          detailRow('Location', booking.vehicle_location) +
-          detailRow('Customer note', booking.customer_message) +
-        '</div>' +
-        '<div class="admin-quick-actions">' +
-          '<a href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">Map</a>' +
-          (booking.listing_url ? '<a href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">Listing</a>' : '') +
-        '</div>' +
-      '</div>' +
+      (booking.customer_message
+        ? '<div class="admin-detail-section admin-booking-note"><h3>Customer note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
+        : '') +
       renderBookingInvoiceActions(booking);
 
     var modal = openModal(html, 'lg');
@@ -2147,7 +2204,7 @@ export function initAdminRuntime(pageController) {
       '</div>' +
       '<label>Reason<textarea name="legalHoldReason" maxlength="500" required placeholder="Required legal or dispute reason"></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Set legal hold</button></div>' +
+      '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Start legal hold</button></div>' +
     '</form>';
   }
 
@@ -2207,14 +2264,17 @@ export function initAdminRuntime(pageController) {
     if (invoice) {
       return '<div class="admin-detail-section">' +
         '<h2>Invoice and payment</h2>' +
+        '<div class="admin-modal-status-line">' +
+          '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
+          '<span class="admin-status-explanation">' + escapeHtml(invoiceStatusDescription(invoice)) + '</span>' +
+        '</div>' +
         '<div class="admin-detail-list">' +
           detailRow('Invoice', invoice.invoice_number) +
-          detailRow('Invoice status', invoiceStatusLabel(invoice)) +
           detailRow('Amount', formatMoney(invoice.amount_cents, invoice.currency)) +
-          detailRow('Email status', invoice.email_status || 'not_sent') +
+          detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
         '</div>' +
-        '<div class="admin-action-buttons">' +
-          '<button class="admin-button admin-button-secondary" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">Open invoice</button>' +
+        '<div class="admin-context-actions">' +
+          '<button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Invoice details</span></button>' +
         '</div>' +
       '</div>';
     }
@@ -2406,17 +2466,26 @@ export function initAdminRuntime(pageController) {
 
   function marketingTone(status) {
     if (status === 'opted_in') return 'confirmed';
-    if (status === 'withdrawn' || status === 'suppressed') return 'completed';
-    return 'available';
+    if (status === 'suppressed') return 'warning';
+    return 'neutral';
   }
 
   function marketingLabel(status) {
     return {
-      opted_in: 'Marketing on',
-      withdrawn: 'Withdrawn',
-      suppressed: 'Suppressed',
-      not_asked: 'No consent'
-    }[status] || 'No consent';
+      opted_in: 'Marketing allowed',
+      withdrawn: 'Consent withdrawn',
+      suppressed: 'Marketing blocked',
+      not_asked: 'No marketing consent'
+    }[status] || 'No marketing consent';
+  }
+
+  function marketingStatusDescription(status) {
+    return {
+      opted_in: 'The customer can receive marketing emails.',
+      withdrawn: 'The customer withdrew permission. Marketing emails must not be sent.',
+      suppressed: 'Marketing delivery is blocked for this customer.',
+      not_asked: 'No permission to send marketing emails is recorded.'
+    }[status] || 'No permission to send marketing emails is recorded.';
   }
 
   function renderCustomerModal(customerId) {
@@ -2433,27 +2502,60 @@ export function initAdminRuntime(pageController) {
     var holdActive = hasActiveLegalHold(customer);
     var redactionBlockReasons = customerRedactionBlockReasons(customer, bookings);
     var redactionDisabled = redactionBlockReasons.length > 0;
-    var redactionBlockText = redactionDisabled ? 'Blocked: ' + redactionBlockReasons.join(', ') + '.' : '';
+    var redactionBlockText = redactionDisabled ? 'Unavailable: ' + redactionBlockReasons.join('; ') + '.' : '';
     var deleteBlockReasons = customerDeleteBlockReasons(customer, linkedBookings);
     var deleteDisabled = deleteBlockReasons.length > 0;
-    var deleteBlockText = deleteDisabled ? 'Blocked: ' + deleteBlockReasons.join(', ') + '.' : '';
+    var deleteBlockText = deleteDisabled ? 'Unavailable: ' + deleteBlockReasons.join('; ') + '.' : '';
     var erasureRequestDisabled = Boolean(customer.erasure_requested_at);
     var erasureRequestTitle = erasureRequestDisabled ? 'Erasure request already recorded.' : '';
+    var holdStatus = holdActive
+      ? 'Active until ' + formatDateTime(customer.legal_hold_until)
+      : 'No active legal hold';
+    var holdDescription = holdActive
+      ? 'Redaction and deletion are blocked until this hold is released or expires.'
+      : 'Eligible personal data actions are not being blocked by a customer-level hold.';
+    var erasureStatus = customer.erasure_completed_at
+      ? 'Completed ' + formatDateTime(customer.erasure_completed_at)
+      : (customer.erasure_requested_at ? 'Requested ' + formatDateTime(customer.erasure_requested_at) : 'No request recorded');
+    var erasureDescription = customer.erasure_completed_at
+      ? 'The recorded erasure workflow has been completed.'
+      : (customer.erasure_requested_at
+        ? 'A request is recorded. Retained invoice, legal, and active operational records may remain.'
+        : 'Recording a request documents the customer request but does not delete data.');
+    var profileStatus = customer.pii_redacted_at
+      ? 'Redacted ' + formatDateTime(customer.pii_redacted_at)
+      : 'Personal data present';
+    var profileDescription = customer.pii_redacted_at
+      ? 'Direct identifiers have been removed from the profile.'
+      : 'The profile still contains identifying contact information.';
+    var contactActions =
+      (customer.phone
+        ? '<a class="admin-context-action" href="tel:' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '<span>Call</span></a>'
+        : '') +
+      (customer.email
+        ? '<a class="admin-context-action" href="mailto:' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '<span>Email</span></a>'
+        : '');
 
     var html =
       '<div class="admin-modal-header" data-customer-modal="' + escapeHtml(customer.id) + '">' +
         '<div>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span>' +
+          '<div class="admin-modal-status-line">' +
+            '<span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span>' +
+            '<span class="admin-status-explanation">' + escapeHtml(marketingStatusDescription(customer.marketing_consent_status)) + '</span>' +
+          '</div>' +
           '<h2>' + escapeHtml(customer.display_name) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
+      (contactActions
+        ? '<div class="admin-modal-toolbar"><span class="admin-modal-toolbar-label">Contact customer</span>' + contactActions + '</div>'
+        : '') +
       '<div class="admin-detail-section admin-customer-bookings-section">' +
         '<h2>Bookings (' + escapeHtml(bookings.length) + ')</h2>' +
         renderCustomerBookings(bookings) +
       '</div>' +
       '<div class="admin-detail-section">' +
-        '<h3>Contact</h3>' +
+        '<h3>Customer details</h3>' +
         '<div class="admin-detail-list">' +
           detailRow('Email', customer.email) +
           detailRow('Phone', customer.phone) +
@@ -2461,46 +2563,73 @@ export function initAdminRuntime(pageController) {
           detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
           detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
         '</div>' +
-        '<div class="admin-quick-actions">' +
-          '<a href="mailto:' + escapeHtml(customer.email) + '">Email</a>' +
-          (customer.phone ? '<a href="tel:' + escapeHtml(customer.phone) + '">Call</a>' : '') +
-        '</div>' +
       '</div>' +
       '<div class="admin-detail-section">' +
         '<h2>Invoices</h2>' +
         renderCustomerInvoices(invoices) +
       '</div>' +
-      '<details class="admin-detail-section admin-disclosure">' +
+      '<details class="admin-detail-section admin-disclosure admin-privacy-controls">' +
         '<summary>Privacy, consent, and legal controls</summary>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Marketing consent', marketingLabel(customer.marketing_consent_status)) +
-          detailRow('Consent at', customer.marketing_consent_at ? formatDateTime(customer.marketing_consent_at) : '') +
-          detailRow('Consent source', customer.marketing_consent_source) +
-          detailRow('Consent version', customer.marketing_consent_text_version) +
-          detailRow('Re-permission due', customer.marketing_repermission_due_at ? formatDateTime(customer.marketing_repermission_due_at) : '') +
-          detailRow('Legal hold until', customer.legal_hold_until ? formatDateTime(customer.legal_hold_until) : 'None') +
-          detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
-          detailRow('Erasure request', customer.erasure_requested_at ? formatDateTime(customer.erasure_requested_at) : 'None') +
-          detailRow('Erasure completed', customer.erasure_completed_at ? formatDateTime(customer.erasure_completed_at) : 'Not completed') +
-          detailRow('Redacted at', customer.pii_redacted_at ? formatDateTime(customer.pii_redacted_at) : 'Not redacted') +
+        '<div class="admin-privacy-overview">' +
+          '<div>' +
+            '<h3>Current data status</h3>' +
+            '<div class="admin-privacy-status-grid">' +
+              '<div class="admin-privacy-status-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong><p>' + escapeHtml(marketingStatusDescription(customer.marketing_consent_status)) + '</p></div>' +
+              '<div class="admin-privacy-status-card"><span>Legal retention</span><strong>' + escapeHtml(holdStatus) + '</strong><p>' + escapeHtml(holdDescription) + '</p></div>' +
+              '<div class="admin-privacy-status-card"><span>Erasure request</span><strong>' + escapeHtml(erasureStatus) + '</strong><p>' + escapeHtml(erasureDescription) + '</p></div>' +
+              '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong><p>' + escapeHtml(profileDescription) + '</p></div>' +
+            '</div>' +
+          '</div>' +
+          '<details class="admin-privacy-record-details">' +
+            '<summary>View consent and retention dates</summary>' +
+            '<div class="admin-detail-list">' +
+              detailRow('Consent recorded', customer.marketing_consent_at ? formatDateTime(customer.marketing_consent_at) : '') +
+              detailRow('Consent source', customer.marketing_consent_source) +
+              detailRow('Consent version', customer.marketing_consent_text_version) +
+              detailRow('Re-permission due', customer.marketing_repermission_due_at ? formatDateTime(customer.marketing_repermission_due_at) : '') +
+              detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
+              detailRow('Erasure completed', customer.erasure_completed_at ? formatDateTime(customer.erasure_completed_at) : 'Not completed') +
+            '</div>' +
+          '</details>' +
+          '<div>' +
+            '<h3>Available actions</h3>' +
+            '<div class="admin-privacy-action-list">' +
+              (customer.marketing_consent_status === 'opted_in'
+                ? '<div class="admin-privacy-action-card">' +
+                    '<div class="admin-privacy-action-heading"><h4>Withdraw marketing permission</h4><p>Stops future marketing emails. Transactional booking and invoice messages are unaffected.</p></div>' +
+                    renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw permission', 'admin-button-secondary', { customerId: customer.id }) +
+                  '</div>'
+                : '') +
+              '<div class="admin-privacy-action-card">' +
+                '<div class="admin-privacy-action-heading"><h4>' + (holdActive ? 'Release legal hold' : 'Start a legal hold') + '</h4><p>' +
+                  (holdActive
+                    ? 'Allows eligible redaction and deletion checks to proceed again. Releasing the hold does not delete data.'
+                    : 'Temporarily blocks redaction and deletion for a legal, dispute, or retention reason.') +
+                '</p></div>' +
+                (holdActive ? renderReleaseHoldForm(customer) : renderSetHoldForm(customer, addDaysYmd(todayYmd(), 180))) +
+              '</div>' +
+              '<div class="admin-privacy-action-card">' +
+                '<div class="admin-privacy-action-heading"><h4>Record an erasure request</h4><p>Documents the customer request. It does not redact or delete records by itself.</p></div>' +
+                renderInlineActionForm('markCustomerErasureRequest', 'Record request', 'admin-button-secondary', { customerId: customer.id }, erasureRequestDisabled, erasureRequestTitle) +
+                (erasureRequestDisabled ? '<p class="admin-action-meta">A request is already recorded for this customer.</p>' : '') +
+              '</div>' +
+              '<div class="admin-privacy-action-card" data-tone="danger">' +
+                '<div class="admin-privacy-action-heading"><h4>Redact personal data</h4><p>Irreversibly removes direct identifiers from this profile and linked non-active bookings. Invoice records remain retained.</p></div>' +
+                renderInlineActionForm('redactCustomerPii', 'Redact personal data', 'admin-button-danger', { customerId: customer.id }, redactionDisabled, redactionBlockText) +
+                (redactionDisabled ? '<p class="admin-action-meta" data-tone="warning">' + escapeHtml(redactionBlockText) + '</p>' : '') +
+              '</div>' +
+              '<div class="admin-privacy-action-card" data-tone="danger">' +
+                '<div class="admin-privacy-action-heading"><h4>Delete the redacted profile</h4><p>Irreversibly removes an eligible redacted profile and linked non-active bookings. Retained invoices are not deleted.</p></div>' +
+                renderInlineActionForm('deleteCustomerProfile', 'Delete redacted profile', 'admin-button-danger', { customerId: customer.id }, deleteDisabled, deleteBlockText) +
+                (deleteDisabled ? '<p class="admin-action-meta" data-tone="warning">' + escapeHtml(deleteBlockText) + '</p>' : '') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
         '</div>' +
-        '<p class="admin-detail-note">Redacting the customer profile also redacts linked non-active bookings. Invoice records stay retained.</p>' +
-        '<p class="admin-detail-note">Deleting removes a redacted profile and linked non-active bookings after legal-hold, marketing, and active-booking checks pass.</p>' +
-        (redactionDisabled ? '<p class="admin-detail-note admin-detail-note-warning">' + escapeHtml(redactionBlockText) + '</p>' : '') +
-        (deleteDisabled ? '<p class="admin-detail-note admin-detail-note-warning">' + escapeHtml(deleteBlockText) + '</p>' : '') +
-        (holdActive ? renderReleaseHoldForm(customer) : renderSetHoldForm(customer, addDaysYmd(todayYmd(), 180))) +
-        '<div class="admin-action-buttons admin-privacy-buttons">' +
-          renderInlineActionForm('markCustomerErasureRequest', 'Mark erasure request', 'admin-button-secondary', { customerId: customer.id }, erasureRequestDisabled, erasureRequestTitle) +
-          (customer.marketing_consent_status === 'opted_in'
-            ? renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw marketing consent', 'admin-button-secondary', { customerId: customer.id })
-            : '') +
-          renderInlineActionForm('redactCustomerPii', 'Redact customer profile', 'admin-button-danger', { customerId: customer.id }, redactionDisabled, redactionBlockText) +
-          renderInlineActionForm('deleteCustomerProfile', 'Delete customer profile', 'admin-button-danger', { customerId: customer.id }, deleteDisabled, deleteBlockText) +
-        '</div>' +
-        '<div class="admin-detail-section">' +
-          '<h3>Customer events</h3>' +
-          renderCustomerEvents(events) +
-        '</div>' +
+      '</details>' +
+      '<details class="admin-detail-section admin-disclosure">' +
+        '<summary>Customer activity (' + escapeHtml(events.length) + ')</summary>' +
+        renderCustomerEvents(events) +
       '</details>';
 
     var modal = openModal(html, 'lg');
@@ -2549,11 +2678,15 @@ export function initAdminRuntime(pageController) {
   function renderCustomerInvoices(invoices) {
     if (!invoices.length) return '<p>No invoices linked to this customer.</p>';
     return '<div class="admin-mini-list">' + invoices.map(function (invoice) {
-      return '<button class="admin-mini-item" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' +
-        '<span><strong>' + escapeHtml(invoice.invoice_number) + '</strong> ' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
-        '<span>' + escapeHtml(invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued') + '</span>' +
-        '<span>' + escapeHtml(formatMoney(invoice.amount_cents, invoice.currency)) + '</span>' +
-        '<span>Email: ' + escapeHtml(invoice.email_status || 'not_sent') + '</span>' +
+      var invoiceLabel = invoiceStatusLabel(invoice);
+      var amount = formatMoney(invoice.amount_cents, invoice.currency);
+      var issued = invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued';
+      var emailState = emailStatusLabel(invoice.email_status);
+      var openInvoiceLabel = [invoice.invoice_number, amount, invoiceLabel, issued, emailState].join(', ');
+      return '<button class="admin-mini-item admin-customer-invoice" type="button" aria-label="' + escapeHtml('Open invoice: ' + openInvoiceLabel) + '" data-open-invoice="' + escapeHtml(invoice.id) + '">' +
+        '<span class="admin-customer-invoice-main"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(amount) + '</span></span>' +
+        '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
+        '<span class="admin-customer-invoice-meta">Issued ' + escapeHtml(issued) + ' · ' + escapeHtml(emailState) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }
@@ -2711,52 +2844,106 @@ export function initAdminRuntime(pageController) {
     state.selectedInvoiceId = invoice.id;
     var booking = bookingById(invoice.booking_id);
     var customer = customerById(invoice.customer_id);
+    var customerName = customer ? customer.display_name : invoice.customer_name;
+    var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
+    var invoiceLabel = invoiceStatusLabel(invoice);
+    var isUnpaidIssued = invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid';
+    var amountLabel = isUnpaidIssued ? 'Amount due' : 'Invoice amount';
+    var dueSummary = invoice.invoice_status === 'void'
+      ? 'No payment is due'
+      : (invoice.payment_status === 'paid' ? 'Payment recorded' : 'Due ' + (invoice.due_date || 'date not set'));
+    var customerActions =
+      (invoice.customer_phone
+        ? '<a class="admin-context-action" href="tel:' + escapeHtml(invoice.customer_phone) + '">' + ICON_PHONE + '<span>Call</span></a>'
+        : '') +
+      (invoice.customer_email
+        ? '<a class="admin-context-action" href="mailto:' + escapeHtml(invoice.customer_email) + '">' + ICON_EMAIL + '<span>Email</span></a>'
+        : '') +
+      (customer
+        ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
+        : '');
+    var bookingActions = booking
+      ? '<button class="admin-context-action" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' + ICON_BOOKING + '<span>Booking details</span></button>'
+      : '';
+    var documentActions =
+      (invoice.pdf_path
+        ? '<button class="admin-button admin-button-primary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>View PDF</span></button>'
+        : '') +
+      (invoice.invoice_status === 'issued'
+        ? '<button class="admin-button admin-button-secondary" type="button" data-resend-invoice="' + escapeHtml(invoice.id) + '">' + ICON_REFRESH + '<span>Resend invoice</span></button>'
+        : '');
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
+          '<div class="admin-modal-status-line">' +
+            '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
+            '<span class="admin-status-explanation">' + escapeHtml(invoiceStatusDescription(invoice)) + '</span>' +
+          '</div>' +
           '<h2>' + escapeHtml(invoice.invoice_number) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close invoice" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h3>Invoice summary</h3>' +
+      '<section class="admin-detail-section admin-invoice-overview">' +
+        '<span class="admin-section-kicker">Review first</span>' +
+        '<h3>Invoice details</h3>' +
+        '<div class="admin-invoice-overview-grid">' +
+          '<div class="admin-invoice-primary-fact">' +
+            '<span>' + escapeHtml(amountLabel) + '</span>' +
+            '<strong>' + escapeHtml(invoiceAmount) + '</strong>' +
+            '<span>' + escapeHtml(dueSummary) + '</span>' +
+          '</div>' +
+          '<div class="admin-invoice-context-grid">' +
+            '<div class="admin-invoice-context-card">' +
+              '<span>Customer</span>' +
+              '<strong>' + escapeHtml(customerName || 'Not provided') + '</strong>' +
+              '<span>' + escapeHtml(invoice.customer_email || invoice.customer_phone || 'Contact not provided') + '</span>' +
+              (customerActions ? '<div class="admin-context-actions">' + customerActions + '</div>' : '') +
+            '</div>' +
+            '<div class="admin-invoice-context-card">' +
+              '<span>Booking</span>' +
+              '<strong>' + escapeHtml(booking ? booking.public_reference : 'No linked booking') + '</strong>' +
+              '<span>' + escapeHtml(invoice.service_description || 'Service not provided') + '</span>' +
+              (bookingActions ? '<div class="admin-context-actions">' + bookingActions + '</div>' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="admin-invoice-overview-meta">' +
+          '<span>Issued: <strong>' + escapeHtml(invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued') + '</strong></span>' +
+          '<span>Email: <strong>' + escapeHtml(emailStatusLabel(invoice.email_status)) + '</strong></span>' +
+          (invoice.last_sent_at ? '<span>Last sent: <strong>' + escapeHtml(formatDateTime(invoice.last_sent_at)) + '</strong></span>' : '') +
+        '</div>' +
+      '</section>' +
+      (documentActions
+        ? '<div class="admin-modal-toolbar"><span class="admin-modal-toolbar-label">Invoice document</span>' + documentActions + '</div>'
+        : '') +
+      (invoice.last_email_error
+        ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
+        : '') +
+      (isUnpaidIssued
+        ? '<section class="admin-detail-section admin-workflow-section">' +
+            '<h3>Record payment</h3>' +
+            '<p class="admin-detail-note">Use this only after payment is received. It records the payment method and marks the invoice paid.</p>' +
+            renderMarkInvoicePaidForm(invoice) +
+          '</section>'
+        : '') +
+      '<details class="admin-detail-section admin-disclosure">' +
+        '<summary>Invoice record details</summary>' +
         '<div class="admin-detail-list">' +
-          detailRow('Status', invoice.invoice_status) +
-          detailRow('Payment', invoiceStatusLabel(invoice)) +
-          detailRow('Issued at', invoice.issued_at ? formatDateTime(invoice.issued_at) : '') +
+          detailRow('Invoice state', invoice.invoice_status === 'issued' ? 'Issued' : invoiceLabel) +
+          detailRow('Payment state', paymentLabel(invoice.payment_status)) +
           detailRow('Due date', invoice.due_date) +
-          detailRow('Amount', formatMoney(invoice.amount_cents, invoice.currency)) +
           detailRow('VAT', formatMoney(invoice.tax_cents, invoice.currency)) +
-          detailRow('Email status', invoice.email_status) +
-          detailRow('Last sent', invoice.last_sent_at ? formatDateTime(invoice.last_sent_at) : '') +
+          detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
           detailRow('Retention until', invoice.retention_hold_until) +
         '</div>' +
-        (invoice.last_email_error ? '<p class="admin-detail-note admin-detail-note-warning">' + escapeHtml(invoice.last_email_error) + '</p>' : '') +
-      '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h3>Customer and booking</h3>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Customer', customer ? customer.display_name : invoice.customer_name) +
-          detailRow('Email', invoice.customer_email) +
-          detailRow('Phone', invoice.customer_phone) +
-          detailRow('Booking', booking ? booking.public_reference : '') +
-          detailRow('Service', invoice.service_description) +
-        '</div>' +
-        '<div class="admin-action-buttons">' +
-          (customer ? '<button class="admin-button admin-button-secondary" type="button" data-open-customer="' + escapeHtml(customer.id) + '">Open customer</button>' : '') +
-          (booking ? '<button class="admin-button admin-button-secondary" type="button" data-open-booking="' + escapeHtml(booking.id) + '">Open booking</button>' : '') +
-        '</div>' +
-      '</div>' +
-      '<div class="admin-detail-section">' +
-        '<h3>PDF and actions</h3>' +
-        '<div class="admin-action-buttons">' +
-          (invoice.pdf_path ? '<button class="admin-button admin-button-secondary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">View PDF</button>' : '') +
-          (invoice.invoice_status === 'issued' ? '<button class="admin-button admin-button-secondary" type="button" data-resend-invoice="' + escapeHtml(invoice.id) + '">Resend invoice</button>' : '') +
-        '</div>' +
-        (invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid' ? renderMarkInvoicePaidForm(invoice) : '') +
-        renderVoidInvoiceForm(invoice) +
-      '</div>';
+      '</details>' +
+      (invoice.invoice_status !== 'void'
+        ? '<details class="admin-detail-section admin-disclosure admin-danger-disclosure">' +
+            '<summary>Void invoice</summary>' +
+            '<p class="admin-detail-note">Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.</p>' +
+            renderVoidInvoiceForm(invoice) +
+          '</details>'
+        : '');
 
     var modal = openModal(html, 'lg');
     renderInvoiceList();

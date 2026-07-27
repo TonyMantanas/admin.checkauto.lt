@@ -598,6 +598,11 @@ fieldset {
   mask-image: url("icons/arrow-left.svg");
 }
 
+.admin-icon-calendar-event {
+  -webkit-mask-image: url("icons/calendar-event.svg");
+  mask-image: url("icons/calendar-event.svg");
+}
+
 .admin-icon-chevron-left {
   -webkit-mask-image: url("icons/chevron-left.svg");
   mask-image: url("icons/chevron-left.svg");
@@ -613,6 +618,26 @@ fieldset {
   mask-image: url("icons/logout-2.svg");
 }
 
+.admin-icon-external-link {
+  -webkit-mask-image: url("icons/external-link.svg");
+  mask-image: url("icons/external-link.svg");
+}
+
+.admin-icon-file-invoice {
+  -webkit-mask-image: url("icons/file-invoice.svg");
+  mask-image: url("icons/file-invoice.svg");
+}
+
+.admin-icon-mail {
+  -webkit-mask-image: url("icons/mail.svg");
+  mask-image: url("icons/mail.svg");
+}
+
+.admin-icon-map-pin {
+  -webkit-mask-image: url("icons/map-pin.svg");
+  mask-image: url("icons/map-pin.svg");
+}
+
 .admin-icon-menu {
   -webkit-mask-image: url("icons/menu-2.svg");
   mask-image: url("icons/menu-2.svg");
@@ -621,6 +646,11 @@ fieldset {
 .admin-icon-plus {
   -webkit-mask-image: url("icons/plus.svg");
   mask-image: url("icons/plus.svg");
+}
+
+.admin-icon-phone {
+  -webkit-mask-image: url("icons/phone.svg");
+  mask-image: url("icons/phone.svg");
 }
 
 .admin-icon-refresh {
@@ -646,6 +676,11 @@ fieldset {
 .admin-icon-x {
   -webkit-mask-image: url("icons/x.svg");
   mask-image: url("icons/x.svg");
+}
+
+.admin-icon-user {
+  -webkit-mask-image: url("icons/user.svg");
+  mask-image: url("icons/user.svg");
 }
 
 .admin-action-buttons,
@@ -2014,15 +2049,16 @@ button.admin-mini-item::after {
 .admin-booking-key-facts {
   min-width: 0;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--admin-space-3);
 }
 
 .admin-booking-key-fact {
   min-width: 0;
   padding: var(--admin-space-4);
-  display: grid;
-  align-content: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 0.35rem;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-panel-radius);
@@ -2039,7 +2075,7 @@ button.admin-mini-item::after {
   font-size: var(--admin-text-md);
 }
 
-.admin-booking-key-fact > span:last-child:not(:first-child) {
+.admin-booking-key-fact > span:not(:first-child) {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
 }
@@ -2055,6 +2091,94 @@ button.admin-mini-item::after {
 
 .admin-booking-overview-meta strong {
   color: var(--admin-text);
+}
+
+.admin-modal-status-line {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  flex-wrap: wrap;
+}
+
+.admin-status-explanation {
+  max-width: 36rem;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 550;
+  line-height: 1.4;
+}
+
+.admin-context-actions,
+.admin-modal-toolbar {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  flex-wrap: wrap;
+}
+
+.admin-context-actions {
+  margin-block-start: auto;
+  padding-block-start: var(--admin-space-3);
+}
+
+.admin-context-action {
+  min-height: 1.875rem;
+  padding: 0.32rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: var(--admin-control-radius);
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    color var(--admin-duration) var(--admin-ease),
+    border-color var(--admin-duration) var(--admin-ease),
+    background-color var(--admin-duration) var(--admin-ease);
+}
+
+.admin-context-action:hover {
+  color: var(--admin-accent);
+  border-color: color-mix(in srgb, var(--admin-accent) 45%, var(--admin-border));
+  background: var(--admin-accent-soft);
+}
+
+.admin-context-action .admin-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+  flex-basis: 0.9rem;
+}
+
+.admin-modal-toolbar {
+  margin-block: calc(-1 * var(--admin-space-2)) var(--admin-space-4);
+  padding: var(--admin-space-3);
+  justify-content: flex-start;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-panel-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-modal-toolbar-label {
+  margin-inline-end: auto;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+}
+
+.admin-modal-alert {
+  margin-block: 0 var(--admin-space-4);
+}
+
+.admin-booking-note {
+  padding-block-end: var(--admin-space-4);
 }
 
 .admin-booking-decision {
@@ -2112,12 +2236,273 @@ button.admin-mini-item::after {
   font-size: 0.6875rem;
 }
 
-.admin-privacy-form {
+.admin-customer-invoice {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem var(--admin-space-4);
+  border-color: var(--admin-border);
+  border-block-end-color: var(--admin-border);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-customer-invoice-main {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-customer-invoice-main strong {
+  font-size: var(--admin-text-md);
+}
+
+.admin-customer-invoice-main span {
+  color: var(--admin-text);
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.admin-customer-invoice > .admin-status-pill {
+  align-self: start;
+  margin-inline-end: var(--admin-space-4);
+}
+
+.admin-customer-invoice-meta {
+  grid-column: 1 / -1;
+  color: var(--admin-text-tertiary);
+  font-size: 0.6875rem;
+}
+
+.admin-invoice-overview {
+  padding-block-start: 0;
+}
+
+.admin-invoice-overview-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.8fr) minmax(0, 1.7fr);
+  gap: var(--admin-space-4);
+}
+
+.admin-invoice-primary-fact {
+  min-width: 0;
+  padding: var(--admin-space-5);
+  display: grid;
+  align-content: center;
+  gap: var(--admin-space-2);
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 24%, var(--admin-border));
+  border-radius: var(--admin-panel-radius);
+  background: var(--admin-accent-soft);
+}
+
+.admin-invoice-primary-fact > span:first-child,
+.admin-invoice-context-card > span:first-child {
+  color: var(--admin-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-invoice-primary-fact > strong {
+  color: var(--admin-text);
+  font-size: clamp(1.45rem, 3.5vw, 2rem);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+}
+
+.admin-invoice-primary-fact > span:last-child {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-invoice-context-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-3);
+}
+
+.admin-invoice-context-card {
+  min-width: 0;
+  padding: var(--admin-space-4);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-panel-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-invoice-context-card strong,
+.admin-invoice-context-card span {
+  overflow-wrap: anywhere;
+}
+
+.admin-invoice-context-card strong {
+  color: var(--admin-text);
+  font-size: var(--admin-text-md);
+}
+
+.admin-invoice-context-card > span:last-of-type:not(:first-child) {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-invoice-overview-meta {
   margin-block-start: var(--admin-space-3);
-  padding: var(--admin-space-3);
+  display: flex;
+  gap: var(--admin-space-3);
+  flex-wrap: wrap;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-invoice-overview-meta strong {
+  color: var(--admin-text);
+}
+
+.admin-workflow-section {
+  margin-inline: calc(-1 * var(--admin-space-2));
+  padding-inline: var(--admin-space-2);
+  background: linear-gradient(90deg, var(--admin-surface-subtle), transparent 72%);
+}
+
+.admin-danger-disclosure > summary {
+  color: var(--admin-danger);
+}
+
+.admin-privacy-overview {
+  min-width: 0;
+  display: grid;
+  gap: var(--admin-space-4);
+}
+
+.admin-privacy-status-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-3);
+}
+
+.admin-privacy-status-card {
+  min-width: 0;
+  padding: var(--admin-space-4);
+  display: grid;
+  gap: 0.35rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-panel-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-privacy-status-card > span:first-child {
+  color: var(--admin-text-tertiary);
+  font-size: 0.6875rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.admin-privacy-status-card strong {
+  color: var(--admin-text);
+  font-size: var(--admin-text-md);
+}
+
+.admin-privacy-status-card p,
+.admin-privacy-action-heading p {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  line-height: 1.5;
+}
+
+.admin-privacy-action-list {
+  min-width: 0;
+  display: grid;
+  gap: var(--admin-space-3);
+}
+
+.admin-privacy-record-details {
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-control-radius);
+  background: var(--admin-surface);
+}
+
+.admin-privacy-record-details > summary {
+  min-height: 2.5rem;
+  padding: 0.6rem var(--admin-space-3);
+  display: flex;
+  align-items: center;
+  color: var(--admin-text);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+}
+
+.admin-privacy-record-details[open] > summary {
+  border-block-end: 1px solid var(--admin-border);
+}
+
+.admin-privacy-record-details > .admin-detail-list {
+  padding: var(--admin-space-3);
+}
+
+.admin-privacy-action-card {
+  min-width: 0;
+  padding: var(--admin-space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--admin-space-3) var(--admin-space-5);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-panel-radius);
+  background: var(--admin-surface);
+}
+
+.admin-privacy-action-card > :not(.admin-privacy-action-heading) {
+  grid-column: 2;
+}
+
+.admin-privacy-action-heading {
+  min-width: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.admin-privacy-action-heading h4 {
+  font-size: var(--admin-text-sm);
+}
+
+.admin-privacy-action-card .admin-privacy-form,
+.admin-privacy-action-card .admin-action-meta {
+  grid-column: 1 / -1;
+}
+
+.admin-privacy-action-card .admin-inline-action-form {
+  align-self: center;
+}
+
+.admin-privacy-action-card[data-tone="danger"] {
+  border-color: color-mix(in srgb, var(--admin-danger) 28%, var(--admin-border));
+  background: color-mix(in srgb, var(--admin-danger-soft) 48%, var(--admin-surface));
+}
+
+.admin-action-meta {
+  padding: 0.55rem 0.65rem;
+  border-inline-start: 3px solid var(--admin-border-strong);
+  color: var(--admin-text-secondary);
   background: var(--admin-surface-subtle);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-action-meta[data-tone="warning"] {
+  border-inline-start-color: var(--admin-warning);
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+.admin-privacy-form {
+  margin-block-start: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 .admin-email-preview {
@@ -2650,7 +3035,8 @@ button.admin-mini-item::after {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .admin-customer-booking-main {
+  .admin-customer-booking-main,
+  .admin-customer-invoice-main {
     grid-column: 1;
   }
 }
@@ -2744,6 +3130,30 @@ button.admin-mini-item::after {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .admin-invoice-overview-grid,
+  .admin-invoice-context-grid,
+  .admin-privacy-status-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-privacy-action-card {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-privacy-action-card > :not(.admin-privacy-action-heading) {
+    grid-column: 1;
+    justify-self: stretch;
+  }
+
+  .admin-privacy-action-card .admin-button {
+    width: 100%;
+  }
+
+  .admin-modal-toolbar-label {
+    width: 100%;
+    margin-inline-end: 0;
+  }
+
   .admin-time-range {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2809,12 +3219,14 @@ button.admin-mini-item::after {
     grid-row: auto;
   }
 
-  .admin-customer-booking-main {
+  .admin-customer-booking-main,
+  .admin-customer-invoice-main {
     grid-column: 1;
     grid-row: 1;
   }
 
-  .admin-customer-booking > .admin-status-pill {
+  .admin-customer-booking > .admin-status-pill,
+  .admin-customer-invoice > .admin-status-pill {
     grid-column: 2;
     grid-row: 1;
   }
