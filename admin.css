@@ -411,11 +411,12 @@ p {
 }
 
 .admin-shell-actions {
-  align-items: stretch;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 .admin-shell-actions .admin-button {
-  flex: 1 1 0;
+  flex: 0 0 auto;
   min-width: 0;
 }
 
@@ -444,12 +445,12 @@ p {
 }
 
 .admin-button {
-  min-height: 34px;
+  min-height: 32px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.7rem;
+  gap: 0.35rem;
+  padding: 0.34rem 0.62rem;
   position: relative;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
@@ -504,18 +505,53 @@ p {
 
 .admin-button::before {
   content: "";
-  width: 0.85em;
-  height: 0.85em;
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 999px;
+  display: none;
+  width: 0;
+  height: 0;
+  border: 0 solid currentColor;
+  border-radius: 50%;
   flex: 0 0 auto;
   opacity: 0;
 }
 
 .admin-button.is-loading::before {
+  display: block;
+  width: 0.85em;
+  height: 0.85em;
+  border-width: 2px;
+  border-right-color: transparent;
   animation: admin-spin 0.65s linear infinite;
   opacity: 1;
+}
+
+.admin-icon {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.admin-icon-button {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.admin-action-buttons {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.admin-login-panel .admin-button {
+  width: auto;
+  justify-self: end;
 }
 
 @keyframes admin-spin {
@@ -772,6 +808,9 @@ p {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   padding: 0.2rem;
   background: #f2f4f7;
   border: 1px solid #e4e7ec;
@@ -779,12 +818,19 @@ p {
 }
 
 .admin-segmented button {
-  min-height: 30px;
-  padding: 0.32rem 0.6rem;
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0.28rem 0.52rem;
   color: #667085;
   border-radius: 6px;
   font-size: var(--font-size-sm);
   font-weight: 700;
+}
+
+.admin-segmented button.admin-segmented-icon {
+  width: 28px;
+  min-width: 28px;
+  padding: 0;
 }
 
 .admin-segmented button.is-active {
@@ -1448,6 +1494,7 @@ button.admin-mini-item:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
+  margin-inline-start: auto;
 }
 
 .admin-calendar-legend {
@@ -1820,9 +1867,13 @@ button.admin-mini-item:focus-visible {
     grid-template-columns: 1fr;
   }
 
-  .admin-shell-actions,
   .admin-nav {
     justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .admin-shell-actions {
+    justify-content: flex-end;
     flex-wrap: wrap;
   }
 
@@ -1976,6 +2027,7 @@ p,
 
 .admin-operational-toolbar {
   align-items: center;
+  justify-content: space-between;
 }
 
 .admin-search-inline {
@@ -2614,8 +2666,10 @@ p,
 }
 
 .admin-preview-close {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
   color: var(--color-text-secondary);
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
@@ -3305,11 +3359,7 @@ body.admin-slot-editor-open {
     --admin-sticky-offset: 64px;
   }
 
-  .admin-button,
-  .admin-segmented button,
   .admin-nav-group a,
-  .admin-preview-close,
-  [data-admin-nav-toggle],
   .admin-login-panel input,
   .admin-slot-form input,
   .admin-action-form input,
@@ -3318,6 +3368,34 @@ body.admin-slot-editor-open {
   .admin-search input,
   .admin-select-wrap select {
     min-height: 44px;
+  }
+
+  .admin-button {
+    min-height: 36px;
+  }
+
+  .admin-icon-button,
+  .admin-preview-close {
+    width: 36px;
+    min-width: 36px;
+    height: 36px;
+    min-height: 36px;
+  }
+
+  .admin-segmented button {
+    min-height: 34px;
+    padding-inline: 0.45rem;
+  }
+
+  .admin-segmented {
+    gap: 0.15rem;
+    padding: 0.15rem;
+  }
+
+  .admin-segmented button.admin-segmented-icon {
+    width: 34px;
+    min-width: 34px;
+    padding: 0;
   }
 
   .admin-stats {
@@ -3342,7 +3420,8 @@ body.admin-slot-editor-open {
 
   .admin-panel-header > .admin-segmented,
   .admin-panel-header > .admin-calendar-controls {
-    width: 100%;
+    width: auto;
+    max-width: 100%;
   }
 
   .admin-page-heading-compact {
@@ -3358,38 +3437,42 @@ body.admin-slot-editor-open {
     align-items: stretch;
   }
 
-  .admin-operational-toolbar > *,
+  .admin-operational-toolbar > .admin-segmented {
+    width: max-content;
+    max-width: 100%;
+    align-self: flex-end;
+  }
+
   .admin-search-inline {
     width: 100%;
   }
 
   .admin-calendar-controls {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    align-items: stretch;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
   }
 
   .admin-calendar-controls > * {
     min-width: 0;
+    flex: 0 0 auto;
   }
 
   .admin-calendar-controls .admin-segmented,
   .admin-calendar-controls .admin-date-jump {
-    grid-column: 1 / -1;
+    grid-column: auto;
   }
 
   .admin-calendar-controls .admin-segmented {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: inline-flex;
   }
 
   .admin-date-jump {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    display: inline-flex;
   }
 
   .admin-date-jump input {
-    width: 100%;
+    width: auto;
   }
 
   .admin-calendar.is-compact .admin-calendar-agenda,
@@ -3430,7 +3513,7 @@ body.admin-slot-editor-open {
 
   .admin-action-buttons > .admin-button,
   .admin-modal-actions > .admin-button {
-    flex: 1 1 min(100%, 12rem);
+    flex: 0 0 auto;
   }
 
   .admin-toast-root {
@@ -3444,11 +3527,6 @@ body.admin-slot-editor-open {
 @media (pointer: coarse) {
   .admin-nav-group a,
   .admin-nav a,
-  .admin-button,
-  .admin-segmented button,
-  .admin-preview-close,
-  .admin-mobile-menu-button,
-  [data-admin-nav-toggle],
   .admin-login-panel input,
   .admin-slot-form input,
   .admin-action-form input,
@@ -3463,10 +3541,24 @@ body.admin-slot-editor-open {
     min-height: 44px;
   }
 
+  .admin-button,
+  .admin-segmented button {
+    min-height: 40px;
+  }
+
+  .admin-segmented button.admin-segmented-icon {
+    width: 40px;
+    min-width: 40px;
+  }
+
   .admin-preview-close,
   .admin-mobile-menu-button,
-  [data-admin-nav-toggle] {
-    min-width: 44px;
+  [data-admin-nav-toggle],
+  .admin-icon-button {
+    width: 40px;
+    min-width: 40px;
+    height: 40px;
+    min-height: 40px;
   }
 
   .admin-checkbox input {

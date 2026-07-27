@@ -1,3 +1,26 @@
+const ICONS = {
+  add: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 5v14M5 12h14"></path>
+    </svg>
+  `,
+  previous: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m15 18-6-6 6-6"></path>
+    </svg>
+  `,
+  next: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="m9 6 6 6-6 6"></path>
+    </svg>
+  `,
+  close: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 6l12 12M18 6 6 18"></path>
+    </svg>
+  `
+};
+
 export const page = 'availability';
 
 export function renderStaticPage(root) {
@@ -10,7 +33,7 @@ export function renderStaticPage(root) {
         data-admin-slot-open
         aria-haspopup="dialog"
         aria-controls="admin-slot-editor"
-      >Add slot</button>
+      >${ICONS.add}<span>Add slot</span></button>
     </header>
 
     <section class="admin-availability-calendar-layout">
@@ -18,9 +41,9 @@ export function renderStaticPage(root) {
         <div class="admin-panel-header admin-panel-header-compact">
           <h2 id="availability-calendar-title" data-admin-calendar-title>Availability</h2>
           <div class="admin-calendar-controls">
-            <button class="admin-button admin-button-secondary" type="button" data-calendar-prev aria-label="Previous period">‹</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period">${ICONS.previous}</button>
             <button class="admin-button admin-button-secondary" type="button" data-calendar-today>Today</button>
-            <button class="admin-button admin-button-secondary" type="button" data-calendar-next aria-label="Next period">›</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period">${ICONS.next}</button>
             <div class="admin-segmented" data-calendar-view role="group" aria-label="Availability calendar view">
               <button class="is-active" type="button" data-view="week" aria-pressed="true">Week</button>
               <button type="button" data-view="day" aria-pressed="false">Day</button>
@@ -60,11 +83,12 @@ export function renderStaticPage(root) {
         <div class="admin-modal-header">
           <h2 id="admin-slot-editor-title" data-admin-slot-form-title>New slot</h2>
           <button
-            class="admin-preview-close"
+            class="admin-preview-close admin-icon-button"
             type="button"
             data-admin-slot-editor-close
             aria-label="Close slot editor"
-          >×</button>
+            title="Close"
+          >${ICONS.close}</button>
         </div>
 
         <form class="admin-slot-form" data-admin-slot-form novalidate>

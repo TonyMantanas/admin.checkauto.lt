@@ -85,6 +85,8 @@ export function initAdminRuntime(pageController) {
   var slotEditorReturnFocusSelector = '';
   var slotEditorBaseline = '';
   var calendarMediaQuery = null;
+  var ICON_BACK = '<svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"></path></svg>';
+  var ICON_CLOSE = '<svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg>';
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -1210,7 +1212,7 @@ export function initAdminRuntime(pageController) {
     var canGoBack = Boolean(route && modalHistoryDepth() > 1);
     var navHtml = canGoBack
       ? '<div class="admin-modal-nav">' +
-          '<button class="admin-button admin-button-secondary admin-modal-back" type="button" data-admin-modal-back>Back</button>' +
+          '<button class="admin-button admin-button-secondary admin-icon-button admin-modal-back" type="button" data-admin-modal-back aria-label="Back" title="Back">' + ICON_BACK + '</button>' +
         '</div>'
       : '';
 
@@ -1514,6 +1516,8 @@ export function initAdminRuntime(pageController) {
     if (toggle) {
       toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
       toggle.setAttribute('aria-controls', 'admin-sidebar');
+      toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+      toggle.setAttribute('title', open ? 'Close navigation' : 'Open navigation');
     }
     if (sidebar) sidebar.classList.toggle('is-nav-open', Boolean(open));
     if (pageRoot) {
@@ -2025,7 +2029,7 @@ export function initAdminRuntime(pageController) {
           '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
           '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
         '</div>' +
-        '<button class="admin-preview-close" type="button" data-admin-modal-close aria-label="Close booking">×</button>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<div class="admin-detail-section">' +
         '<h3>Timing</h3>' +
@@ -2416,7 +2420,7 @@ export function initAdminRuntime(pageController) {
           '<span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span>' +
           '<h2>' + escapeHtml(customer.display_name) + '</h2>' +
         '</div>' +
-        '<button class="admin-preview-close" type="button" data-admin-modal-close aria-label="Close customer">×</button>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<div class="admin-detail-section">' +
         '<h3>Contact</h3>' +
@@ -2677,7 +2681,7 @@ export function initAdminRuntime(pageController) {
           '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
           '<h2>' + escapeHtml(invoice.invoice_number) + '</h2>' +
         '</div>' +
-        '<button class="admin-preview-close" type="button" data-admin-modal-close aria-label="Close invoice">×</button>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close invoice" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<div class="admin-detail-section">' +
         '<h3>Invoice summary</h3>' +
@@ -2791,7 +2795,7 @@ export function initAdminRuntime(pageController) {
           '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(campaign.status)) + '">' + escapeHtml(statusLabel(campaign.status || 'sent')) + '</span>' +
           '<h2>' + escapeHtml(campaign.subject) + '</h2>' +
         '</div>' +
-        '<button class="admin-preview-close" type="button" data-admin-modal-close aria-label="Close campaign">×</button>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close campaign" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<div class="admin-campaign-layout">' +
         '<section class="admin-detail-section">' +
@@ -3019,30 +3023,30 @@ export function initAdminRuntime(pageController) {
   function setButtonBusy(button, busy, label) {
     if (!button) return;
     if (busy) {
-      if (!button.dataset.busyOriginalText) {
-        button.dataset.busyOriginalText = button.textContent;
-        button.dataset.busyOriginalDisabled = button.disabled ? 'true' : 'false';
-        button.dataset.busyOriginalAriaLabel = button.getAttribute('aria-label') || '';
+      if (!button._adminBusyState) {
+        button._adminBusyState = {
+          html: button.innerHTML,
+          disabled: button.disabled,
+          ariaLabel: button.getAttribute('aria-label')
+        };
       }
       button.disabled = true;
       button.classList.add('is-loading');
       button.setAttribute('aria-busy', 'true');
       button.setAttribute('aria-label', label || 'Working...');
-      button.textContent = label || 'Working...';
+      button.textContent = button.classList.contains('admin-icon-button') ? '' : (label || 'Working...');
       return;
     }
 
-    if (button.dataset.busyOriginalText) {
-      button.textContent = button.dataset.busyOriginalText;
-      button.disabled = button.dataset.busyOriginalDisabled === 'true';
-      if (button.dataset.busyOriginalAriaLabel) {
-        button.setAttribute('aria-label', button.dataset.busyOriginalAriaLabel);
+    if (button._adminBusyState) {
+      button.innerHTML = button._adminBusyState.html;
+      button.disabled = button._adminBusyState.disabled;
+      if (button._adminBusyState.ariaLabel) {
+        button.setAttribute('aria-label', button._adminBusyState.ariaLabel);
       } else {
         button.removeAttribute('aria-label');
       }
-      delete button.dataset.busyOriginalText;
-      delete button.dataset.busyOriginalDisabled;
-      delete button.dataset.busyOriginalAriaLabel;
+      delete button._adminBusyState;
     } else {
       button.disabled = false;
     }

@@ -1,5 +1,25 @@
 import { PATHS } from './routes.js';
 
+const ICONS = {
+  menu: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7h16M4 12h16M4 17h16"></path>
+    </svg>
+  `,
+  refresh: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 11a8 8 0 1 0-2.3 5.7"></path>
+      <path d="M20 4v7h-7"></path>
+    </svg>
+  `,
+  signOut: `
+    <svg class="admin-icon" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M10 5H5v14h5"></path>
+      <path d="M14 8l4 4-4 4M18 12H9"></path>
+    </svg>
+  `
+};
+
 const groups = [
   {
     label: 'Today',
@@ -32,12 +52,14 @@ export function renderShell(page) {
     <header class="admin-mobile-header">
       <a class="admin-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
       <button
-        class="admin-button admin-button-secondary admin-nav-toggle"
+        class="admin-button admin-button-secondary admin-icon-button admin-nav-toggle"
         type="button"
         data-admin-nav-toggle
         aria-expanded="false"
         aria-controls="admin-sidebar"
-      >Menu</button>
+        aria-label="Open navigation"
+        title="Open navigation"
+      >${ICONS.menu}</button>
     </header>
 
     <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin navigation">
@@ -62,8 +84,20 @@ export function renderShell(page) {
           <p data-admin-user></p>
         </div>
         <div class="admin-shell-actions">
-          <button class="admin-button admin-button-secondary" type="button" data-admin-refresh>Refresh</button>
-          <button class="admin-button admin-button-ghost" type="button" data-admin-logout>Sign out</button>
+          <button
+            class="admin-button admin-button-secondary admin-icon-button"
+            type="button"
+            data-admin-refresh
+            aria-label="Refresh admin data"
+            title="Refresh"
+          >${ICONS.refresh}</button>
+          <button
+            class="admin-button admin-button-ghost admin-icon-button"
+            type="button"
+            data-admin-logout
+            aria-label="Sign out"
+            title="Sign out"
+          >${ICONS.signOut}</button>
         </div>
       </div>
     </aside>
