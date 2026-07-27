@@ -31,10 +31,11 @@ export function initAdminRuntime(pageController) {
   };
   var SESSION_KEY = 'checkauto-admin-session';
   var DASHBOARD_CACHE_KEY = 'checkauto-admin-dashboard-cache';
-  var DASHBOARD_CACHE_VERSION = 1;
+  var DASHBOARD_CACHE_VERSION = 2;
   var DASHBOARD_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
   var SESSION_REFRESH_MARGIN_MS = 60 * 1000;
   var TIME_ZONE = 'Europe/Vilnius';
+  var EXPIRY_TICK_MS = 30 * 1000;
   var DEFAULT_START_HOUR = 8;
   var DEFAULT_END_HOUR = 22;
   var HOUR_HEIGHT = 56;
@@ -56,6 +57,7 @@ export function initAdminRuntime(pageController) {
     marketingCampaigns: [],
     marketingRecipients: [],
     maintenancePreview: null,
+    confirmationSettings: null,
     filter: 'pending',
     slotFilter: 'all',
     invoiceFilter: 'unpaid',
@@ -73,6 +75,7 @@ export function initAdminRuntime(pageController) {
     realtimeSocket: null,
     realtimeHeartbeat: null,
     realtimeRefreshTimer: null,
+    expiryTimer: null,
     realtimeRef: 1,
     hasRendered: false,
     isRefreshing: false
@@ -332,6 +335,122 @@ export function initAdminRuntime(pageController) {
       return formatDate(start) + ', ' + formatTime(start) + '-' + formatTime(end);
     }
     return formatDateTime(start) + ' - ' + formatDateTime(end);
+  }
+
+  function expiryDurationLabel(remainingMs) {
+    if (remainingMs <= 0) return '';
+    var totalMinutes = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
+    var days = Math.floor(totalMinutes / (24 * 60));
+    var hours = Math.floor((totalMinutes % (24 * 60)) / 60);
+    var minutes = totalMinutes % 60;
+
+    if (days) return days + 'd' + (hours ? ' ' + hours + 'h' : '');
+    if (hours) return hours + 'h' + (minutes ? ' ' + minutes + 'm' : '');
+    return totalMinutes + 'm';
+  }
+
+  function expiryCountdownState(expiresAt, createdAt, nowValue) {
+    var expiresMs = new Date(expiresAt || '').getTime();
+    if (!Number.isFinite(expiresMs)) return null;
+
+    var nowMs = nowValue instanceof Date ? nowValue.getTime() : Number(nowValue || Date.now());
+    var createdMs = new Date(createdAt || '').getTime();
+    var remainingMs = expiresMs - nowMs;
+    var totalMs = Number.isFinite(createdMs) && expiresMs > createdMs
+      ? expiresMs - createdMs
+      : Math.max(remainingMs, 1);
+    var progress = remainingMs <= 0
+      ? 0
+      : Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
+    var tone = remainingMs <= 0
+      ? 'due'
+      : (remainingMs <= 30 * 60 * 1000
+        ? 'urgent'
+        : (progress <= 50 ? 'warning' : 'scheduled'));
+
+    return {
+      expiresMs: expiresMs,
+      remainingMs: remainingMs,
+      progress: progress,
+      tone: tone,
+      shortLabel: expiryDurationLabel(remainingMs)
+    };
+  }
+
+  function expiryCountdownLabel(timer, variant) {
+    if (!timer || timer.remainingMs <= 0) {
+      return variant === 'compact' ? 'Expiry processing' : 'Automatic expiry pending';
+    }
+    return timer.shortLabel + (variant === 'compact' ? ' left' : ' remaining');
+  }
+
+  function expiryCountdownHtml(booking, variant) {
+    if (!booking || booking.status !== 'pending' || !booking.pending_expires_at) return '';
+    var timer = expiryCountdownState(booking.pending_expires_at, booking.created_at);
+    if (!timer) return '';
+
+    var mode = variant === 'compact' ? 'compact' : 'full';
+    var label = expiryCountdownLabel(timer, mode);
+    var exact = formatDateTime(booking.pending_expires_at);
+    var attributes =
+      ' data-admin-expiry' +
+      ' data-expiry-variant="' + mode + '"' +
+      ' data-expires-at="' + escapeHtml(booking.pending_expires_at) + '"' +
+      ' data-created-at="' + escapeHtml(booking.created_at || '') + '"' +
+      ' data-tone="' + escapeHtml(timer.tone) + '"' +
+      ' aria-label="Review deadline: ' + escapeHtml(label) + '. Expires ' + escapeHtml(exact) + '."';
+
+    if (mode === 'compact') {
+      return '<span class="admin-expiry-compact"' + attributes + '>' +
+        '<span data-admin-expiry-remaining>' + escapeHtml(label) + '</span>' +
+      '</span>';
+    }
+
+    return '<div class="admin-expiry-panel"' + attributes + '>' +
+      '<div class="admin-expiry-copy">' +
+        '<span>Review deadline</span>' +
+        '<strong data-admin-expiry-remaining>' + escapeHtml(label) + '</strong>' +
+        '<time datetime="' + escapeHtml(booking.pending_expires_at) + '">Expires ' + escapeHtml(exact) + '</time>' +
+      '</div>' +
+      '<span class="admin-expiry-track" aria-hidden="true">' +
+        '<span data-admin-expiry-bar style="width: ' + timer.progress.toFixed(2) + '%"></span>' +
+      '</span>' +
+    '</div>';
+  }
+
+  function updateExpiryCountdowns() {
+    var now = Date.now();
+    $all('[data-admin-expiry]').forEach(function (countdown) {
+      var timer = expiryCountdownState(countdown.dataset.expiresAt, countdown.dataset.createdAt, now);
+      if (!timer) return;
+      var variant = countdown.dataset.expiryVariant === 'compact' ? 'compact' : 'full';
+      var label = expiryCountdownLabel(timer, variant);
+      var remaining = $('[data-admin-expiry-remaining]', countdown);
+      var progress = $('[data-admin-expiry-bar]', countdown);
+      var exact = formatDateTime(countdown.dataset.expiresAt);
+
+      countdown.dataset.tone = timer.tone;
+      countdown.setAttribute('aria-label', 'Review deadline: ' + label + '. Expires ' + exact + '.');
+      if (remaining) remaining.textContent = label;
+      if (progress) progress.style.width = timer.progress.toFixed(2) + '%';
+
+      var bookingRow = countdown.closest('.admin-booking-item');
+      if (bookingRow && bookingRow.dataset.bookingBaseLabel) {
+        bookingRow.setAttribute('aria-label', bookingRow.dataset.bookingBaseLabel + ', review deadline ' + label);
+      }
+    });
+  }
+
+  function startExpiryTicker() {
+    if (state.expiryTimer) window.clearInterval(state.expiryTimer);
+    updateExpiryCountdowns();
+    state.expiryTimer = window.setInterval(updateExpiryCountdowns, EXPIRY_TICK_MS);
+    window.addEventListener('pagehide', function () {
+      if (state.expiryTimer) {
+        window.clearInterval(state.expiryTimer);
+        state.expiryTimer = null;
+      }
+    }, { once: true });
   }
 
   function isValidYmd(value) {
@@ -719,7 +838,8 @@ export function initAdminRuntime(pageController) {
       customerEvents: state.customerEvents,
       marketingCampaigns: state.marketingCampaigns,
       marketingRecipients: state.marketingRecipients,
-      maintenancePreview: state.maintenancePreview
+      maintenancePreview: state.maintenancePreview,
+      confirmationSettings: state.confirmationSettings
     };
   }
 
@@ -764,6 +884,11 @@ export function initAdminRuntime(pageController) {
     });
     if (Object.prototype.hasOwnProperty.call(data, 'maintenancePreview')) {
       state.maintenancePreview = data.maintenancePreview && typeof data.maintenancePreview === 'object' ? data.maintenancePreview : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'confirmationSettings')) {
+      state.confirmationSettings = data.confirmationSettings && typeof data.confirmationSettings === 'object'
+        ? data.confirmationSettings
+        : null;
     }
   }
 
@@ -1795,12 +1920,16 @@ export function initAdminRuntime(pageController) {
       dateRange,
       vehicle
     ].join(', ');
-    return '<button class="admin-booking-item admin-data-row' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(rowLabel) + '" ' +
+    var expiryTimer = expiryCountdownState(booking.pending_expires_at, booking.created_at);
+    var expiryLabel = booking.status === 'pending' && expiryTimer
+      ? ', review deadline ' + expiryCountdownLabel(expiryTimer, 'compact')
+      : '';
+    return '<button class="admin-booking-item admin-data-row' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(rowLabel + expiryLabel) + '" data-booking-base-label="' + escapeHtml(rowLabel) + '" ' +
       attributeName + '="' + escapeHtml(booking.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header">' +
           '<span class="admin-booking-title"><strong>' + escapeHtml(booking.public_reference) + '</strong><span>' + escapeHtml(booking.customer_name) + '</span></span>' +
         '</span>' +
-        '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span></span>' +
+        '<span class="admin-row-status admin-booking-row-state"><span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' + expiryCountdownHtml(booking, 'compact') + '</span>' +
         '<span class="admin-row-service admin-booking-meta">' + escapeHtml(serviceName) + '</span>' +
         '<span class="admin-row-date admin-booking-meta">' + escapeHtml(dateRange) + '</span>' +
         '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(vehicle) + '</span>' +
@@ -1827,6 +1956,7 @@ export function initAdminRuntime(pageController) {
         navigateToModal('booking', button.dataset.dashboardBookingId);
       });
     });
+    updateExpiryCountdowns();
   }
 
   function renderDashboardPage() {
@@ -2072,6 +2202,7 @@ export function initAdminRuntime(pageController) {
         navigateToModal('booking', button.dataset.bookingId);
       });
     });
+    updateExpiryCountdowns();
   }
 
   function detailRow(label, value) {
@@ -2118,6 +2249,7 @@ export function initAdminRuntime(pageController) {
       '<section class="admin-detail-section admin-booking-overview">' +
         '<span class="admin-section-kicker">Review first</span>' +
         '<h3>Booking details</h3>' +
+        expiryCountdownHtml(booking, 'full') +
         '<div class="admin-booking-overview-grid">' +
           '<div class="admin-booking-primary-fact">' +
             '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
@@ -2143,7 +2275,7 @@ export function initAdminRuntime(pageController) {
         '<div class="admin-booking-overview-meta">' +
           '<span>Assigned to: <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></span>' +
           (booking.final_start_at ? '<span>Originally requested: <strong>' + escapeHtml(requested) + '</strong></span>' : '') +
-          (booking.pending_expires_at ? '<span>Expires: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
+          (booking.pending_expires_at && booking.status !== 'pending' ? '<span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
         '</div>' +
       '</section>' +
       renderRequestActions(booking) +
@@ -2153,6 +2285,7 @@ export function initAdminRuntime(pageController) {
       renderBookingInvoiceActions(booking);
 
     var modal = openModal(html, 'lg');
+    updateExpiryCountdowns();
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
@@ -3628,10 +3761,169 @@ export function initAdminRuntime(pageController) {
     if (draft.activeName) focusElement($('[name="' + escapeSelectorValue(draft.activeName) + '"]', form));
   }
 
+  function confirmationScheduleHours() {
+    var settings = state.confirmationSettings || {};
+    return Array.isArray(settings.hours) ? settings.hours : [];
+  }
+
+  function confirmationTimeValue(value, fallback) {
+    var normalized = String(value || '').slice(0, 5);
+    return isValidHm(normalized) ? normalized : fallback;
+  }
+
+  function updateConfirmationDayState(row) {
+    if (!row) return;
+    var toggle = $('[data-confirmation-day-enabled]', row);
+    var start = $('[data-confirmation-day-start]', row);
+    var end = $('[data-confirmation-day-end]', row);
+    var enabled = Boolean(toggle && toggle.checked);
+    var editable = row.dataset.confirmationEditable === 'true';
+    row.classList.toggle('is-disabled', !enabled);
+    if (start) start.disabled = !editable || !enabled;
+    if (end) end.disabled = !editable || !enabled;
+  }
+
+  function renderConfirmationSchedule() {
+    var form = $('[data-confirmation-schedule-form]');
+    if (!form) return;
+
+    var settings = state.confirmationSettings;
+    var canEdit = Boolean(settings && state.staff && state.staff.role === 'owner');
+    var hours = confirmationScheduleHours();
+    var hoursByDay = {};
+    hours.forEach(function (entry) {
+      hoursByDay[Number(entry.iso_weekday)] = entry;
+    });
+
+    var duration = $('[data-confirmation-duration]', form);
+    var timezone = $('[data-confirmation-timezone]');
+    var access = $('[data-confirmation-schedule-access]');
+    var submit = $('[data-confirmation-schedule-submit]', form);
+    var status = $('[data-confirmation-schedule-status]', form);
+
+    if (duration) {
+      duration.value = String(Number(settings && settings.confirmation_window_minutes) || 120);
+      duration.disabled = !canEdit;
+    }
+    if (timezone) timezone.textContent = String(settings && settings.timezone || TIME_ZONE);
+    if (access) {
+      access.textContent = canEdit ? 'Owner access' : 'Read only';
+      access.dataset.status = canEdit ? 'active' : '';
+    }
+    if (submit) submit.hidden = !canEdit;
+    if (status) {
+      status.textContent = '';
+      status.classList.remove('is-success');
+    }
+
+    $all('[data-confirmation-day]', form).forEach(function (row) {
+      var isoWeekday = Number(row.dataset.confirmationDay);
+      var entry = hoursByDay[isoWeekday] || null;
+      var toggle = $('[data-confirmation-day-enabled]', row);
+      var start = $('[data-confirmation-day-start]', row);
+      var end = $('[data-confirmation-day-end]', row);
+      row.dataset.confirmationEditable = canEdit ? 'true' : 'false';
+      if (toggle) {
+        toggle.checked = Boolean(entry);
+        toggle.disabled = !canEdit;
+      }
+      if (start) start.value = confirmationTimeValue(entry && entry.opens_at, '09:00');
+      if (end) end.value = confirmationTimeValue(entry && entry.closes_at, '16:00');
+      updateConfirmationDayState(row);
+    });
+
+    refreshCustomControls(form);
+  }
+
+  async function handleConfirmationScheduleSubmit(event) {
+    event.preventDefault();
+    var form = event.currentTarget;
+    var status = $('[data-confirmation-schedule-status]', form);
+    var duration = Number(($('[data-confirmation-duration]', form) || {}).value || 0);
+
+    if (!state.staff || state.staff.role !== 'owner') {
+      if (status) status.textContent = 'Only the organization owner can change this schedule.';
+      return;
+    }
+
+    var schedule = [];
+    var firstInvalid = null;
+    var enabledDays = 0;
+
+    $all('[data-confirmation-day]', form).forEach(function (row) {
+      var toggle = $('[data-confirmation-day-enabled]', row);
+      var start = $('[data-confirmation-day-start]', row);
+      var end = $('[data-confirmation-day-end]', row);
+      var enabled = Boolean(toggle && toggle.checked);
+      var opensAt = String(start && start.value || '');
+      var closesAt = String(end && end.value || '');
+
+      if (enabled) {
+        enabledDays += 1;
+        if (!isValidHm(opensAt) || !isValidHm(closesAt) || timeToMinutes(closesAt) <= timeToMinutes(opensAt)) {
+          firstInvalid = firstInvalid || start || end || toggle;
+        }
+      }
+
+      schedule.push({
+        isoWeekday: Number(row.dataset.confirmationDay),
+        enabled: enabled,
+        opensAt: opensAt,
+        closesAt: closesAt
+      });
+    });
+
+    if (!Number.isInteger(duration) || duration < 15 || duration > 1440) {
+      showFieldError(status, 'Choose a valid confirmation time.', $('[data-confirmation-duration]', form));
+      return;
+    }
+    if (!enabledDays) {
+      showFieldError(status, 'Enable at least one review day.', $('[data-confirmation-day-enabled]', form));
+      return;
+    }
+    if (firstInvalid) {
+      showFieldError(status, 'Each enabled day must end after it starts.', firstInvalid);
+      return;
+    }
+
+    if (status) {
+      status.textContent = '';
+      status.classList.remove('is-success');
+    }
+
+    try {
+      setFormBusy(form, true, 'Saving...');
+      setSyncState('Saving', 'loading');
+      var response = await adminAction({
+        action: 'updateConfirmationSchedule',
+        confirmationDurationMinutes: duration,
+        confirmationSchedule: schedule
+      });
+      if (response.result && typeof response.result === 'object') {
+        state.confirmationSettings = response.result;
+      }
+      saveDashboardCache();
+      renderConfirmationSchedule();
+      var savedStatus = $('[data-confirmation-schedule-status]');
+      if (savedStatus) {
+        savedStatus.textContent = 'Confirmation schedule saved. New bookings will use it.';
+        savedStatus.classList.add('is-success');
+      }
+      setSyncState('Synced', 'synced');
+      showToast('Confirmation schedule updated.', 'success');
+    } catch (error) {
+      setSyncState('Action failed', 'error');
+      if (status) status.textContent = error instanceof Error ? error.message : 'Could not save the confirmation schedule.';
+    } finally {
+      if (document.body.contains(form)) setFormBusy(form, false);
+    }
+  }
+
   function renderAvailabilityPage() {
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
+    renderConfirmationSchedule();
   }
 
   function selectedSlotHasActiveBooking(slotId) {
@@ -4234,6 +4526,9 @@ export function initAdminRuntime(pageController) {
 
     var editor = $('[data-admin-slot-editor]');
     var openButton = $('[data-admin-slot-open]');
+    var scheduleJump = $('[data-confirmation-schedule-jump]');
+    var schedulePanel = $('[data-confirmation-schedule-panel]');
+    var scheduleForm = $('[data-confirmation-schedule-form]');
     var repeatToggle = $('[data-admin-repeat-toggle]', form);
     var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
@@ -4242,6 +4537,27 @@ export function initAdminRuntime(pageController) {
     var resetButton = $('[data-admin-slot-reset]', form);
     var deleteButton = $('[data-admin-slot-delete]', form);
     var errorEl = $('[data-admin-slot-error]', form);
+
+    if (scheduleJump && schedulePanel) {
+      scheduleJump.addEventListener('click', function () {
+        schedulePanel.scrollIntoView({ block: 'start' });
+        window.requestAnimationFrame(function () {
+          schedulePanel.focus({ preventScroll: true });
+        });
+      });
+    }
+
+    if (scheduleForm) {
+      $all('[data-confirmation-day]', scheduleForm).forEach(function (row) {
+        var toggle = $('[data-confirmation-day-enabled]', row);
+        if (toggle) {
+          toggle.addEventListener('change', function () {
+            updateConfirmationDayState(row);
+          });
+        }
+      });
+      scheduleForm.addEventListener('submit', handleConfirmationScheduleSubmit);
+    }
 
     if (openButton) {
       openButton.setAttribute('aria-expanded', 'false');
@@ -4402,6 +4718,7 @@ export function initAdminRuntime(pageController) {
     if (pageController && typeof pageController.afterEvents === 'function') {
       pageController.afterEvents({ state: state });
     }
+    startExpiryTicker();
 
     if (restoreDashboardCache()) {
       showConsole({ preserveScroll: true });
