@@ -4,24 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex, nofollow">
-  <title>CheckAuto Admin Invoices</title>
+  <title>checkauto.lt Invoices</title>
   <link rel="stylesheet" href="../admin.css">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 </head>
 <body class="admin-page" data-admin-page="invoices">
-  <main class="admin-app" data-admin-app>
-    <section class="admin-loading" data-admin-loading>
+  <a class="admin-skip-link" href="#admin-main">Skip to main content</a>
+  <div class="admin-app" data-admin-app>
+    <section class="admin-loading" data-admin-loading role="status" aria-live="polite" aria-busy="true">
       <div>
         <div class="admin-brand">check<span>auto</span>.lt</div>
-        <p>Loading admin...</p>
+        <p>Loading admin…</p>
       </div>
     </section>
 
-    <section class="admin-console" data-admin-console hidden>
+    <div class="admin-console" data-admin-console hidden>
       <div data-admin-shell></div>
-      <section data-page-root></section>
-    </section>
-  </main>
+      <main id="admin-main" tabindex="-1" data-page-root></main>
+    </div>
+  </div>
 
   <script type="module" src="../js/admin.js"></script>
 </body>

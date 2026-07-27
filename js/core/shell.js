@@ -29,21 +29,36 @@ export function renderShell(page) {
   if (!target || page === 'login') return;
 
   target.innerHTML = `
-    <aside class="admin-sidebar" aria-label="Admin navigation">
-      <a class="admin-brand admin-sidebar-brand" href="${PATHS.dashboard}">check<span>auto</span>.lt</a>
-      <nav class="admin-sidebar-nav">
+    <header class="admin-mobile-header">
+      <a class="admin-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
+      <button
+        class="admin-button admin-button-secondary admin-nav-toggle"
+        type="button"
+        data-admin-nav-toggle
+        aria-expanded="false"
+        aria-controls="admin-sidebar"
+      >Menu</button>
+    </header>
+
+    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin navigation">
+      <a class="admin-brand admin-sidebar-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
+      <nav class="admin-sidebar-nav" aria-label="Primary">
         ${groups.map((group) => `
           <section class="admin-nav-group">
-            <h2>${group.label}</h2>
+            <p class="admin-nav-group-label">${group.label}</p>
             ${group.items.map((item) => `
-              <a href="${item.href}" data-admin-nav="${item.page}">${item.label}</a>
+              <a
+                href="${item.href}"
+                data-admin-nav="${item.page}"
+                ${item.page === page ? 'class="is-active" aria-current="page"' : ''}
+              >${item.label}</a>
             `).join('')}
           </section>
         `).join('')}
       </nav>
       <div class="admin-sidebar-account">
         <div class="admin-sidebar-user">
-          <p class="admin-sync-state" data-admin-sync-state data-state="synced">Synced</p>
+          <p class="admin-sync-state" data-admin-sync-state data-state="synced" role="status" aria-live="polite" aria-atomic="true">Up to date</p>
           <p data-admin-user></p>
         </div>
         <div class="admin-shell-actions">
@@ -52,5 +67,11 @@ export function renderShell(page) {
         </div>
       </div>
     </aside>
+    <button
+      class="admin-sidebar-scrim"
+      type="button"
+      data-admin-nav-close
+      aria-label="Close navigation"
+    ></button>
   `;
 }

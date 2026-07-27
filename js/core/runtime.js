@@ -35,7 +35,7 @@ export function initAdminRuntime(pageController) {
   var TIME_ZONE = 'Europe/Vilnius';
   var DEFAULT_START_HOUR = 8;
   var DEFAULT_END_HOUR = 22;
-  var HOUR_HEIGHT = 72;
+  var HOUR_HEIGHT = 56;
   var SLOT_STEP_MINUTES = 15;
 
   var state = {
@@ -64,9 +64,10 @@ export function initAdminRuntime(pageController) {
     selectedInvoiceId: null,
     selectedCampaignId: null,
     customerSearch: '',
+    invoiceSearch: '',
     calendarView: 'week',
     calendarAnchor: '',
-    previewEventId: null,
+    slotEditorOpen: false,
     realtimeSocket: null,
     realtimeHeartbeat: null,
     realtimeRefreshTimer: null,
@@ -76,6 +77,14 @@ export function initAdminRuntime(pageController) {
   };
 
   var els = {};
+  var dialogId = 0;
+  var modalReturnFocus = null;
+  var modalReturnFocusSelector = '';
+  var confirmReturnFocus = null;
+  var slotEditorReturnFocus = null;
+  var slotEditorReturnFocusSelector = '';
+  var slotEditorBaseline = '';
+  var calendarMediaQuery = null;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -83,6 +92,156 @@ export function initAdminRuntime(pageController) {
 
   function $all(selector, root) {
     return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+  }
+
+  function escapeSelectorValue(value) {
+    if (window.CSS && typeof window.CSS.escape === 'function') {
+      return window.CSS.escape(String(value || ''));
+    }
+    return String(value || '').replace(/["\\]/g, '\\$&');
+  }
+
+  function focusSelectorFor(element) {
+    if (!element || element === document.body || !element.getAttribute) return '';
+    var attributes = [
+      'data-booking-id',
+      'data-customer-id',
+      'data-invoice-id',
+      'data-campaign-id',
+      'data-calendar-event',
+      'data-admin-slot-open',
+      'data-admin-nav-toggle'
+    ];
+    for (var i = 0; i < attributes.length; i += 1) {
+      var value = element.getAttribute(attributes[i]);
+      if (value !== null) {
+        return '[' + attributes[i] + '="' + escapeSelectorValue(value) + '"]';
+      }
+    }
+    return element.id ? '#' + escapeSelectorValue(element.id) : '';
+  }
+
+  function focusElement(element, fallbackSelector) {
+    window.requestAnimationFrame(function () {
+      var target = element && document.body.contains(element) ? element : null;
+      if (!target && fallbackSelector) {
+        var candidates = $all(fallbackSelector);
+        target = candidates.find(function (item) {
+          return !item.hidden && item.getClientRects().length > 0;
+        }) || candidates[0] || null;
+      }
+      if (target && typeof target.focus === 'function' && document.body.contains(target)) target.focus();
+    });
+  }
+
+  function focusableElements(root) {
+    if (!root) return [];
+    return $all(
+      'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
+      'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      root
+    ).filter(function (item) {
+      return item.tabIndex >= 0 && !item.hidden && item.getAttribute('aria-hidden') !== 'true';
+    });
+  }
+
+  function bindDialogKeyboard(root, onEscape) {
+    if (!root) return;
+    if (root._adminDialogKeydown) {
+      root.removeEventListener('keydown', root._adminDialogKeydown);
+    }
+    root._adminDialogKeydown = function (event) {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (onEscape) onEscape();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      var items = focusableElements(root);
+      if (!items.length) {
+        event.preventDefault();
+        var panel = $('[role="dialog"]', root);
+        if (panel) panel.focus();
+        return;
+      }
+      var first = items[0];
+      var last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    root.addEventListener('keydown', root._adminDialogKeydown);
+  }
+
+  function labelDialog(panel, fallbackLabel) {
+    if (!panel) return;
+    panel.setAttribute('tabindex', '-1');
+    var heading = $('h1, h2, h3', panel);
+    if (heading) {
+      if (!heading.id) {
+        dialogId += 1;
+        heading.id = 'admin-dialog-title-' + dialogId;
+      }
+      panel.setAttribute('aria-labelledby', heading.id);
+      panel.removeAttribute('aria-label');
+    } else {
+      panel.setAttribute('aria-label', fallbackLabel || 'Details');
+    }
+  }
+
+  function setPageInteractionBlocked(blocked) {
+    var consoleRoot = $('.admin-console');
+    if (!consoleRoot) return;
+    if (blocked) {
+      consoleRoot.setAttribute('inert', '');
+      consoleRoot.setAttribute('aria-hidden', 'true');
+    } else {
+      consoleRoot.removeAttribute('inert');
+      consoleRoot.removeAttribute('aria-hidden');
+    }
+  }
+
+  function setUnderlyingModalBlocked(blocked) {
+    var root = ensureModalRoot();
+    var panel = $('.admin-modal-panel', root);
+    if (!panel || root.hidden) return;
+    if (blocked) {
+      panel.setAttribute('inert', '');
+      panel.setAttribute('aria-hidden', 'true');
+    } else {
+      panel.removeAttribute('inert');
+      panel.removeAttribute('aria-hidden');
+    }
+  }
+
+  function setPressed(button, pressed) {
+    if (!button) return;
+    button.classList.toggle('is-active', Boolean(pressed));
+    button.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+  }
+
+  function emptyState(message, actionLabel, actionAttribute) {
+    return '<div class="admin-empty-state admin-empty-state-compact" role="status">' +
+      '<p>' + escapeHtml(message) + '</p>' +
+      (actionLabel && actionAttribute
+        ? '<button class="admin-button admin-button-secondary" type="button" ' + actionAttribute + '>' + escapeHtml(actionLabel) + '</button>'
+        : '') +
+    '</div>';
+  }
+
+  function setPageBusy(busy, label) {
+    var pageRoot = $('[data-page-root]');
+    if (pageRoot) pageRoot.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (els.loading) {
+      els.loading.setAttribute('role', 'status');
+      els.loading.setAttribute('aria-live', 'polite');
+      els.loading.setAttribute('aria-label', label || 'Loading admin data');
+    }
   }
 
   function escapeHtml(value) {
@@ -699,24 +858,49 @@ export function initAdminRuntime(pageController) {
       root = document.createElement('div');
       root.className = 'admin-toast-root';
       root.setAttribute('data-admin-toast-root', '');
+      root.setAttribute('aria-label', 'Notifications');
       document.body.appendChild(root);
     }
     return root;
   }
 
-  function showToast(message, type) {
+  function showToast(message, type, options) {
+    var opts = options || {};
     var root = ensureToastRoot();
+    var existing = $all('.admin-toast', root).find(function (item) {
+      return item.dataset.message === String(message || '') && item.dataset.type === String(type || 'info');
+    });
+    if (existing) return existing;
+
     var toast = document.createElement('div');
     toast.className = 'admin-toast';
     toast.dataset.type = type || 'info';
-    toast.textContent = message;
+    toast.dataset.message = String(message || '');
+    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
+    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
+    toast.setAttribute('aria-atomic', 'true');
+    toast.innerHTML =
+      '<span class="admin-toast-message">' + escapeHtml(message) + '</span>' +
+      '<button class="admin-toast-close" type="button" aria-label="Dismiss notification">×</button>';
     root.appendChild(toast);
-    window.setTimeout(function () {
+
+    function dismiss() {
+      if (!toast.parentNode || toast.classList.contains('is-leaving')) return;
       toast.classList.add('is-leaving');
       window.setTimeout(function () {
         if (toast.parentNode) toast.parentNode.removeChild(toast);
       }, 220);
-    }, 4200);
+    }
+
+    $('.admin-toast-close', toast).addEventListener('click', dismiss);
+
+    var persistent = Object.prototype.hasOwnProperty.call(opts, 'persistent')
+      ? Boolean(opts.persistent)
+      : type === 'error';
+    if (!persistent) {
+      window.setTimeout(dismiss, Number(opts.duration || (type === 'success' ? 5200 : 6500)));
+    }
+    return toast;
   }
 
   function scheduleRealtimeRefresh() {
@@ -829,21 +1013,49 @@ export function initAdminRuntime(pageController) {
     return root;
   }
 
-  function closeConfirmDialog() {
+  function closeConfirmDialog(options) {
+    var opts = options || {};
     var root = ensureConfirmRoot();
     root.hidden = true;
     root.innerHTML = '';
+    setUnderlyingModalBlocked(false);
     if (ensureModalRoot().hidden) {
       document.body.classList.remove('admin-modal-open');
+      setPageInteractionBlocked(false);
     }
+    if (opts.restoreFocus) focusElement(confirmReturnFocus);
+    confirmReturnFocus = null;
   }
 
-  function closeModal() {
+  function modalIsDirty() {
+    var root = ensureModalRoot();
+    return !root.hidden && root.dataset.dirty === 'true';
+  }
+
+  function markModalClean() {
+    ensureModalRoot().dataset.dirty = 'false';
+  }
+
+  function rememberModalReturnFocus(element) {
+    if (!element || ensureModalRoot().contains(element)) return;
+    modalReturnFocus = element;
+    modalReturnFocusSelector = focusSelectorFor(element);
+  }
+
+  function closeModal(options) {
+    var opts = options || {};
     var root = ensureModalRoot();
     root.hidden = true;
     root.innerHTML = '';
+    root.dataset.dirty = 'false';
     if (ensureConfirmRoot().hidden) {
       document.body.classList.remove('admin-modal-open');
+      setPageInteractionBlocked(false);
+    }
+    if (opts.restoreFocus) {
+      focusElement(modalReturnFocus, modalReturnFocusSelector);
+      modalReturnFocus = null;
+      modalReturnFocusSelector = '';
     }
   }
 
@@ -900,32 +1112,32 @@ export function initAdminRuntime(pageController) {
 
   function renderModalRoute(route) {
     if (!route) {
-      closeModal();
+      closeModal({ restoreFocus: true });
       return;
     }
 
     if (route.type === 'booking') {
       var booking = bookingById(route.id);
       if (booking) renderBookingModal(booking);
-      else closeModal();
+      else closeModal({ restoreFocus: true });
       return;
     }
 
     if (route.type === 'customer') {
       if (customerById(route.id)) renderCustomerModal(route.id);
-      else closeModal();
+      else closeModal({ restoreFocus: true });
       return;
     }
 
     if (route.type === 'invoice') {
       if (invoiceById(route.id)) renderInvoiceModal(route.id);
-      else closeModal();
+      else closeModal({ restoreFocus: true });
       return;
     }
 
     if (route.type === 'campaign') {
       if (campaignById(route.id)) renderCampaignModal(route.id);
-      else closeModal();
+      else closeModal({ restoreFocus: true });
     }
   }
 
@@ -941,8 +1153,9 @@ export function initAdminRuntime(pageController) {
     renderModalFromCurrentUrl();
   }
 
-  function navigateToModal(type, id) {
+  async function navigateToModal(type, id, options) {
     if (!type || !id) return;
+    var opts = options || {};
     var route = { type: type, id: id };
     var current = modalRouteFromUrl();
     if (current && current.type === route.type && current.id === route.id) {
@@ -950,19 +1163,45 @@ export function initAdminRuntime(pageController) {
       return;
     }
 
+    if (current && modalIsDirty() && !opts.force) {
+      var discard = await openConfirmDialog({
+        title: 'Discard changes?',
+        message: 'Unsaved changes in this detail view will be lost.',
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard changes',
+        danger: true
+      });
+      if (!discard) return;
+      markModalClean();
+    }
+
+    if (!current) rememberModalReturnFocus(document.activeElement);
     history.pushState(modalHistoryState(route, modalHistoryDepth() + 1), '', modalUrl(route));
     applyUrlModalState();
   }
 
-  function closeModalRoute() {
+  async function closeModalRoute(options) {
+    var opts = options || {};
+    if (modalIsDirty() && !opts.force) {
+      var discard = await openConfirmDialog({
+        title: 'Discard changes?',
+        message: 'Close this view and discard the changes you entered?',
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard changes',
+        danger: true
+      });
+      if (!discard) return;
+      markModalClean();
+    }
+
     if (modalRouteFromUrl()) {
       history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       syncSelectedModalState(null);
-      closeModal();
+      closeModal({ restoreFocus: true });
       renderPage();
       return;
     }
-    closeModal();
+    closeModal({ restoreFocus: true });
   }
 
   function openModal(html, size) {
@@ -982,8 +1221,14 @@ export function initAdminRuntime(pageController) {
         html +
       '</section>';
     document.body.classList.add('admin-modal-open');
+    setPageInteractionBlocked(true);
+    root.dataset.dirty = 'false';
+    var panel = $('.admin-modal-panel', root);
+    labelDialog(panel, 'Admin details');
     $all('[data-admin-modal-close]', root).forEach(function (item) {
-      item.addEventListener('click', closeModalRoute);
+      item.addEventListener('click', function () {
+        closeModalRoute();
+      });
     });
     var backButton = $('[data-admin-modal-back]', root);
     if (backButton) {
@@ -991,35 +1236,59 @@ export function initAdminRuntime(pageController) {
         history.back();
       });
     }
-    var firstInput = $('input, textarea, select, button', root);
+    if (root._adminDirtyInput) root.removeEventListener('input', root._adminDirtyInput);
+    if (root._adminDirtyChange) root.removeEventListener('change', root._adminDirtyChange);
+    root._adminDirtyInput = function (event) {
+      if (event.target && event.target.closest('form')) root.dataset.dirty = 'true';
+    };
+    root._adminDirtyChange = root._adminDirtyInput;
+    root.addEventListener('input', root._adminDirtyInput);
+    root.addEventListener('change', root._adminDirtyChange);
+    bindDialogKeyboard(root, function () {
+      closeModalRoute();
+    });
+    var firstInput = $('[data-admin-modal-back], [autofocus], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href]', root);
     if (firstInput) firstInput.focus();
+    else if (panel) panel.focus();
     return root;
   }
 
   function openConfirmDialog(options) {
     return new Promise(function (resolve) {
       var root = ensureConfirmRoot();
+      confirmReturnFocus = document.activeElement;
       root.hidden = false;
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
             '<div><span class="section-label">Confirm</span><h2>' + escapeHtml(options.title || 'Confirm action') + '</h2></div>' +
           '</div>' +
-          '<p>' + escapeHtml(options.message || 'Continue?') + '</p>' +
+          '<p data-confirm-message>' + escapeHtml(options.message || 'Continue?') + '</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>' + escapeHtml(options.cancelLabel || 'Cancel') + '</button>' +
             '<button class="admin-button ' + escapeHtml(options.danger ? 'admin-button-danger' : 'admin-button-primary') + '" type="button" data-confirm-yes>' + escapeHtml(options.confirmLabel || 'Continue') + '</button>' +
           '</div>' +
         '</section>';
       document.body.classList.add('admin-modal-open');
+      setPageInteractionBlocked(true);
+      setUnderlyingModalBlocked(true);
+      var panel = $('.admin-confirm-panel', root);
+      labelDialog(panel, options.title || 'Confirm action');
+      var message = $('[data-confirm-message]', root);
+      if (panel && message) {
+        dialogId += 1;
+        message.id = 'admin-dialog-description-' + dialogId;
+        panel.setAttribute('aria-describedby', message.id);
+      }
 
       function finish(value) {
-        closeConfirmDialog();
+        closeConfirmDialog({ restoreFocus: true });
         resolve(value);
       }
 
       $('[data-confirm-no]', root).addEventListener('click', function () { finish(false); });
       $('[data-confirm-yes]', root).addEventListener('click', function () { finish(true); });
+      bindDialogKeyboard(root, function () { finish(false); });
       $('[data-confirm-no]', root).focus();
     });
   }
@@ -1033,13 +1302,14 @@ export function initAdminRuntime(pageController) {
 
     return new Promise(function (resolve) {
       var root = ensureConfirmRoot();
+      confirmReturnFocus = document.activeElement;
       root.hidden = false;
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
             '<div><span class="section-label">Confirm</span><h2>Delete availability</h2></div>' +
           '</div>' +
-          '<p>This slot is part of a weekly series.</p>' +
+          '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + ' is part of a weekly series. Deleted availability cannot be restored here.</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
             '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Only this slot</button>' +
@@ -1047,15 +1317,26 @@ export function initAdminRuntime(pageController) {
           '</div>' +
         '</section>';
       document.body.classList.add('admin-modal-open');
+      setPageInteractionBlocked(true);
+      setUnderlyingModalBlocked(true);
+      var panel = $('.admin-confirm-panel', root);
+      labelDialog(panel, 'Delete availability');
+      var message = $('[data-confirm-message]', root);
+      if (panel && message) {
+        dialogId += 1;
+        message.id = 'admin-dialog-description-' + dialogId;
+        panel.setAttribute('aria-describedby', message.id);
+      }
 
       function finish(value) {
-        closeConfirmDialog();
+        closeConfirmDialog({ restoreFocus: true });
         resolve(value);
       }
 
       $('[data-confirm-no]', root).addEventListener('click', function () { finish(null); });
       $('[data-confirm-single]', root).addEventListener('click', function () { finish('single'); });
       $('[data-confirm-series]', root).addEventListener('click', function () { finish('series'); });
+      bindDialogKeyboard(root, function () { finish(null); });
       $('[data-confirm-no]', root).focus();
     });
   }
@@ -1063,13 +1344,15 @@ export function initAdminRuntime(pageController) {
   function openMarketingSendConfirm(subject, body) {
     return new Promise(function (resolve) {
       var root = ensureConfirmRoot();
+      var audienceCount = consentedCustomers().length;
+      confirmReturnFocus = document.activeElement;
       root.hidden = false;
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="lg" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
             '<div><span class="section-label">Confirm</span><h2>Send marketing email</h2></div>' +
           '</div>' +
-          '<p>Send this email to every customer with active marketing consent?</p>' +
+          '<p data-confirm-message>Send this email to ' + audienceCount + ' customer' + (audienceCount === 1 ? '' : 's') + ' with active marketing consent?</p>' +
           '<div class="admin-email-preview admin-email-preview-modal"><iframe title="Marketing send preview" sandbox="" data-confirm-marketing-preview></iframe></div>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
@@ -1077,6 +1360,16 @@ export function initAdminRuntime(pageController) {
           '</div>' +
         '</section>';
       document.body.classList.add('admin-modal-open');
+      setPageInteractionBlocked(true);
+      setUnderlyingModalBlocked(true);
+      var panel = $('.admin-confirm-panel', root);
+      labelDialog(panel, 'Send marketing email');
+      var message = $('[data-confirm-message]', root);
+      if (panel && message) {
+        dialogId += 1;
+        message.id = 'admin-dialog-description-' + dialogId;
+        panel.setAttribute('aria-describedby', message.id);
+      }
 
       var frame = $('[data-confirm-marketing-preview]', root);
       if (frame) {
@@ -1093,12 +1386,13 @@ export function initAdminRuntime(pageController) {
       }
 
       function finish(value) {
-        closeConfirmDialog();
+        closeConfirmDialog({ restoreFocus: true });
         resolve(value);
       }
 
       $('[data-confirm-no]', root).addEventListener('click', function () { finish(false); });
       $('[data-confirm-yes]', root).addEventListener('click', function () { finish(true); });
+      bindDialogKeyboard(root, function () { finish(false); });
       $('[data-confirm-no]', root).focus();
     });
   }
@@ -1205,9 +1499,56 @@ export function initAdminRuntime(pageController) {
     }
   }
 
+  function navIsOpen() {
+    return document.body.classList.contains('is-nav-open');
+  }
+
+  function setNavOpen(open, options) {
+    var opts = options || {};
+    var consoleRoot = $('.admin-console');
+    var sidebar = $('#admin-sidebar');
+    var toggle = $('[data-admin-nav-toggle]');
+    var pageRoot = $('[data-page-root]');
+    document.body.classList.toggle('is-nav-open', Boolean(open));
+    if (consoleRoot) consoleRoot.classList.toggle('is-nav-open', Boolean(open));
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-controls', 'admin-sidebar');
+    }
+    if (sidebar) sidebar.classList.toggle('is-nav-open', Boolean(open));
+    if (pageRoot) {
+      if (open) {
+        pageRoot.setAttribute('inert', '');
+        pageRoot.setAttribute('aria-hidden', 'true');
+      } else {
+        pageRoot.removeAttribute('inert');
+        pageRoot.removeAttribute('aria-hidden');
+      }
+    }
+
+    if (open && opts.focus !== false) {
+      var currentLink = sidebar && ($('[aria-current="page"]', sidebar) || $('[data-admin-nav]', sidebar));
+      window.setTimeout(function () {
+        if (!navIsOpen()) return;
+        var target = currentLink || sidebar;
+        if (!target || !document.body.contains(target) || typeof target.focus !== 'function') return;
+        try {
+          target.focus({ preventScroll: true });
+        } catch (error) {
+          target.focus();
+        }
+      }, 80);
+    } else if (!open && opts.restoreFocus) {
+      focusElement(toggle);
+    }
+  }
+
   function setActiveNav() {
     $all('[data-admin-nav]').forEach(function (link) {
-      link.classList.toggle('is-active', link.dataset.adminNav === state.page);
+      var active = link.dataset.adminNav === state.page;
+      link.classList.toggle('is-active', active);
+      if (active) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
     });
   }
 
@@ -1220,13 +1561,9 @@ export function initAdminRuntime(pageController) {
 
   function renderStats() {
     if (!els.stats) return;
-    var now = new Date();
     var today = todayYmd();
-    var stalePending = state.bookings.filter(function (booking) {
-      return booking.status === 'pending' && booking.pending_expires_at && new Date(booking.pending_expires_at) < now;
-    }).length;
     var pending = state.bookings.filter(function (booking) {
-      return booking.status === 'pending' && (!booking.pending_expires_at || new Date(booking.pending_expires_at) >= now);
+      return booking.status === 'pending' && (!booking.pending_expires_at || new Date(booking.pending_expires_at) >= new Date());
     }).length;
     var confirmedToday = state.bookings.filter(function (booking) {
       var start = booking.final_start_at || booking.requested_start_at;
@@ -1248,10 +1585,7 @@ export function initAdminRuntime(pageController) {
       '</a>' +
       '<a class="admin-stat admin-stat-link" data-tone="' + (openNext7 ? 'available' : 'warning') + '" href="' + PATHS.availability + '">' +
         '<span>Open next 7 days</span><strong>' + openNext7 + '</strong><em>Manage availability</em>' +
-      '</a>' +
-      '<div class="admin-stat" data-tone="' + (stalePending ? 'warning' : 'neutral') + '">' +
-        '<span>Cleanup health</span><strong>' + stalePending + '</strong><em>' + (stalePending ? 'Expired pending rows remain' : 'Expired pending cleanup clear') + '</em>' +
-      '</div>';
+      '</a>';
   }
 
   function latestBookingsBySlot(predicate) {
@@ -1381,15 +1715,90 @@ export function initAdminRuntime(pageController) {
     return weekday + ' ' + dateValue.slice(5);
   }
 
+  function bookingRowHtml(booking, attributeName) {
+    var start = booking.final_start_at || booking.requested_start_at;
+    var end = booking.final_end_at || booking.requested_end_at;
+    var serviceName = serviceNameForBooking(booking);
+    var dateRange = formatRange(start, end);
+    var vehicle = booking.vehicle || 'No vehicle';
+    var rowLabel = [
+      booking.public_reference,
+      booking.customer_name,
+      statusLabel(booking.status),
+      serviceName,
+      dateRange,
+      vehicle
+    ].join(', ');
+    return '<button class="admin-booking-item admin-data-row' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(rowLabel) + '" ' +
+      attributeName + '="' + escapeHtml(booking.id) + '">' +
+        '<span class="admin-row-primary admin-booking-item-header">' +
+          '<span class="admin-booking-title"><strong>' + escapeHtml(booking.public_reference) + '</strong><span>' + escapeHtml(booking.customer_name) + '</span></span>' +
+        '</span>' +
+        '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span></span>' +
+        '<span class="admin-row-service admin-booking-meta">' + escapeHtml(serviceName) + '</span>' +
+        '<span class="admin-row-date admin-booking-meta">' + escapeHtml(dateRange) + '</span>' +
+        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(vehicle) + '</span>' +
+      '</button>';
+  }
+
+  function renderDashboardBookings() {
+    var list = $('[data-admin-dashboard-booking-list]') || $('[data-admin-booking-list]');
+    if (!list || state.page !== 'dashboard') return;
+    var bookings = state.bookings.filter(function (booking) {
+      return ['pending', 'confirmed'].includes(booking.status);
+    }).sort(function (a, b) {
+      return new Date(bookingScheduleStart(a)) - new Date(bookingScheduleStart(b));
+    }).slice(0, 8);
+
+    list.innerHTML = bookings.length
+      ? bookings.map(function (booking) {
+        return bookingRowHtml(booking, 'data-dashboard-booking-id');
+      }).join('')
+      : emptyState('No pending or confirmed bookings.');
+
+    $all('[data-dashboard-booking-id]', list).forEach(function (button) {
+      button.addEventListener('click', function () {
+        navigateToModal('booking', button.dataset.dashboardBookingId);
+      });
+    });
+  }
+
   function renderDashboardPage() {
     els.stats = $('[data-admin-stats]');
     renderStats();
+    renderDashboardBookings();
     renderCalendar();
+  }
+
+  function calendarIsCompact() {
+    if (calendarMediaQuery) return Boolean(calendarMediaQuery.matches);
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 720px)').matches);
+  }
+
+  function applyCalendarLayout(calendar) {
+    if (!calendar) return;
+    var compact = calendarIsCompact();
+    calendar.classList.toggle('is-compact', compact);
+    calendar.dataset.calendarLayout = compact ? 'agenda' : 'grid';
+  }
+
+  function setupCalendarMedia() {
+    if (!window.matchMedia || calendarMediaQuery) return;
+    calendarMediaQuery = window.matchMedia('(max-width: 720px)');
+    var handleChange = function () {
+      renderCalendar();
+    };
+    if (typeof calendarMediaQuery.addEventListener === 'function') {
+      calendarMediaQuery.addEventListener('change', handleChange);
+    } else if (typeof calendarMediaQuery.addListener === 'function') {
+      calendarMediaQuery.addListener(handleChange);
+    }
   }
 
   function renderCalendar() {
     var calendar = $('[data-admin-calendar]');
     if (!calendar) return;
+    applyCalendarLayout(calendar);
 
     var range = calendarRange();
     var events = buildCalendarEvents().filter(function (event) { return eventIsInRange(event, range); });
@@ -1440,7 +1849,8 @@ export function initAdminRuntime(pageController) {
             }).join('') + '</div>' +
           '</div>' +
         '</div>' +
-      '</div>';
+      '</div>' +
+      renderCalendarAgenda(range, byDay);
 
     $all('[data-calendar-event]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -1448,6 +1858,8 @@ export function initAdminRuntime(pageController) {
         if (!event) return;
         if (state.page === 'availability') {
           if (event.type === 'slot' && event.slotId) {
+            slotEditorReturnFocus = button;
+            slotEditorReturnFocusSelector = focusSelectorFor(button);
             selectSlotForEdit(event.slotId);
             return;
           }
@@ -1456,10 +1868,38 @@ export function initAdminRuntime(pageController) {
             return;
           }
         }
-        state.previewEventId = button.dataset.calendarEvent;
-        renderCalendarPreview(event);
+        if (event.type === 'booking' && event.bookingId) {
+          navigateToModal('booking', event.bookingId);
+          return;
+        }
+        if (event.href) window.location.href = event.href;
       });
     });
+  }
+
+  function renderCalendarAgenda(range, byDay) {
+    return '<div class="admin-calendar-agenda" aria-label="Calendar agenda">' +
+      range.days.map(function (day) {
+        var events = byDay[day] || [];
+        return '<section class="admin-calendar-agenda-day">' +
+          '<div class="admin-calendar-agenda-date">' +
+            '<span>' + escapeHtml(dayLabel(day)) + '</span>' +
+            '<span>' + events.length + ' event' + (events.length === 1 ? '' : 's') + '</span>' +
+          '</div>' +
+          '<div class="admin-calendar-agenda-events">' +
+            (events.length ? events.map(function (event) {
+              var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' + event.title +
+                (event.meta ? ', ' + event.meta : '') + ', ' + statusLabel(event.status);
+              return '<button class="admin-calendar-agenda-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(statusTone(event.status)) + '" data-calendar-event="' + escapeHtml(event.id) + '">' +
+                '<span class="admin-calendar-agenda-time">' + escapeHtml(formatTime(event.start) + '–' + formatTime(event.end)) + '</span>' +
+                '<span class="admin-calendar-agenda-meta"><strong>' + escapeHtml(event.title) + '</strong><span>' + escapeHtml(event.meta || '') + '</span></span>' +
+                '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(event.status)) + '">' + escapeHtml(statusLabel(event.status)) + '</span>' +
+              '</button>';
+            }).join('') : '<p class="admin-calendar-agenda-empty">No scheduled items.</p>') +
+          '</div>' +
+        '</section>';
+      }).join('') +
+    '</div>';
   }
 
   function renderTimeRail(hours) {
@@ -1488,47 +1928,13 @@ export function initAdminRuntime(pageController) {
     var top = Math.max(0, start - hours.start * 60) / 60 * HOUR_HEIGHT;
     var height = Math.max(34, (Math.max(end, start + 15) - start) / 60 * HOUR_HEIGHT);
     var tone = statusTone(event.status);
-    return '<button class="admin-calendar-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
+    var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' +
+      event.title + ', ' + statusLabel(event.status);
+    return '<button class="admin-calendar-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
       '<strong>' + escapeHtml(formatTime(event.start) + '-' + formatTime(event.end)) + '</strong>' +
       '<span>' + escapeHtml(event.title) + '</span>' +
       '<em>' + escapeHtml(statusLabel(event.status)) + '</em>' +
     '</button>';
-  }
-
-  function renderCalendarPreview(event) {
-    var preview = $('[data-admin-preview]');
-    if (!preview || !event) return;
-    var isBooking = event.type === 'booking';
-    var booking = isBooking ? state.bookings.find(function (item) { return item.id === event.bookingId; }) : null;
-    var slot = event.slotId ? state.slots.find(function (item) { return item.id === event.slotId; }) : null;
-    var rows = [
-      ['Status', statusLabel(event.status)],
-      ['Time', formatRange(event.start, event.end)],
-      ['Service', isBooking && booking ? serviceNameForBooking(booking) : serviceNameById(slot && slot.service_id)],
-      ['Assigned to', slot && slot.assigned_staff_id ? ((staffById(slot.assigned_staff_id) || {}).display_name || 'Assigned') : (booking && booking.assigned_to_staff_id ? ((staffById(booking.assigned_to_staff_id) || {}).display_name || 'Assigned') : 'Unassigned')]
-    ];
-
-    if (booking) {
-      rows.push(['Customer', booking.customer_name]);
-      rows.push(['Vehicle', booking.vehicle]);
-    }
-
-    preview.hidden = false;
-    preview.innerHTML =
-      '<div class="admin-preview-panel">' +
-        '<button class="admin-preview-close" type="button" data-preview-close aria-label="Close preview">×</button>' +
-        '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(event.status)) + '">' + escapeHtml(statusLabel(event.status)) + '</span>' +
-        '<h2>' + escapeHtml(event.title) + '</h2>' +
-        '<div class="admin-detail-list">' + rows.map(function (row) {
-          return detailRow(row[0], row[1]);
-        }).join('') + '</div>' +
-        '<a class="admin-button admin-button-primary" href="' + escapeHtml(event.href) + '">' + (isBooking ? 'Open booking' : 'Manage availability') + '</a>' +
-      '</div>';
-
-    $('[data-preview-close]', preview).addEventListener('click', function () {
-      preview.hidden = true;
-      state.previewEventId = null;
-    });
   }
 
   function bookingScheduleStart(booking) {
@@ -1566,30 +1972,37 @@ export function initAdminRuntime(pageController) {
   function renderBookings() {
     var bookings = getFilteredBookings();
     if (!els.bookingList) return;
+    var count = $('[data-admin-booking-count]');
+    if (count) {
+      count.textContent = bookings.length + ' booking' + (bookings.length === 1 ? '' : 's');
+      count.setAttribute('role', 'status');
+      count.setAttribute('aria-live', 'polite');
+      count.setAttribute('aria-atomic', 'true');
+    }
 
     if (!bookings.length) {
-      els.bookingList.innerHTML = '<div class="admin-empty-state admin-empty-state-compact"><p>No bookings match this filter.</p></div>';
+      els.bookingList.innerHTML = emptyState(
+        state.filter === 'all' ? 'No bookings yet.' : 'No bookings match this filter.',
+        state.filter === 'all' ? '' : 'Show all bookings',
+        'data-empty-bookings-all'
+      );
+      var showAll = $('[data-empty-bookings-all]', els.bookingList);
+      if (showAll) {
+        showAll.addEventListener('click', function () {
+          var allButton = $('[data-filter="all"]');
+          if (allButton) allButton.click();
+        });
+      }
       return;
     }
 
     els.bookingList.innerHTML = bookings.map(function (booking) {
-      var start = booking.final_start_at || booking.requested_start_at;
-      var end = booking.final_end_at || booking.requested_end_at;
-      return '<button class="admin-booking-item' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" data-booking-id="' + escapeHtml(booking.id) + '">' +
-        '<span class="admin-booking-item-header">' +
-          '<span class="admin-booking-title">' + escapeHtml(booking.public_reference) + ' - ' + escapeHtml(booking.customer_name) + '</span>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
-        '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(serviceNameForBooking(booking)) + '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(formatRange(start, end)) + '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(booking.vehicle) + '</span>' +
-      '</button>';
+      return bookingRowHtml(booking, 'data-booking-id');
     }).join('');
 
     $all('[data-booking-id]', els.bookingList).forEach(function (button) {
       button.addEventListener('click', function () {
         state.selectedBookingId = button.dataset.bookingId;
-        renderBookings();
         navigateToModal('booking', button.dataset.bookingId);
       });
     });
@@ -1901,6 +2314,11 @@ export function initAdminRuntime(pageController) {
   function renderCustomersPage() {
     var search = $('[data-customer-search]');
     if (search && search.value !== state.customerSearch) search.value = state.customerSearch;
+    var clear = $('[data-customer-clear]');
+    if (clear) {
+      clear.hidden = !state.customerSearch;
+      clear.disabled = !state.customerSearch;
+    }
     renderCustomerList();
   }
 
@@ -1909,23 +2327,43 @@ export function initAdminRuntime(pageController) {
     if (!list) return;
     var customers = getFilteredCustomers();
     var count = $('[data-customer-count]');
-    if (count) count.textContent = customers.length + ' customers';
+    if (count) {
+      count.textContent = customers.length + ' customer' + (customers.length === 1 ? '' : 's');
+      count.setAttribute('role', 'status');
+      count.setAttribute('aria-live', 'polite');
+      count.setAttribute('aria-atomic', 'true');
+    }
 
     if (!customers.length) {
-      list.innerHTML = '<div class="admin-empty-state admin-empty-state-compact"><p>No customers match this search.</p></div>';
+      list.innerHTML = state.customerSearch
+        ? emptyState('No customers match this search.', 'Clear search', 'data-empty-customers-clear')
+        : emptyState('No customer profiles yet.');
+      var emptyClear = $('[data-empty-customers-clear]', list);
+      if (emptyClear) {
+        emptyClear.addEventListener('click', function () {
+          state.customerSearch = '';
+          renderCustomersPage();
+          var search = $('[data-customer-search]');
+          if (search) search.focus();
+        });
+      }
       return;
     }
 
     list.innerHTML = customers.map(function (customer) {
       var bookings = bookingsForCustomer(customer.id);
       var invoices = invoicesForCustomer(customer.id);
-      return '<button class="admin-customer-item' + (customer.id === state.selectedCustomerId ? ' is-selected' : '') + '" type="button" data-customer-id="' + escapeHtml(customer.id) + '">' +
-        '<span class="admin-booking-item-header">' +
-          '<span class="admin-booking-title">' + escapeHtml(customer.display_name) + '</span>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span>' +
-        '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(customer.email) + (customer.phone ? ' - ' + escapeHtml(customer.phone) : '') + '</span>' +
-        '<span class="admin-booking-meta">' + bookings.length + ' bookings - ' + invoices.length + ' invoices</span>' +
+      var customerName = customer.display_name || 'Unnamed customer';
+      var customerEmail = customer.email || 'No email';
+      var lastBooking = customer.last_booking_at ? formatDateTime(customer.last_booking_at) : 'No bookings yet';
+      var customerMeta = (customer.phone || 'No phone') + ' · ' + bookings.length + ' booking' + (bookings.length === 1 ? '' : 's') + ' · ' + invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
+      var customerLabel = [customerName, marketingLabel(customer.marketing_consent_status), customerEmail, lastBooking, customerMeta].join(', ');
+      return '<button class="admin-customer-item admin-data-row' + (customer.id === state.selectedCustomerId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(customerLabel) + '" data-customer-id="' + escapeHtml(customer.id) + '">' +
+        '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title">' + escapeHtml(customerName) + '</span></span>' +
+        '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span></span>' +
+        '<span class="admin-row-service admin-booking-meta">' + escapeHtml(customerEmail) + '</span>' +
+        '<span class="admin-row-date admin-booking-meta">' + escapeHtml(lastBooking) + '</span>' +
+        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(customerMeta) + '</span>' +
       '</button>';
     }).join('');
 
@@ -2124,10 +2562,25 @@ export function initAdminRuntime(pageController) {
     } else if (state.invoiceFilter === 'void') {
       invoices = invoices.filter(function (invoice) { return invoice.invoice_status === 'void'; });
     }
+    var query = normalizeSearch(state.invoiceSearch);
+    if (query) {
+      var parts = query.split(/\s+/).filter(Boolean);
+      invoices = invoices.filter(function (invoice) {
+        var text = invoiceSearchText(invoice);
+        return parts.every(function (part) { return text.indexOf(part) !== -1; });
+      });
+    }
     return invoices;
   }
 
   function renderInvoicesPage() {
+    var search = $('[data-invoice-search]');
+    if (search && search.value !== state.invoiceSearch) search.value = state.invoiceSearch;
+    var clear = $('[data-invoice-clear]');
+    if (clear) {
+      clear.hidden = !state.invoiceSearch;
+      clear.disabled = !state.invoiceSearch;
+    }
     renderInvoiceList();
   }
 
@@ -2135,22 +2588,51 @@ export function initAdminRuntime(pageController) {
     var list = $('[data-invoice-list]');
     if (!list) return;
     var invoices = filteredInvoices();
+    var count = $('[data-invoice-count]');
+    if (count) {
+      count.textContent = invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
+      count.setAttribute('role', 'status');
+      count.setAttribute('aria-live', 'polite');
+      count.setAttribute('aria-atomic', 'true');
+    }
     if (!invoices.length) {
-      list.innerHTML = '<div class="admin-empty-state admin-empty-state-compact"><p>No invoices match this filter.</p></div>';
+      var hasRefinement = state.invoiceFilter !== 'all' || Boolean(state.invoiceSearch);
+      list.innerHTML = emptyState(
+        hasRefinement ? 'No invoices match the current search and filter.' : 'No invoices yet.',
+        hasRefinement ? 'Clear filters' : '',
+        hasRefinement ? 'data-empty-invoices-clear' : ''
+      );
+      var emptyClear = $('[data-empty-invoices-clear]', list);
+      if (emptyClear) {
+        emptyClear.addEventListener('click', function () {
+          state.invoiceSearch = '';
+          state.invoiceFilter = 'all';
+          var allButton = $('[data-invoice-filter="all"]');
+          if (allButton) allButton.click();
+          else renderInvoicesPage();
+          var search = $('[data-invoice-search]');
+          if (search) search.focus();
+        });
+      }
       return;
     }
 
     list.innerHTML = invoices.map(function (invoice) {
       var booking = bookingById(invoice.booking_id);
       var customer = customerById(invoice.customer_id);
-      return '<button class="admin-booking-item' + (invoice.id === state.selectedInvoiceId ? ' is-selected' : '') + '" type="button" data-invoice-id="' + escapeHtml(invoice.id) + '">' +
-        '<span class="admin-booking-item-header">' +
-          '<span class="admin-booking-title">' + escapeHtml(invoice.invoice_number) + ' - ' + escapeHtml(customer ? customer.display_name : invoice.customer_name) + '</span>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
-        '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(booking ? booking.public_reference : 'No booking') + ' - ' + escapeHtml(invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued') + '</span>' +
-        '<span class="admin-booking-meta">' + escapeHtml(formatMoney(invoice.amount_cents, invoice.currency)) + ' - due ' + escapeHtml(invoice.due_date || 'not set') + '</span>' +
-        '<span class="admin-booking-meta">Email: ' + escapeHtml(invoice.email_status || 'not_sent') + '</span>' +
+      var invoiceCustomer = customer ? customer.display_name : invoice.customer_name;
+      var invoiceBooking = booking ? booking.public_reference : 'No booking';
+      var invoiceDate = invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued';
+      var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
+      var invoiceMeta = 'Due ' + (invoice.due_date || 'not set') + ' · Email ' + (invoice.email_status || 'not sent');
+      var invoiceLabel = [invoice.invoice_number, invoiceCustomer, invoiceStatusLabel(invoice), invoiceBooking, invoiceDate, invoiceAmount, invoiceMeta].join(', ');
+      return '<button class="admin-booking-item admin-data-row' + (invoice.id === state.selectedInvoiceId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(invoiceLabel) + '" data-invoice-id="' + escapeHtml(invoice.id) + '">' +
+        '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(invoiceCustomer) + '</span></span></span>' +
+        '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span></span>' +
+        '<span class="admin-row-service admin-booking-meta">' + escapeHtml(invoiceBooking) + '</span>' +
+        '<span class="admin-row-date admin-booking-meta">' + escapeHtml(invoiceDate) + '</span>' +
+        '<span class="admin-row-amount">' + escapeHtml(invoiceAmount) + '</span>' +
+        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(invoiceMeta) + '</span>' +
       '</button>';
     }).join('');
 
@@ -2358,19 +2840,22 @@ export function initAdminRuntime(pageController) {
   function renderMarketingPage() {
     var count = $('[data-marketing-audience-count]');
     var customers = consentedCustomers();
-    if (count) count.textContent = customers.length + ' recipients';
+    if (count) count.textContent = customers.length + ' recipient' + (customers.length === 1 ? '' : 's');
 
     var campaigns = $('[data-marketing-campaigns]');
     if (campaigns) {
       campaigns.innerHTML = state.marketingCampaigns.length
         ? state.marketingCampaigns.map(function (campaign) {
-          return '<button class="admin-mini-item admin-mini-button' + (campaign.id === state.selectedCampaignId ? ' is-selected' : '') + '" type="button" data-campaign-id="' + escapeHtml(campaign.id) + '">' +
-            '<span><strong>' + escapeHtml(campaign.subject) + '</strong> ' + escapeHtml(statusLabel(campaign.status)) + '</span>' +
-            '<span>' + escapeHtml(formatDateTime(campaign.created_at)) + '</span>' +
-            '<span>' + Number(campaign.sent_count || 0) + ' sent / ' + Number(campaign.failed_count || 0) + ' failed / ' + Number(campaign.audience_count || 0) + ' total</span>' +
+          var campaignDelivery = Number(campaign.sent_count || 0) + ' sent · ' + Number(campaign.failed_count || 0) + ' failed · ' + Number(campaign.audience_count || 0) + ' total';
+          var campaignLabel = [campaign.subject, statusLabel(campaign.status), formatDateTime(campaign.created_at), campaignDelivery].join(', ');
+          return '<button class="admin-mini-item admin-mini-button admin-data-row' + (campaign.id === state.selectedCampaignId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(campaignLabel) + '" data-campaign-id="' + escapeHtml(campaign.id) + '">' +
+            '<span class="admin-row-primary"><strong>' + escapeHtml(campaign.subject) + '</strong></span>' +
+            '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(statusTone(campaign.status)) + '">' + escapeHtml(statusLabel(campaign.status)) + '</span></span>' +
+            '<span class="admin-row-date">' + escapeHtml(formatDateTime(campaign.created_at)) + '</span>' +
+            '<span class="admin-row-meta">' + escapeHtml(campaignDelivery) + '</span>' +
           '</button>';
         }).join('')
-        : '<div class="admin-empty-state admin-empty-state-compact"><p>No marketing campaigns have been sent yet.</p></div>';
+        : emptyState('No marketing campaigns have been sent yet.');
 
       $all('[data-campaign-id]', campaigns).forEach(function (button) {
         button.addEventListener('click', function () {
@@ -2442,6 +2927,42 @@ export function initAdminRuntime(pageController) {
     return { startAt: startAt, endAt: endAt };
   }
 
+  function clearFormValidation(form, errorEl) {
+    if (errorEl) {
+      errorEl.textContent = '';
+      errorEl.classList.remove('is-success');
+    }
+    $all('[aria-invalid="true"]', form).forEach(function (control) {
+      control.removeAttribute('aria-invalid');
+      if (Object.prototype.hasOwnProperty.call(control.dataset, 'validationDescribedby')) {
+        if (control.dataset.validationDescribedby) {
+          control.setAttribute('aria-describedby', control.dataset.validationDescribedby);
+        } else {
+          control.removeAttribute('aria-describedby');
+        }
+        delete control.dataset.validationDescribedby;
+      }
+    });
+  }
+
+  function showFieldError(errorEl, message, control) {
+    if (errorEl) {
+      if (!errorEl.id) {
+        dialogId += 1;
+        errorEl.id = 'admin-form-error-' + dialogId;
+      }
+      errorEl.textContent = message;
+    }
+    if (control) {
+      control.setAttribute('aria-invalid', 'true');
+      if (!control.dataset.validationDescribedby) {
+        control.dataset.validationDescribedby = control.getAttribute('aria-describedby') || '';
+      }
+      if (errorEl && errorEl.id) control.setAttribute('aria-describedby', errorEl.id);
+      focusElement(control);
+    }
+  }
+
   function busyLabelForAction(action) {
     return {
       confirmBooking: 'Confirming...',
@@ -2469,6 +2990,32 @@ export function initAdminRuntime(pageController) {
     }[action] || 'Working...';
   }
 
+  function successMessageForAction(action) {
+    return {
+      confirmBooking: 'Booking confirmed.',
+      rejectBooking: 'Booking rejected.',
+      cancelBooking: 'Booking cancelled.',
+      completeBooking: 'Booking marked completed.',
+      createAndSendInvoice: 'Invoice created and sent.',
+      markBookingPaid: 'Booking marked paid.',
+      markInvoicePaid: 'Invoice marked paid.',
+      resendInvoice: 'Invoice resent.',
+      voidInvoice: 'Invoice voided.',
+      deleteSlot: 'Availability slot deleted.',
+      deleteSlotSeries: 'Availability series deleted.',
+      updateSlot: 'Availability slot updated.',
+      createSlot: 'Availability slot created.',
+      setCustomerLegalHold: 'Legal hold set.',
+      releaseCustomerLegalHold: 'Legal hold released.',
+      markCustomerErasureRequest: 'Erasure request recorded.',
+      withdrawCustomerMarketingConsent: 'Marketing consent withdrawn.',
+      redactBookingPii: 'Booking personal data redacted.',
+      redactCustomerPii: 'Customer profile redacted.',
+      deleteCustomerProfile: 'Customer profile deleted.',
+      sendMarketingCampaign: 'Marketing campaign sent.'
+    }[action] || 'Changes saved.';
+  }
+
   function setButtonBusy(button, busy, label) {
     if (!button) return;
     if (busy) {
@@ -2481,6 +3028,7 @@ export function initAdminRuntime(pageController) {
       button.classList.add('is-loading');
       button.setAttribute('aria-busy', 'true');
       button.setAttribute('aria-label', label || 'Working...');
+      button.textContent = label || 'Working...';
       return;
     }
 
@@ -2535,6 +3083,9 @@ export function initAdminRuntime(pageController) {
     if (!target) return;
     target.textContent = label;
     target.dataset.state = tone || 'synced';
+    target.setAttribute('role', 'status');
+    target.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+    target.setAttribute('aria-atomic', 'true');
   }
 
   async function runAction(payload, confirmAction, trigger, options) {
@@ -2548,10 +3099,11 @@ export function initAdminRuntime(pageController) {
       setButtonBusy(trigger, true, busyLabelForAction(confirmAction || payload.action));
       setSyncState('Saving', 'loading');
       await adminAction(payload);
+      markModalClean();
       await refresh({ preserveScroll: true });
-      if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId);
-      if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId);
-      showToast('Action completed.', 'success');
+      if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
+      if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
+      showToast(successMessageForAction(confirmAction || payload.action), 'success');
     } catch (error) {
       setSyncState('Action failed', 'error');
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
@@ -2567,6 +3119,7 @@ export function initAdminRuntime(pageController) {
     var scope = await openSlotDeleteDialog(slot);
     if (!scope) return;
     var action = scope === 'series' ? 'deleteSlotSeries' : 'deleteSlot';
+    captureSlotEditorBaseline();
     await runAction({ action: action, slotId: slotId }, action, trigger, { skipConfirm: true });
   }
 
@@ -2576,10 +3129,7 @@ export function initAdminRuntime(pageController) {
     var data = new FormData(form);
     var action = form.dataset.action;
     var errorEl = $('[data-action-error]', form);
-    if (errorEl) {
-      errorEl.textContent = '';
-      errorEl.classList.remove('is-success');
-    }
+    clearFormValidation(form, errorEl);
 
     var payload = {
       action: action,
@@ -2598,7 +3148,7 @@ export function initAdminRuntime(pageController) {
     if (action === 'confirmBooking') {
       var validation = validateDateTimePair(String(data.get('date') || ''), String(data.get('startTime') || ''), String(data.get('endTime') || ''));
       if (validation.error) {
-        if (errorEl) errorEl.textContent = validation.error;
+        showFieldError(errorEl, validation.error, form.elements.date);
         return;
       }
       payload.startAt = validation.startAt;
@@ -2610,11 +3160,11 @@ export function initAdminRuntime(pageController) {
       var holdTime = String(data.get('holdUntilTime') || '');
       var holdUntil = isoFromVilniusInput(holdDate, holdTime);
       if (!holdUntil || new Date(holdUntil) <= new Date()) {
-        if (errorEl) errorEl.textContent = 'Use a future legal hold date and time in YYYY-MM-DD and HH:mm format.';
+        showFieldError(errorEl, 'Use a future legal hold date and time in YYYY-MM-DD and HH:mm format.', form.elements.holdUntilDate);
         return;
       }
       if (!String(data.get('legalHoldReason') || '').trim()) {
-        if (errorEl) errorEl.textContent = 'Legal hold reason is required.';
+        showFieldError(errorEl, 'Legal hold reason is required.', form.elements.legalHoldReason);
         return;
       }
       payload.holdUntil = holdUntil;
@@ -2624,7 +3174,11 @@ export function initAdminRuntime(pageController) {
       payload.marketingSubject = data.get('marketingSubject') || null;
       payload.marketingBody = data.get('marketingBody') || null;
       if (!String(payload.marketingSubject || '').trim() || !String(payload.marketingBody || '').trim()) {
-        if (errorEl) errorEl.textContent = 'Subject and message are required.';
+        showFieldError(
+          errorEl,
+          'Subject and message are required.',
+          !String(payload.marketingSubject || '').trim() ? form.elements.marketingSubject : form.elements.marketingBody
+        );
         return;
       }
     }
@@ -2633,15 +3187,15 @@ export function initAdminRuntime(pageController) {
       var amount = String(data.get('amount') || '').replace(',', '.').trim();
       var dueDate = String(data.get('dueDate') || '').trim();
       if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
-        if (errorEl) errorEl.textContent = 'Use a valid amount, for example 100.00.';
+        showFieldError(errorEl, 'Use a valid amount, for example 100.00.', form.elements.amount);
         return;
       }
       if (!isValidYmd(dueDate) || compareYmd(dueDate, todayYmd()) < 0) {
-        if (errorEl) errorEl.textContent = 'Use a due date in YYYY-MM-DD format. It cannot be in the past.';
+        showFieldError(errorEl, 'Use a due date in YYYY-MM-DD format. It cannot be in the past.', form.elements.dueDate);
         return;
       }
       if (String(data.get('vatMode') || '') === 'included' && !/^\d+(\.\d{1,2})?$/.test(String(data.get('vatRate') || '').replace(',', '.').trim())) {
-        if (errorEl) errorEl.textContent = 'Use a valid VAT rate.';
+        showFieldError(errorEl, 'Use a valid VAT rate.', form.elements.vatRate);
         return;
       }
       payload.amount = amount;
@@ -2653,7 +3207,7 @@ export function initAdminRuntime(pageController) {
     }
 
     if (action === 'voidInvoice' && !String(data.get('voidReason') || '').trim()) {
-      if (errorEl) errorEl.textContent = 'Void reason is required.';
+      showFieldError(errorEl, 'Void reason is required.', form.elements.voidReason);
       return;
     }
 
@@ -2672,25 +3226,26 @@ export function initAdminRuntime(pageController) {
       setFormBusy(form, true, busyLabelForAction(action));
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
+      markModalClean();
       if (action === 'deleteCustomerProfile') {
         state.selectedCustomerId = null;
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
       await refresh({ preserveScroll: true });
       if (action === 'createAndSendInvoice' && response.result && response.result.id) {
-        navigateToModal('invoice', response.result.id);
+        navigateToModal('invoice', response.result.id, { force: true });
       } else if (action === 'deleteCustomerProfile') {
-        closeModal();
-        showToast('Customer profile deleted.', 'success');
+        closeModal({ restoreFocus: true });
+        showToast(successMessageForAction(action), 'success');
         return;
       } else if (payload.invoiceId && invoiceById(payload.invoiceId)) {
-        navigateToModal('invoice', payload.invoiceId);
+        navigateToModal('invoice', payload.invoiceId, { force: true });
       } else if (payload.bookingId && bookingById(payload.bookingId)) {
-        navigateToModal('booking', payload.bookingId);
+        navigateToModal('booking', payload.bookingId, { force: true });
       } else if (payload.customerId && customerById(payload.customerId)) {
-        navigateToModal('customer', payload.customerId);
+        navigateToModal('customer', payload.customerId, { force: true });
       }
-      showToast('Action completed.', 'success');
+      showToast(successMessageForAction(action), 'success');
     } catch (error) {
       setSyncState('Action failed', 'error');
       if (errorEl && document.body.contains(errorEl)) {
@@ -2703,6 +3258,147 @@ export function initAdminRuntime(pageController) {
         setFormBusy(form, false);
       }
     }
+  }
+
+  function slotEditorFormState(form) {
+    if (!form) return '';
+    return JSON.stringify($all('input, select, textarea', form).map(function (control) {
+      return {
+        name: control.name || '',
+        type: control.type || '',
+        value: control.value,
+        checked: Boolean(control.checked),
+        disabled: Boolean(control.disabled)
+      };
+    }));
+  }
+
+  function captureSlotEditorBaseline() {
+    slotEditorBaseline = slotEditorFormState($('[data-admin-slot-form]'));
+  }
+
+  function slotEditorIsDirty() {
+    var editor = $('[data-admin-slot-editor]');
+    var form = $('[data-admin-slot-form]');
+    return Boolean(editor && !editor.hidden && form && slotEditorBaseline && slotEditorFormState(form) !== slotEditorBaseline);
+  }
+
+  function setSlotEditorBackgroundBlocked(blocked) {
+    var editor = $('[data-admin-slot-editor]');
+    if (!editor) return;
+    var shell = $('[data-admin-shell]');
+    var pageRoot = editor.parentElement;
+    if (shell) {
+      if (blocked) {
+        shell.setAttribute('inert', '');
+        shell.setAttribute('aria-hidden', 'true');
+      } else {
+        shell.removeAttribute('inert');
+        shell.removeAttribute('aria-hidden');
+      }
+    }
+    if (pageRoot) {
+      Array.prototype.forEach.call(pageRoot.children, function (child) {
+        if (child === editor) return;
+        if (blocked) {
+          child.setAttribute('inert', '');
+          child.setAttribute('aria-hidden', 'true');
+        } else {
+          child.removeAttribute('inert');
+          child.removeAttribute('aria-hidden');
+        }
+      });
+    }
+  }
+
+  function setSlotEditorOpen(open, options) {
+    var opts = options || {};
+    var editor = $('[data-admin-slot-editor]');
+    var opener = $('[data-admin-slot-open]');
+    if (!editor) return;
+    state.slotEditorOpen = Boolean(open);
+    editor.hidden = !open;
+    editor.classList.toggle('is-open', Boolean(open));
+    document.body.classList.toggle('admin-slot-editor-open', Boolean(open));
+    if (opener) opener.setAttribute('aria-expanded', open ? 'true' : 'false');
+    setSlotEditorBackgroundBlocked(Boolean(open));
+
+    if (open) {
+      if (opts.returnFocus) {
+        slotEditorReturnFocus = opts.returnFocus;
+        slotEditorReturnFocusSelector = focusSelectorFor(opts.returnFocus);
+      }
+      var panel = $('.admin-slot-editor-panel', editor);
+      labelDialog(panel, 'Availability slot editor');
+      bindDialogKeyboard(editor, function () {
+        requestSlotEditorClose();
+      });
+      if (opts.focus !== false) focusElement(panel);
+    } else if (opts.restoreFocus !== false) {
+      focusElement(slotEditorReturnFocus || opener, slotEditorReturnFocusSelector);
+      slotEditorReturnFocus = null;
+      slotEditorReturnFocusSelector = '';
+    }
+  }
+
+  async function requestSlotEditorClose() {
+    if (slotEditorIsDirty()) {
+      var discard = await openConfirmDialog({
+        title: 'Discard slot changes?',
+        message: 'Close the slot editor and discard the changes you entered?',
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard changes',
+        danger: true
+      });
+      if (!discard) return;
+    }
+    resetSlotForm({ keepOpen: false, restoreFocus: true });
+  }
+
+  function captureSlotEditorDraft() {
+    var editor = $('[data-admin-slot-editor]');
+    var form = $('[data-admin-slot-form]');
+    if (!editor || editor.hidden || !form || !slotEditorIsDirty()) return null;
+    var active = document.activeElement;
+    return {
+      controls: $all('input, select, textarea', form).map(function (control) {
+        return {
+          name: control.name || '',
+          type: control.type || '',
+          value: control.value,
+          checked: Boolean(control.checked)
+        };
+      }),
+      baseline: slotEditorBaseline,
+      scrollTop: ($('.admin-slot-editor-panel', editor) || {}).scrollTop || 0,
+      activeName: active && form.contains(active) ? active.name || '' : ''
+    };
+  }
+
+  function restoreSlotEditorDraft(draft) {
+    if (!draft) return;
+    var form = $('[data-admin-slot-form]');
+    var editor = $('[data-admin-slot-editor]');
+    if (!form || !editor) return;
+    var occurrences = {};
+    draft.controls.forEach(function (saved) {
+      var key = saved.name + '|' + saved.type;
+      var index = occurrences[key] || 0;
+      occurrences[key] = index + 1;
+      var controls = $all('[name="' + escapeSelectorValue(saved.name) + '"]', form).filter(function (control) {
+        return (control.type || '') === saved.type;
+      });
+      var control = controls[index];
+      if (!control) return;
+      if (control.type === 'checkbox' || control.type === 'radio') control.checked = saved.checked;
+      else control.value = saved.value;
+    });
+    setRepeatControlsEnabled(!String(($('[data-admin-slot-id]', form) || {}).value || '').trim());
+    slotEditorBaseline = draft.baseline;
+    setSlotEditorOpen(true, { focus: false });
+    var panel = $('.admin-slot-editor-panel', editor);
+    if (panel) panel.scrollTop = draft.scrollTop;
+    if (draft.activeName) focusElement($('[name="' + escapeSelectorValue(draft.activeName) + '"]', form));
   }
 
   function renderAvailabilityPage() {
@@ -2728,7 +3424,8 @@ export function initAdminRuntime(pageController) {
     if (repeatToggle) repeatToggle.disabled = !enabled;
   }
 
-  function resetSlotForm() {
+  function resetSlotForm(options) {
+    var opts = options || {};
     var form = $('[data-admin-slot-form]');
     if (!form) return;
     state.selectedSlotId = null;
@@ -2744,6 +3441,11 @@ export function initAdminRuntime(pageController) {
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
+    captureSlotEditorBaseline();
+    setSlotEditorOpen(opts.keepOpen !== false, {
+      focus: opts.keepOpen !== false,
+      restoreFocus: opts.restoreFocus !== false
+    });
   }
 
   function selectSlotForEdit(slotId) {
@@ -2753,6 +3455,7 @@ export function initAdminRuntime(pageController) {
     state.calendarAnchor = formatDate(slot.start_at);
     history.replaceState(modalHistoryState(null, 0), '', PATHS.availability + '?slot=' + encodeURIComponent(slotId));
     renderAvailabilityPage();
+    setSlotEditorOpen(true, { focus: true });
   }
 
   function syncSlotFormFromSelection() {
@@ -2781,6 +3484,7 @@ export function initAdminRuntime(pageController) {
 
     if (slot) {
       var service = serviceById(slot.service_id);
+      if (!state.hasRendered) state.calendarAnchor = formatDate(slot.start_at);
       if (title) title.textContent = 'Edit slot';
       if (note) note.textContent = 'Editing an open slot. Booked slots are read-only in the calendar.';
       if (slotId) slotId.value = slot.id;
@@ -2798,6 +3502,8 @@ export function initAdminRuntime(pageController) {
       if (repeatToggle) repeatToggle.checked = false;
       setRepeatControlsEnabled(false);
       refreshCustomControls(form);
+      captureSlotEditorBaseline();
+      setSlotEditorOpen(true, { focus: false });
       return;
     }
 
@@ -2809,6 +3515,7 @@ export function initAdminRuntime(pageController) {
     if (del) del.hidden = true;
     setRepeatControlsEnabled(true);
     refreshCustomControls(form);
+    captureSlotEditorBaseline();
   }
 
   function renderAvailabilityOptions() {
@@ -2881,13 +3588,10 @@ export function initAdminRuntime(pageController) {
     var startTime = String(data.get('startTime') || '');
     var endTime = String(data.get('endTime') || '');
     var validation = validateDateTimePair(dateValue, startTime, endTime);
-    if (errorEl) {
-      errorEl.textContent = '';
-      errorEl.classList.remove('is-success');
-    }
+    clearFormValidation(form, errorEl);
 
     if (validation.error) {
-      if (errorEl) errorEl.textContent = validation.error;
+      showFieldError(errorEl, validation.error, $('[data-admin-slot-date]', form));
       return;
     }
 
@@ -2910,6 +3614,7 @@ export function initAdminRuntime(pageController) {
           errorEl.textContent = 'Slot updated.';
           errorEl.classList.add('is-success');
         }
+        captureSlotEditorBaseline();
       } catch (error) {
         setSyncState('Action failed', 'error');
         if (errorEl) errorEl.textContent = error instanceof Error ? error.message : 'Could not update slot.';
@@ -2964,6 +3669,7 @@ export function initAdminRuntime(pageController) {
         errorEl.classList.add('is-success');
       }
     }
+    if (!failures.length) captureSlotEditorBaseline();
   }
 
   function renderSlots() {
@@ -3020,167 +3726,44 @@ export function initAdminRuntime(pageController) {
     });
   }
 
-  function customSelectLabel(select) {
-    var option = select.options[select.selectedIndex];
-    return option ? option.textContent : 'Select';
-  }
-
-  function renderCustomSelect(select) {
-    var widget = select.nextElementSibling && select.nextElementSibling.classList.contains('admin-custom-select')
-      ? select.nextElementSibling
-      : null;
-    if (!widget) return;
-    var button = $('.admin-custom-select-button', widget);
-    var menu = $('.admin-custom-select-menu', widget);
-    if (button) button.textContent = customSelectLabel(select);
-    if (!menu) return;
-    menu.innerHTML = Array.prototype.map.call(select.options, function (option) {
-      return '<button type="button" data-custom-value="' + escapeHtml(option.value) + '"' + (option.disabled ? ' disabled' : '') + (option.selected ? ' class="is-selected"' : '') + '>' + escapeHtml(option.textContent) + '</button>';
-    }).join('');
-    $all('[data-custom-value]', menu).forEach(function (optionButton) {
-      optionButton.addEventListener('click', function () {
-        select.value = optionButton.dataset.customValue;
-        select.dispatchEvent(new Event('change', { bubbles: true }));
-        widget.classList.remove('is-open');
-        renderCustomSelect(select);
-      });
-    });
-  }
-
-  function initCustomSelect(select) {
-    if (!select || select.dataset.customSelectBound) return;
-    select.dataset.customSelectBound = 'true';
-    select.classList.add('is-customized');
-    if (select.parentElement) select.parentElement.classList.add('has-custom-select');
-    var widget = document.createElement('div');
-    widget.className = 'admin-custom-select';
-    widget.innerHTML = '<button class="admin-custom-select-button" type="button" aria-haspopup="listbox"></button><div class="admin-custom-select-menu" role="listbox"></div>';
-    select.insertAdjacentElement('afterend', widget);
-    $('.admin-custom-select-button', widget).addEventListener('click', function () {
-      $all('.admin-custom-select.is-open').forEach(function (item) {
-        if (item !== widget) item.classList.remove('is-open');
-      });
-      widget.classList.toggle('is-open');
-    });
-    select.addEventListener('change', function () {
-      renderCustomSelect(select);
-    });
-    renderCustomSelect(select);
-  }
-
-  function monthStartFromYmd(value) {
-    var base = isValidYmd(value) ? utcNoonFromYmd(value) : utcNoonFromYmd(todayYmd());
-    base.setUTCDate(1);
-    return ymdFromUtcDate(base);
-  }
-
-  function renderDatePicker(input) {
-    var widget = input.nextElementSibling && input.nextElementSibling.classList.contains('admin-date-picker-widget')
-      ? input.nextElementSibling
-      : null;
-    if (!widget) return;
-    var month = widget.dataset.month || monthStartFromYmd(input.value);
-    widget.dataset.month = month;
-    var monthDate = utcNoonFromYmd(month);
-    var monthLabel = new Intl.DateTimeFormat('en-GB', {
-      month: 'long',
-      year: 'numeric',
-      timeZone: 'UTC'
-    }).format(monthDate);
-    var firstDay = monthDate.getUTCDay();
-    var leading = (firstDay + 6) % 7;
-    var cursor = utcNoonFromYmd(month);
-    cursor.setUTCDate(cursor.getUTCDate() - leading);
-    var days = [];
-    for (var i = 0; i < 42; i += 1) {
-      var value = ymdFromUtcDate(cursor);
-      var outside = cursor.getUTCMonth() !== monthDate.getUTCMonth();
-      var past = compareYmd(value, todayYmd()) < 0;
-      days.push('<button type="button" data-date-value="' + value + '"' + (outside ? ' data-outside="true"' : '') + (past ? ' disabled' : '') + (value === input.value ? ' class="is-selected"' : '') + '>' + cursor.getUTCDate() + '</button>');
-      cursor.setUTCDate(cursor.getUTCDate() + 1);
-    }
-    widget.innerHTML =
-      '<button class="admin-date-picker-trigger" type="button">Pick date</button>' +
-      '<div class="admin-date-picker-popover">' +
-        '<div class="admin-date-picker-head">' +
-          '<button type="button" data-date-prev aria-label="Previous month">‹</button>' +
-          '<strong>' + escapeHtml(monthLabel) + '</strong>' +
-          '<button type="button" data-date-next aria-label="Next month">›</button>' +
-        '</div>' +
-        '<div class="admin-date-picker-weekdays"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>' +
-        '<div class="admin-date-picker-grid">' + days.join('') + '</div>' +
-      '</div>';
-    $('.admin-date-picker-trigger', widget).addEventListener('click', function () {
-      widget.classList.toggle('is-open');
-    });
-    $('[data-date-prev]', widget).addEventListener('click', function () {
-      var next = utcNoonFromYmd(widget.dataset.month);
-      next.setUTCMonth(next.getUTCMonth() - 1);
-      widget.dataset.month = ymdFromUtcDate(next);
-      renderDatePicker(input);
-      widget.classList.add('is-open');
-    });
-    $('[data-date-next]', widget).addEventListener('click', function () {
-      var next = utcNoonFromYmd(widget.dataset.month);
-      next.setUTCMonth(next.getUTCMonth() + 1);
-      widget.dataset.month = ymdFromUtcDate(next);
-      renderDatePicker(input);
-      widget.classList.add('is-open');
-    });
-    $all('[data-date-value]', widget).forEach(function (button) {
-      button.addEventListener('click', function () {
-        input.value = button.dataset.dateValue;
-        widget.dataset.month = monthStartFromYmd(input.value);
-        widget.classList.remove('is-open');
-        input.dispatchEvent(new Event('input', { bubbles: true }));
-        input.dispatchEvent(new Event('change', { bubbles: true }));
-        renderDatePicker(input);
-      });
-    });
-  }
-
-  function initDatePicker(input) {
-    if (!input || input.dataset.datePickerBound) return;
-    input.dataset.datePickerBound = 'true';
-    var widget = document.createElement('div');
-    widget.className = 'admin-date-picker-widget';
-    widget.dataset.month = monthStartFromYmd(input.value);
-    input.insertAdjacentElement('afterend', widget);
-    input.addEventListener('input', function () {
-      if (isValidYmd(input.value)) widget.dataset.month = monthStartFromYmd(input.value);
-      renderDatePicker(input);
-    });
-    renderDatePicker(input);
-  }
-
   function initCustomControls(root) {
-    $all('.admin-select-wrap select', root).forEach(initCustomSelect);
     refreshCustomControls(root);
-    if (!document.body.dataset.customControlsBound) {
-      document.body.dataset.customControlsBound = 'true';
-      document.addEventListener('click', function (event) {
-        $all('.admin-custom-select.is-open, .admin-date-picker-widget.is-open').forEach(function (widget) {
-          if (!widget.contains(event.target)) widget.classList.remove('is-open');
-        });
-      });
-    }
   }
 
   function refreshCustomControls(root) {
-    $all('.admin-select-wrap select', root || document).forEach(renderCustomSelect);
-    var input = $('[data-admin-slot-date]', root || document);
-    if (input && input.dataset.datePickerBound) renderDatePicker(input);
+    $all('.admin-select-wrap select', root || document).forEach(function (select) {
+      select.classList.remove('is-customized');
+      delete select.dataset.customSelectBound;
+      if (select.parentElement) select.parentElement.classList.remove('has-custom-select');
+      var widget = select.nextElementSibling;
+      if (widget && widget.classList.contains('admin-custom-select')) widget.remove();
+    });
+    $all('.admin-date-picker-widget', root || document).forEach(function (widget) {
+      widget.remove();
+    });
+    var dateInput = $('[data-admin-slot-date]', root || document);
+    if (dateInput) delete dateInput.dataset.datePickerBound;
   }
 
   function setupLoginEvents() {
     var form = $('[data-admin-login-form]');
     if (!form) return;
+    var sessionStatus = $('[data-admin-login-session]');
+    if (sessionStatus) {
+      sessionStatus.textContent = '';
+      sessionStatus.hidden = true;
+    }
+    form.hidden = false;
+    var emailInput = $('[name="email"]', form);
+    if (emailInput) focusElement(emailInput);
 
     form.addEventListener('submit', async function (event) {
       event.preventDefault();
       var status = $('[data-admin-login-status]');
+      if (status && !status.id) status.id = 'admin-login-error';
       var data = new FormData(event.currentTarget);
       status.textContent = '';
+      $all('input', form).forEach(function (input) { input.removeAttribute('aria-invalid'); });
       setFormBusy(form, true, 'Signing in...');
 
       try {
@@ -3191,6 +3774,11 @@ export function initAdminRuntime(pageController) {
       } catch (error) {
         storeSession(null);
         status.textContent = error instanceof Error ? error.message : 'Sign in failed.';
+        $all('input', form).forEach(function (input) {
+          input.setAttribute('aria-invalid', 'true');
+          if (status.id) input.setAttribute('aria-describedby', status.id);
+        });
+        focusElement($('[name="email"]', form));
       } finally {
         if (document.body.contains(form)) setFormBusy(form, false);
       }
@@ -3198,12 +3786,41 @@ export function initAdminRuntime(pageController) {
   }
 
   function setupShellEvents() {
+    var navToggle = $('[data-admin-nav-toggle]');
+    var navClose = $('[data-admin-nav-close]');
+    var sidebar = $('#admin-sidebar');
+    if (sidebar && !sidebar.hasAttribute('tabindex')) sidebar.setAttribute('tabindex', '-1');
+    if (navToggle) {
+      navToggle.setAttribute('aria-expanded', 'false');
+      navToggle.setAttribute('aria-controls', 'admin-sidebar');
+      navToggle.addEventListener('click', function () {
+        setNavOpen(!navIsOpen(), { focus: true, restoreFocus: true });
+      });
+    }
+    if (navClose) {
+      navClose.addEventListener('click', function () {
+        setNavOpen(false, { restoreFocus: true });
+      });
+    }
+    $all('[data-admin-nav]').forEach(function (link) {
+      link.addEventListener('click', function () {
+        setNavOpen(false, { focus: false });
+      });
+    });
+    document.addEventListener('keydown', function (event) {
+      if (event.key !== 'Escape' || !navIsOpen()) return;
+      if (!ensureConfirmRoot().hidden || !ensureModalRoot().hidden) return;
+      event.preventDefault();
+      setNavOpen(false, { restoreFocus: true });
+    });
+
     var refreshButton = $('[data-admin-refresh]');
     if (refreshButton) {
       refreshButton.addEventListener('click', async function () {
         setButtonBusy(refreshButton, true, 'Refreshing...');
         try {
           await refresh({ preserveScroll: true });
+          showToast('Admin data refreshed.', 'success');
         } catch (error) {
           showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
         } finally {
@@ -3225,11 +3842,14 @@ export function initAdminRuntime(pageController) {
   function setupDashboardEvents() {
     var controls = $('[data-calendar-view]');
     if (controls) {
+      controls.setAttribute('role', 'group');
+      if (!controls.getAttribute('aria-label')) controls.setAttribute('aria-label', 'Calendar view');
       $all('[data-view]', controls).forEach(function (button) {
+        setPressed(button, button.dataset.view === state.calendarView);
         button.addEventListener('click', function () {
           state.calendarView = button.dataset.view;
           $all('[data-view]', controls).forEach(function (item) {
-            item.classList.toggle('is-active', item === button);
+            setPressed(item, item === button);
           });
           renderCalendar();
         });
@@ -3276,14 +3896,16 @@ export function initAdminRuntime(pageController) {
     var sortControls = $('[data-admin-booking-sort]');
 
     if (filters) {
+      filters.setAttribute('role', 'group');
+      if (!filters.getAttribute('aria-label')) filters.setAttribute('aria-label', 'Filter bookings');
       $all('[data-filter]', filters).forEach(function (item) {
-        item.classList.toggle('is-active', item.dataset.filter === state.filter);
+        setPressed(item, item.dataset.filter === state.filter);
       });
       $all('[data-filter]', filters).forEach(function (button) {
         button.addEventListener('click', function () {
           state.filter = button.dataset.filter;
           $all('[data-filter]', filters).forEach(function (item) {
-            item.classList.toggle('is-active', item === button);
+            setPressed(item, item === button);
           });
           state.selectedBookingId = null;
           history.replaceState(modalHistoryState(null, 0), '', PATHS.bookings + '?filter=' + encodeURIComponent(state.filter) + '&sort=' + encodeURIComponent(state.bookingSort));
@@ -3294,14 +3916,17 @@ export function initAdminRuntime(pageController) {
     }
 
     if (sortControls) {
+      sortControls.setAttribute('role', 'group');
+      if (!sortControls.getAttribute('aria-label')) sortControls.setAttribute('aria-label', 'Sort bookings');
       $all('[data-booking-sort]', sortControls).forEach(function (item) {
-        item.classList.toggle('is-active', item.dataset.bookingSort === state.bookingSort);
+        item.textContent = item.dataset.bookingSort === 'desc' ? 'Latest first' : 'Earliest first';
+        setPressed(item, item.dataset.bookingSort === state.bookingSort);
       });
       $all('[data-booking-sort]', sortControls).forEach(function (button) {
         button.addEventListener('click', function () {
           state.bookingSort = button.dataset.bookingSort === 'desc' ? 'desc' : 'asc';
           $all('[data-booking-sort]', sortControls).forEach(function (item) {
-            item.classList.toggle('is-active', item === button);
+            setPressed(item, item === button);
           });
           history.replaceState(modalHistoryState(null, 0), '', PATHS.bookings + '?filter=' + encodeURIComponent(state.filter) + '&sort=' + encodeURIComponent(state.bookingSort));
           renderBookingsPage();
@@ -3315,32 +3940,73 @@ export function initAdminRuntime(pageController) {
     if (search) {
       search.addEventListener('input', function () {
         state.customerSearch = search.value;
-        renderCustomerList();
+        renderCustomersPage();
+      });
+    }
+    var clear = $('[data-customer-clear]');
+    if (clear) {
+      clear.addEventListener('click', function () {
+        state.customerSearch = '';
+        if (search) {
+          search.value = '';
+          search.focus();
+        }
+        renderCustomersPage();
       });
     }
   }
 
   function setupInvoiceEvents() {
     var filters = $('[data-invoice-filters]');
-    if (!filters) return;
-    $all('[data-invoice-filter]', filters).forEach(function (button) {
-      button.addEventListener('click', function () {
-        state.invoiceFilter = button.dataset.invoiceFilter;
-        $all('[data-invoice-filter]', filters).forEach(function (item) {
-          item.classList.toggle('is-active', item === button);
+    if (filters) {
+      filters.setAttribute('role', 'group');
+      if (!filters.getAttribute('aria-label')) filters.setAttribute('aria-label', 'Filter invoices');
+      $all('[data-invoice-filter]', filters).forEach(function (button) {
+        setPressed(button, button.dataset.invoiceFilter === state.invoiceFilter);
+        button.addEventListener('click', function () {
+          state.invoiceFilter = button.dataset.invoiceFilter;
+          $all('[data-invoice-filter]', filters).forEach(function (item) {
+            setPressed(item, item === button);
+          });
+          state.selectedInvoiceId = null;
+          var url = new URL(window.location.href);
+          ['customer', 'booking', 'invoice', 'campaign'].forEach(function (key) {
+            url.searchParams.delete(key);
+          });
+          url.searchParams.set('filter', state.invoiceFilter);
+          history.replaceState(modalHistoryState(null, 0), '', url.pathname + url.search + url.hash);
+          closeModal();
+          renderInvoicesPage();
         });
-        state.selectedInvoiceId = null;
-        history.replaceState(modalHistoryState(null, 0), '', PATHS.invoices);
-        closeModal();
+      });
+    }
+
+    var search = $('[data-invoice-search]');
+    if (search) {
+      search.addEventListener('input', function () {
+        state.invoiceSearch = search.value;
         renderInvoicesPage();
       });
-    });
+    }
+    var clear = $('[data-invoice-clear]');
+    if (clear) {
+      clear.addEventListener('click', function () {
+        state.invoiceSearch = '';
+        if (search) {
+          search.value = '';
+          search.focus();
+        }
+        renderInvoicesPage();
+      });
+    }
   }
 
   function setupAvailabilityEvents() {
     var form = $('[data-admin-slot-form]');
     if (!form) return;
 
+    var editor = $('[data-admin-slot-editor]');
+    var openButton = $('[data-admin-slot-open]');
     var repeatToggle = $('[data-admin-repeat-toggle]', form);
     var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
@@ -3349,6 +4015,22 @@ export function initAdminRuntime(pageController) {
     var resetButton = $('[data-admin-slot-reset]', form);
     var deleteButton = $('[data-admin-slot-delete]', form);
     var errorEl = $('[data-admin-slot-error]', form);
+
+    if (openButton) {
+      openButton.setAttribute('aria-expanded', 'false');
+      openButton.addEventListener('click', function () {
+        slotEditorReturnFocus = openButton;
+        slotEditorReturnFocusSelector = focusSelectorFor(openButton);
+        resetSlotForm({ keepOpen: true, restoreFocus: false });
+      });
+    }
+    if (editor) {
+      $all('[data-admin-slot-editor-close]', editor).forEach(function (button) {
+        button.addEventListener('click', function () {
+          requestSlotEditorClose();
+        });
+      });
+    }
 
     if (repeatToggle && repeatWeeks) {
       repeatToggle.addEventListener('change', function () {
@@ -3380,7 +4062,9 @@ export function initAdminRuntime(pageController) {
     }
 
     if (resetButton) {
-      resetButton.addEventListener('click', resetSlotForm);
+      resetButton.addEventListener('click', function () {
+        resetSlotForm({ keepOpen: true, restoreFocus: false });
+      });
     }
 
     if (deleteButton) {
@@ -3394,11 +4078,15 @@ export function initAdminRuntime(pageController) {
     form.addEventListener('submit', handleSlotSubmit);
 
     initCustomControls(form);
+    captureSlotEditorBaseline();
   }
 
   async function refresh(options) {
     var opts = options || {};
+    var preserveDirtyModal = modalIsDirty();
+    var slotEditorDraft = captureSlotEditorDraft();
     state.isRefreshing = true;
+    setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
     setSyncState(opts.background ? 'Refreshing' : 'Loading', 'loading');
     try {
       await loadDashboard();
@@ -3406,7 +4094,12 @@ export function initAdminRuntime(pageController) {
       setUserLabel();
       setActiveNav();
       renderPage();
-      renderModalFromCurrentUrl();
+      restoreSlotEditorDraft(slotEditorDraft);
+      if (!preserveDirtyModal) {
+        renderModalFromCurrentUrl();
+      } else if (opts.background) {
+        showToast('Live data updated. Unsaved detail changes were kept.', 'info');
+      }
       startRealtime();
       state.hasRendered = true;
       setSyncState('Synced', 'synced');
@@ -3415,6 +4108,7 @@ export function initAdminRuntime(pageController) {
       throw error;
     } finally {
       state.isRefreshing = false;
+      setPageBusy(false);
     }
   }
 
@@ -3435,8 +4129,11 @@ export function initAdminRuntime(pageController) {
     state.calendarAnchor = todayYmd();
     var params = new URLSearchParams(window.location.search);
     state.selectedSlotId = params.get('slot');
-    if (['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))) {
+    if (state.page === 'bookings' && ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))) {
       state.filter = params.get('filter');
+    }
+    if (state.page === 'invoices' && ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))) {
+      state.invoiceFilter = params.get('filter');
     }
     if (['asc', 'desc'].includes(params.get('sort'))) {
       state.bookingSort = params.get('sort');
@@ -3469,6 +4166,7 @@ export function initAdminRuntime(pageController) {
 
     setupShellEvents();
     window.addEventListener('popstate', applyUrlModalState);
+    if (state.page === 'dashboard' || state.page === 'availability') setupCalendarMedia();
     if (state.page === 'dashboard' || state.page === 'availability') setupDashboardEvents();
     if (state.page === 'bookings') setupBookingEvents();
     if (state.page === 'availability') setupAvailabilityEvents();

@@ -2,27 +2,26 @@ export const page = 'customers';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-page-heading">
-      <div>
-        <span class="section-label">CRM</span>
+    <header class="admin-page-heading admin-page-heading-compact">
+      <div class="admin-page-title">
         <h1>Customers</h1>
+        <p class="admin-count" data-customer-count role="status" aria-live="polite"></p>
       </div>
-    </section>
+    </header>
+
     <section class="admin-customer-layout">
-      <div class="admin-panel admin-panel-full">
-        <div class="admin-panel-header">
-          <div>
-            <span class="section-label">Search</span>
-            <h2>Customer profiles</h2>
-          </div>
-          <p class="admin-count" data-customer-count></p>
-        </div>
+      <section class="admin-panel admin-panel-full" aria-label="Customer profiles">
         <label class="admin-search">
-          <span>Search anything</span>
-          <input type="search" data-customer-search placeholder="Name, email, phone, booking, car, invoice...">
+          <span>Search customers</span>
+          <input
+            type="search"
+            data-customer-search
+            placeholder="Name, email, phone, booking, vehicle, or invoice"
+            autocomplete="off"
+          >
         </label>
         <div class="admin-customer-list" data-customer-list></div>
-      </div>
+      </section>
     </section>
   `;
 }
