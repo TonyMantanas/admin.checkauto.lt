@@ -10,9 +10,11 @@ export function renderStaticPage(root) {
         <button
           class="admin-button admin-button-secondary admin-icon-button"
           type="button"
-          data-confirmation-schedule-jump
-          aria-label="Go to confirmation schedule"
+          data-confirmation-schedule-open
+          aria-label="Edit confirmation schedule"
+          aria-haspopup="dialog"
           title="Confirmation schedule"
+          hidden
         >${ICONS.booking}</button>
         <button
           class="admin-button admin-button-primary"
@@ -51,79 +53,6 @@ export function renderStaticPage(root) {
           aria-describedby="availability-calendar-legend"
         ></div>
       </section>
-    </section>
-
-    <section
-      class="admin-panel admin-confirmation-schedule-panel"
-      aria-labelledby="confirmation-schedule-title"
-      data-confirmation-schedule-panel
-      tabindex="-1"
-    >
-      <div class="admin-panel-header">
-        <div class="admin-confirmation-schedule-heading">
-          <h2 id="confirmation-schedule-title">Confirmation schedule</h2>
-          <p>Pending bookings count down only during this review time. Appointment availability is separate.</p>
-        </div>
-        <span class="admin-status-pill" data-confirmation-schedule-access>Owner managed</span>
-      </div>
-
-      <form class="admin-confirmation-schedule-form" data-confirmation-schedule-form novalidate>
-        <div class="admin-confirmation-settings">
-          <label>
-            <span>Time to confirm</span>
-            <span class="admin-select-wrap">
-              <select name="confirmationDurationMinutes" data-confirmation-duration required>
-                <option value="15">15 minutes</option>
-                <option value="30">30 minutes</option>
-                <option value="60">1 hour</option>
-                <option value="90">1 hour 30 minutes</option>
-                <option value="120">2 hours</option>
-                <option value="180">3 hours</option>
-                <option value="240">4 hours</option>
-                <option value="480">8 hours</option>
-                <option value="1440">24 hours</option>
-              </select>
-            </span>
-          </label>
-          <div class="admin-confirmation-timezone">
-            <span>Time zone</span>
-            <strong data-confirmation-timezone>Europe/Vilnius</strong>
-          </div>
-        </div>
-
-        <fieldset class="admin-confirmation-week">
-          <legend>Review hours</legend>
-          ${[
-            [1, 'Monday'],
-            [2, 'Tuesday'],
-            [3, 'Wednesday'],
-            [4, 'Thursday'],
-            [5, 'Friday'],
-            [6, 'Saturday'],
-            [7, 'Sunday']
-          ].map(([isoWeekday, label]) => `
-            <div class="admin-confirmation-day" data-confirmation-day="${isoWeekday}">
-              <label class="admin-checkbox admin-confirmation-day-toggle">
-                <input type="checkbox" name="confirmationDay${isoWeekday}" data-confirmation-day-enabled>
-                <span>${label}</span>
-              </label>
-              <label>
-                <span>From</span>
-                <input type="time" name="confirmationDay${isoWeekday}Start" step="900" data-confirmation-day-start>
-              </label>
-              <label>
-                <span>Until</span>
-                <input type="time" name="confirmationDay${isoWeekday}End" step="900" data-confirmation-day-end>
-              </label>
-            </div>
-          `).join('')}
-        </fieldset>
-
-        <div class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></div>
-        <div class="admin-action-buttons">
-          <button class="admin-button admin-button-secondary" type="submit" data-confirmation-schedule-submit>Save schedule</button>
-        </div>
-      </form>
     </section>
 
     <div class="admin-slot-editor-root" id="admin-slot-editor" data-admin-slot-editor hidden>

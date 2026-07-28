@@ -1515,26 +1515,7 @@ button.admin-mini-item::after {
   background: var(--admin-surface-hover);
 }
 
-.admin-confirmation-schedule-panel {
-  margin-block-start: var(--admin-space-4);
-  scroll-margin-block-start: var(--admin-space-4);
-}
-
-.admin-confirmation-schedule-heading {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-1);
-}
-
-.admin-confirmation-schedule-heading p {
-  max-width: 48rem;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  line-height: 1.45;
-}
-
 .admin-confirmation-schedule-form {
-  padding: var(--admin-space-5);
   display: grid;
   gap: var(--admin-space-5);
 }
@@ -3335,14 +3316,6 @@ button.admin-mini-item::after {
   .admin-calendar-legend {
     justify-content: flex-start;
     gap: var(--admin-space-2);
-  }
-
-  .admin-confirmation-schedule-form {
-    padding: var(--admin-space-3);
-  }
-
-  .admin-confirmation-schedule-panel {
-    scroll-margin-block-start: calc(var(--admin-mobile-header-height) + (2 * var(--admin-space-3)));
   }
 
   .admin-confirmation-settings {

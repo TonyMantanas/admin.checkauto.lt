@@ -1235,6 +1235,7 @@ export function initAdminRuntime(pageController) {
 
   function modalRouteFromUrl() {
     var params = new URLSearchParams(window.location.search);
+    if (params.get('confirmationSchedule')) return { type: 'confirmationSchedule', id: params.get('confirmationSchedule') };
     if (params.get('invoice')) return { type: 'invoice', id: params.get('invoice') };
     if (params.get('booking')) return { type: 'booking', id: params.get('booking') };
     if (params.get('customer')) return { type: 'customer', id: params.get('customer') };
@@ -1244,7 +1245,7 @@ export function initAdminRuntime(pageController) {
 
   function modalUrl(route) {
     var url = new URL(window.location.href);
-    ['customer', 'booking', 'invoice', 'campaign'].forEach(function (key) {
+    ['customer', 'booking', 'invoice', 'campaign', 'confirmationSchedule'].forEach(function (key) {
       url.searchParams.delete(key);
     });
     if (route && route.type && route.id) {
@@ -1312,6 +1313,17 @@ export function initAdminRuntime(pageController) {
     if (route.type === 'campaign') {
       if (campaignById(route.id)) renderCampaignModal(route.id);
       else closeModal({ restoreFocus: true });
+      return;
+    }
+
+    if (route.type === 'confirmationSchedule') {
+      if (state.page === 'availability' && state.staff && state.staff.role === 'owner') {
+        renderConfirmationScheduleModal();
+      } else {
+        history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
+        syncSelectedModalState(null);
+        closeModal({ restoreFocus: true });
+      }
     }
   }
 
@@ -3766,6 +3778,99 @@ export function initAdminRuntime(pageController) {
     return Array.isArray(settings.hours) ? settings.hours : [];
   }
 
+  function confirmationScheduleFormHtml() {
+    var weekdays = [
+      [1, 'Monday'],
+      [2, 'Tuesday'],
+      [3, 'Wednesday'],
+      [4, 'Thursday'],
+      [5, 'Friday'],
+      [6, 'Saturday'],
+      [7, 'Sunday']
+    ];
+
+    return '<div class="admin-modal-header">' +
+        '<div>' +
+          '<h2>Confirmation schedule</h2>' +
+          '<p class="admin-detail-note">Set when pending bookings count down toward automatic expiry.</p>' +
+        '</div>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close confirmation schedule" title="Close">' + ICON_CLOSE + '</button>' +
+      '</div>' +
+      '<form class="admin-confirmation-schedule-form" data-confirmation-schedule-form novalidate>' +
+        '<div class="admin-confirmation-settings">' +
+          '<label>' +
+            '<span>Time to confirm</span>' +
+            '<span class="admin-select-wrap">' +
+              '<select name="confirmationDurationMinutes" data-confirmation-duration required>' +
+                '<option value="15">15 minutes</option>' +
+                '<option value="30">30 minutes</option>' +
+                '<option value="60">1 hour</option>' +
+                '<option value="90">1 hour 30 minutes</option>' +
+                '<option value="120">2 hours</option>' +
+                '<option value="180">3 hours</option>' +
+                '<option value="240">4 hours</option>' +
+                '<option value="480">8 hours</option>' +
+                '<option value="1440">24 hours</option>' +
+              '</select>' +
+            '</span>' +
+          '</label>' +
+          '<div class="admin-confirmation-timezone">' +
+            '<span>Time zone</span>' +
+            '<strong data-confirmation-timezone>Europe/Vilnius</strong>' +
+          '</div>' +
+        '</div>' +
+        '<fieldset class="admin-confirmation-week">' +
+          '<legend>Review hours</legend>' +
+          weekdays.map(function (weekday) {
+            var isoWeekday = weekday[0];
+            var label = weekday[1];
+            return '<div class="admin-confirmation-day" data-confirmation-day="' + isoWeekday + '">' +
+              '<label class="admin-checkbox admin-confirmation-day-toggle">' +
+                '<input type="checkbox" name="confirmationDay' + isoWeekday + '" data-confirmation-day-enabled>' +
+                '<span>' + label + '</span>' +
+              '</label>' +
+              '<label>' +
+                '<span>From</span>' +
+                '<input type="time" name="confirmationDay' + isoWeekday + 'Start" step="900" data-confirmation-day-start>' +
+              '</label>' +
+              '<label>' +
+                '<span>Until</span>' +
+                '<input type="time" name="confirmationDay' + isoWeekday + 'End" step="900" data-confirmation-day-end>' +
+              '</label>' +
+            '</div>';
+          }).join('') +
+        '</fieldset>' +
+        '<div class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></div>' +
+        '<div class="admin-action-buttons admin-modal-actions">' +
+          '<button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit>Save schedule</button>' +
+        '</div>' +
+      '</form>';
+  }
+
+  function renderConfirmationScheduleAccess() {
+    var button = $('[data-confirmation-schedule-open]');
+    if (!button) return;
+    button.hidden = !(state.staff && state.staff.role === 'owner');
+  }
+
+  function renderConfirmationScheduleModal() {
+    if (!state.staff || state.staff.role !== 'owner') return;
+    var modal = openModal(confirmationScheduleFormHtml(), 'lg');
+    var form = $('[data-confirmation-schedule-form]', modal);
+    if (!form) return;
+
+    renderConfirmationSchedule();
+    $all('[data-confirmation-day]', form).forEach(function (row) {
+      var toggle = $('[data-confirmation-day-enabled]', row);
+      if (toggle) {
+        toggle.addEventListener('change', function () {
+          updateConfirmationDayState(row);
+        });
+      }
+    });
+    form.addEventListener('submit', handleConfirmationScheduleSubmit);
+  }
+
   function confirmationTimeValue(value, fallback) {
     var normalized = String(value || '').slice(0, 5);
     return isValidHm(normalized) ? normalized : fallback;
@@ -3788,7 +3893,7 @@ export function initAdminRuntime(pageController) {
     if (!form) return;
 
     var settings = state.confirmationSettings;
-    var canEdit = Boolean(settings && state.staff && state.staff.role === 'owner');
+    var canEdit = Boolean(state.staff && state.staff.role === 'owner');
     var hours = confirmationScheduleHours();
     var hoursByDay = {};
     hours.forEach(function (entry) {
@@ -3796,8 +3901,7 @@ export function initAdminRuntime(pageController) {
     });
 
     var duration = $('[data-confirmation-duration]', form);
-    var timezone = $('[data-confirmation-timezone]');
-    var access = $('[data-confirmation-schedule-access]');
+    var timezone = $('[data-confirmation-timezone]', form);
     var submit = $('[data-confirmation-schedule-submit]', form);
     var status = $('[data-confirmation-schedule-status]', form);
 
@@ -3806,10 +3910,6 @@ export function initAdminRuntime(pageController) {
       duration.disabled = !canEdit;
     }
     if (timezone) timezone.textContent = String(settings && settings.timezone || TIME_ZONE);
-    if (access) {
-      access.textContent = canEdit ? 'Owner access' : 'Read only';
-      access.dataset.status = canEdit ? 'active' : '';
-    }
     if (submit) submit.hidden = !canEdit;
     if (status) {
       status.textContent = '';
@@ -3903,6 +4003,7 @@ export function initAdminRuntime(pageController) {
         state.confirmationSettings = response.result;
       }
       saveDashboardCache();
+      markModalClean();
       renderConfirmationSchedule();
       var savedStatus = $('[data-confirmation-schedule-status]');
       if (savedStatus) {
@@ -3923,7 +4024,7 @@ export function initAdminRuntime(pageController) {
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
-    renderConfirmationSchedule();
+    renderConfirmationScheduleAccess();
   }
 
   function selectedSlotHasActiveBooking(slotId) {
@@ -4526,9 +4627,7 @@ export function initAdminRuntime(pageController) {
 
     var editor = $('[data-admin-slot-editor]');
     var openButton = $('[data-admin-slot-open]');
-    var scheduleJump = $('[data-confirmation-schedule-jump]');
-    var schedulePanel = $('[data-confirmation-schedule-panel]');
-    var scheduleForm = $('[data-confirmation-schedule-form]');
+    var scheduleButton = $('[data-confirmation-schedule-open]');
     var repeatToggle = $('[data-admin-repeat-toggle]', form);
     var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
@@ -4538,25 +4637,11 @@ export function initAdminRuntime(pageController) {
     var deleteButton = $('[data-admin-slot-delete]', form);
     var errorEl = $('[data-admin-slot-error]', form);
 
-    if (scheduleJump && schedulePanel) {
-      scheduleJump.addEventListener('click', function () {
-        schedulePanel.scrollIntoView({ block: 'start' });
-        window.requestAnimationFrame(function () {
-          schedulePanel.focus({ preventScroll: true });
-        });
+    if (scheduleButton) {
+      scheduleButton.addEventListener('click', function () {
+        if (!state.staff || state.staff.role !== 'owner') return;
+        navigateToModal('confirmationSchedule', 'edit');
       });
-    }
-
-    if (scheduleForm) {
-      $all('[data-confirmation-day]', scheduleForm).forEach(function (row) {
-        var toggle = $('[data-confirmation-day-enabled]', row);
-        if (toggle) {
-          toggle.addEventListener('change', function () {
-            updateConfirmationDayState(row);
-          });
-        }
-      });
-      scheduleForm.addEventListener('submit', handleConfirmationScheduleSubmit);
     }
 
     if (openButton) {
