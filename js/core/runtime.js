@@ -1,4 +1,5 @@
 import { ICONS } from './icons.js?v=20260727-3';
+import { state } from './state.js?v=20260728-12';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -7,8 +8,11 @@ import { ICONS } from './icons.js?v=20260727-3';
    staff_profiles, and the admin-bookings Edge Function.
    ========================================================================== */
 
-export function initAdminRuntime(pageController) {
+export function initAdminRuntime(initialPageController, routerOptions) {
   'use strict';
+
+  var pageController = initialPageController;
+  var router = routerOptions || {};
 
   var SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
@@ -30,10 +34,8 @@ export function initAdminRuntime(pageController) {
     login: adminPath('/login/')
   };
   var SESSION_KEY = 'checkauto-admin-session';
-  var DASHBOARD_CACHE_KEY = 'checkauto-admin-dashboard-cache';
-  var DASHBOARD_CACHE_VERSION = 3;
-  var DASHBOARD_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
   var SESSION_REFRESH_MARGIN_MS = 60 * 1000;
+  var VIEW_FOCUS_MAX_AGE_MS = 15 * 1000;
   var TIME_ZONE = 'Europe/Vilnius';
   var EXPIRY_TICK_MS = 30 * 1000;
   var DEFAULT_START_HOUR = 8;
@@ -41,47 +43,12 @@ export function initAdminRuntime(pageController) {
   var HOUR_HEIGHT = 56;
   var SLOT_STEP_MINUTES = 15;
 
-  var state = {
-    page: '',
-    session: null,
-    staff: null,
-    bookings: [],
-    services: [],
-    slots: [],
-    staffList: [],
-    events: [],
-    notes: [],
-    customers: [],
-    invoices: [],
-    customerEvents: [],
-    marketingCampaigns: [],
-    marketingRecipients: [],
-    maintenancePreview: null,
-    confirmationSettings: null,
-    filter: 'pending',
-    slotFilter: 'all',
-    invoiceFilter: 'unpaid',
-    bookingSort: 'asc',
-    selectedBookingId: null,
-    selectedSlotId: null,
-    selectedCustomerId: null,
-    selectedInvoiceId: null,
-    selectedCampaignId: null,
-    customerSearch: '',
-    invoiceSearch: '',
-    calendarView: 'week',
-    calendarAnchor: '',
-    slotEditorOpen: false,
-    realtimeSocket: null,
-    realtimeHeartbeat: null,
-    realtimeRefreshTimer: null,
-    expiryTimer: null,
-    realtimeRef: 1,
-    hasRendered: false,
-    isRefreshing: false
-  };
-
   var els = {};
+  var activeDashboardLoad = null;
+  var scrollStateTimer = null;
+  var refreshActivityId = 0;
+  var sessionRefreshPromise = null;
+  var sessionRefreshTimer = null;
   var dialogId = 0;
   var modalReturnFocus = null;
   var modalReturnFocusSelector = '';
@@ -804,71 +771,46 @@ export function initAdminRuntime(pageController) {
     }
   }
 
-  function storeSession(session) {
-    state.session = session;
-    if (session) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
-    } else {
-      localStorage.removeItem(SESSION_KEY);
-      clearDashboardCache();
-    }
-  }
-
-  function decodeJwtPayload(token) {
+  function clearLegacyDashboardCache() {
     try {
-      var payload = String(token || '').split('.')[1];
-      if (!payload) return null;
-      var normalized = payload.replace(/-/g, '+').replace(/_/g, '/');
-      normalized += '='.repeat((4 - normalized.length % 4) % 4);
-      return JSON.parse(atob(normalized));
-    } catch (error) {
-      return null;
-    }
-  }
-
-  function sessionUserId(session) {
-    if (session && session.user && session.user.id) return session.user.id;
-    var payload = decodeJwtPayload(session && session.access_token);
-    return payload && payload.sub ? payload.sub : '';
-  }
-
-  function dashboardDataSnapshot() {
-    return {
-      staff: state.staff,
-      bookings: state.bookings,
-      services: state.services,
-      slots: state.slots,
-      staffList: state.staffList,
-      events: state.events,
-      notes: state.notes,
-      customers: state.customers,
-      invoices: state.invoices,
-      customerEvents: state.customerEvents,
-      marketingCampaigns: state.marketingCampaigns,
-      marketingRecipients: state.marketingRecipients,
-      maintenancePreview: state.maintenancePreview,
-      confirmationSettings: state.confirmationSettings
-    };
-  }
-
-  function clearDashboardCache() {
-    try {
-      sessionStorage.removeItem(DASHBOARD_CACHE_KEY);
+      sessionStorage.removeItem('checkauto-admin-dashboard-cache');
     } catch (error) {
       // Browser storage may be unavailable in private or restricted contexts.
     }
   }
 
-  function saveDashboardCache() {
-    try {
-      sessionStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify({
-        version: DASHBOARD_CACHE_VERSION,
-        savedAt: Date.now(),
-        userId: sessionUserId(state.session),
-        data: dashboardDataSnapshot()
-      }));
-    } catch (error) {
-      // Cache is an enhancement only.
+  function storeSession(session) {
+    state.session = session;
+    if (session) {
+      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      scheduleSessionRefresh(session);
+    } else {
+      window.clearTimeout(sessionRefreshTimer);
+      sessionRefreshTimer = null;
+      localStorage.removeItem(SESSION_KEY);
+      clearLegacyDashboardCache();
+      if (state.refreshController) state.refreshController.abort();
+      state.refreshController = null;
+      activeDashboardLoad = null;
+      state.staff = null;
+      [
+        'bookings',
+        'services',
+        'slots',
+        'staffList',
+        'events',
+        'notes',
+        'customers',
+        'invoices',
+        'customerEvents',
+        'marketingCampaigns',
+        'marketingRecipients'
+      ].forEach(function (key) {
+        state[key] = [];
+      });
+      state.maintenancePreview = null;
+      state.confirmationSettings = null;
+      state.loadedViews = Object.create(null);
     }
   }
 
@@ -897,20 +839,6 @@ export function initAdminRuntime(pageController) {
       state.confirmationSettings = data.confirmationSettings && typeof data.confirmationSettings === 'object'
         ? data.confirmationSettings
         : null;
-    }
-  }
-
-  function restoreDashboardCache() {
-    try {
-      var cached = JSON.parse(sessionStorage.getItem(DASHBOARD_CACHE_KEY) || 'null');
-      if (!cached || cached.version !== DASHBOARD_CACHE_VERSION || !cached.data) return false;
-      if (Date.now() - Number(cached.savedAt || 0) > DASHBOARD_CACHE_MAX_AGE_MS) return false;
-      var currentUserId = sessionUserId(state.session);
-      if (cached.userId && currentUserId && cached.userId !== currentUserId) return false;
-      applyDashboardData(cached.data);
-      return Boolean(state.staff);
-    } catch (error) {
-      return false;
     }
   }
 
@@ -944,27 +872,65 @@ export function initAdminRuntime(pageController) {
     return response.json();
   }
 
-  async function getActiveSession() {
-    var session = getStoredSession();
-    if (!session || !session.access_token) return null;
+  function scheduleSessionRefresh(session, retryDelay) {
+    window.clearTimeout(sessionRefreshTimer);
+    sessionRefreshTimer = null;
+    if (!session || !session.expires_at || !session.refresh_token) return;
+    var delay = Number.isFinite(Number(retryDelay))
+      ? Number(retryDelay)
+      : Number(session.expires_at) * 1000 - Date.now() - SESSION_REFRESH_MARGIN_MS;
+    sessionRefreshTimer = window.setTimeout(function () {
+      ensureActiveSession().then(function (activeSession) {
+        if (!activeSession && state.page !== 'login') redirectTo(PATHS.login);
+      }).catch(function () {
+        scheduleSessionRefresh(state.session, 15 * 1000);
+      });
+    }, Math.max(1000, Math.min(delay, 2147483647)));
+  }
 
+  async function ensureActiveSession() {
+    var session = state.session || getStoredSession();
+    if (!session || !session.access_token) return null;
+    state.session = session;
     if (!isSessionExpired(session)) {
-      state.session = session;
+      scheduleSessionRefresh(session);
       return session;
     }
 
-    try {
-      var refreshed = await refreshSession(session);
-      if (refreshed && refreshed.access_token) {
-        storeSession(refreshed);
-        return refreshed;
+    if (sessionRefreshPromise) return sessionRefreshPromise;
+    sessionRefreshPromise = (async function () {
+      try {
+        var refreshed = await refreshSession(session);
+        if (refreshed && refreshed.access_token) {
+          storeSession(refreshed);
+          closeRealtime();
+          startRealtime();
+          return refreshed;
+        }
+      } catch (error) {
+        // Keep a still-valid token during a transient refresh failure and retry soon.
       }
-    } catch (error) {
-      // Fall through to clearing the unusable session.
-    }
 
-    storeSession(null);
-    return null;
+      if (Number(session.expires_at || 0) * 1000 > Date.now()) {
+        state.session = session;
+        scheduleSessionRefresh(session, 15 * 1000);
+        return session;
+      }
+
+      storeSession(null);
+      return null;
+    })();
+
+    try {
+      return await sessionRefreshPromise;
+    } finally {
+      sessionRefreshPromise = null;
+    }
+  }
+
+  async function getActiveSession() {
+    state.session = getStoredSession();
+    return ensureActiveSession();
   }
 
   function authHeaders() {
@@ -992,24 +958,7 @@ export function initAdminRuntime(pageController) {
     return response.json();
   }
 
-  async function loadDashboard() {
-    var response = await fetch(ADMIN_ENDPOINT + '?view=' + encodeURIComponent(adminViewForPage()), {
-      method: 'GET',
-      headers: authHeaders()
-    });
-
-    if (response.status === 401 || response.status === 403) {
-      storeSession(null);
-      throw new Error('This account is not approved for admin access or the session has expired.');
-    }
-
-    if (!response.ok) throw new Error('Could not load admin data.');
-
-    applyDashboardData(await response.json());
-    saveDashboardCache();
-  }
-
-  function adminViewForPage() {
+  function adminViewForPage(page) {
     return {
       dashboard: 'schedule',
       availability: 'schedule',
@@ -1017,13 +966,94 @@ export function initAdminRuntime(pageController) {
       customers: 'customers',
       invoices: 'invoices',
       marketing: 'marketing'
-    }[state.page] || 'all';
+    }[page || state.page] || 'all';
+  }
+
+  function isAbortError(error) {
+    return Boolean(error && (error.name === 'AbortError' || String(error.message || '').toLowerCase().includes('aborted')));
+  }
+
+  function viewIsLoaded(view) {
+    return Boolean(state.loadedViews && state.loadedViews[view]);
+  }
+
+  function cancelDashboardLoad(view) {
+    if (!activeDashboardLoad || (view && activeDashboardLoad.view !== view)) return;
+    activeDashboardLoad.controller.abort();
+    if (state.refreshController === activeDashboardLoad.controller) {
+      state.refreshController = null;
+    }
+    activeDashboardLoad = null;
+    state.refreshRequestId += 1;
+  }
+
+  async function loadDashboard(view, options) {
+    var requestedView = view || adminViewForPage(state.page);
+    var opts = options || {};
+    if (activeDashboardLoad && activeDashboardLoad.view === requestedView && !opts.force) {
+      return activeDashboardLoad.promise;
+    }
+
+    if (state.refreshController) state.refreshController.abort();
+    var controller = new AbortController();
+    var requestId = state.refreshRequestId + 1;
+    state.refreshRequestId = requestId;
+    state.refreshController = controller;
+
+    var promise = (async function () {
+      if (!(await ensureActiveSession())) {
+        throw new Error('This account is not approved for admin access or the session has expired.');
+      }
+      var response = await fetch(ADMIN_ENDPOINT + '?view=' + encodeURIComponent(requestedView), {
+        method: 'GET',
+        headers: authHeaders(),
+        cache: 'no-store',
+        signal: controller.signal
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        storeSession(null);
+        throw new Error('This account is not approved for admin access or the session has expired.');
+      }
+
+      if (!response.ok) throw new Error('Could not load admin data.');
+      var data = await response.json();
+      if (requestId !== state.refreshRequestId || controller.signal.aborted) return false;
+
+      applyDashboardData(data);
+      state.loadedViews[requestedView] = {
+        loadedAt: Date.now()
+      };
+      return true;
+    })();
+
+    activeDashboardLoad = {
+      view: requestedView,
+      requestId: requestId,
+      controller: controller,
+      promise: promise
+    };
+
+    try {
+      return await promise;
+    } finally {
+      if (activeDashboardLoad && activeDashboardLoad.requestId === requestId) {
+        activeDashboardLoad = null;
+      }
+      if (state.refreshController === controller) {
+        state.refreshController = null;
+      }
+    }
   }
 
   async function adminAction(payload) {
+    if (!(await ensureActiveSession())) {
+      throw new Error('This account is not approved for admin access or the session has expired.');
+    }
     var response = await fetch(ADMIN_ENDPOINT, {
       method: 'POST',
       headers: authHeaders(),
+      cache: 'no-store',
       body: JSON.stringify(payload)
     });
 
@@ -1087,9 +1117,12 @@ export function initAdminRuntime(pageController) {
 
   function scheduleRealtimeRefresh() {
     if (!state.session || !['dashboard', 'availability', 'bookings'].includes(state.page)) return;
+    var requestedView = adminViewForPage(state.page);
     window.clearTimeout(state.realtimeRefreshTimer);
     state.realtimeRefreshTimer = window.setTimeout(function () {
-      refresh().catch(function (error) {
+      if (adminViewForPage(state.page) !== requestedView) return;
+      refresh({ background: true, preserveScroll: true, view: requestedView, force: true }).catch(function (error) {
+        if (isAbortError(error)) return;
         showToast(error instanceof Error ? error.message : 'Live refresh failed.', 'error');
       });
     }, 650);
@@ -1241,8 +1274,16 @@ export function initAdminRuntime(pageController) {
     }
   }
 
-  function modalRouteFromUrl() {
-    var params = new URLSearchParams(window.location.search);
+  function modalRouteFromUrl(value) {
+    var search = window.location.search;
+    if (value) {
+      try {
+        search = (value instanceof URL ? value : new URL(String(value), window.location.href)).search;
+      } catch (error) {
+        search = window.location.search;
+      }
+    }
+    var params = new URLSearchParams(search);
     if (params.get('confirmationSchedule')) return { type: 'confirmationSchedule', id: params.get('confirmationSchedule') };
     if (params.get('invoice')) return { type: 'invoice', id: params.get('invoice') };
     if (params.get('booking')) return { type: 'booking', id: params.get('booking') };
@@ -1266,18 +1307,27 @@ export function initAdminRuntime(pageController) {
     return Number(history.state && history.state.adminModalDepth || 0);
   }
 
-  function modalHistoryState(route, depth) {
-    return {
+  function modalHistoryState(route, depth, historyIndex) {
+    var currentIndex = Number(history.state && history.state.adminHistoryIndex);
+    var nextIndex = Number.isFinite(Number(historyIndex))
+      ? Number(historyIndex)
+      : (Number.isFinite(currentIndex) ? currentIndex : Number(state.historyIndex || 0));
+    return Object.assign({}, history.state && history.state.checkautoAdmin ? history.state : {}, {
       checkautoAdmin: true,
+      adminPage: state.page,
+      adminScrollY: Number(history.state && history.state.adminScrollY || 0),
+      adminHistoryIndex: nextIndex,
       adminModalRoute: route || null,
       adminModalDepth: Math.max(0, Number(depth || 0))
-    };
+    });
   }
 
   function replaceCurrentHistoryState() {
     var route = modalRouteFromUrl();
     var depth = history.state && history.state.checkautoAdmin ? modalHistoryDepth() : (route ? 1 : 0);
-    history.replaceState(modalHistoryState(route, depth), '', window.location.href);
+    var currentIndex = Number(history.state && history.state.adminHistoryIndex);
+    state.historyIndex = Number.isFinite(currentIndex) ? currentIndex : Number(state.historyIndex || 0);
+    history.replaceState(modalHistoryState(route, depth, state.historyIndex), '', window.location.href);
   }
 
   function syncSelectedModalState(route) {
@@ -1370,7 +1420,10 @@ export function initAdminRuntime(pageController) {
     }
 
     if (!current) rememberModalReturnFocus(document.activeElement);
-    history.pushState(modalHistoryState(route, modalHistoryDepth() + 1), '', modalUrl(route));
+    saveCurrentScrollPosition();
+    var nextHistoryIndex = state.historyIndex + 1;
+    history.pushState(modalHistoryState(route, modalHistoryDepth() + 1, nextHistoryIndex), '', modalUrl(route));
+    state.historyIndex = nextHistoryIndex;
     applyUrlModalState();
   }
 
@@ -2070,7 +2123,7 @@ export function initAdminRuntime(pageController) {
           navigateToModal('booking', event.bookingId);
           return;
         }
-        if (event.href) window.location.href = event.href;
+        if (event.href) navigateToAdminUrl(event.href);
       });
     });
   }
@@ -3226,6 +3279,10 @@ export function initAdminRuntime(pageController) {
     }
 
     var form = $('[data-marketing-form]');
+    if (form && form.dataset.loadingView === 'true') {
+      delete form.dataset.loadingView;
+      setFormBusy(form, false);
+    }
     if (form && !form.dataset.bound) {
       form.dataset.bound = 'true';
       form.addEventListener('submit', handleActionSubmit);
@@ -3433,7 +3490,7 @@ export function initAdminRuntime(pageController) {
       setSyncState('Saving', 'loading');
       await adminAction(payload);
       markModalClean();
-      await refresh({ preserveScroll: true });
+      await refresh({ preserveScroll: true, force: true });
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
       if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
       showToast(successMessageForAction(confirmAction || payload.action), 'success');
@@ -3564,7 +3621,7 @@ export function initAdminRuntime(pageController) {
         state.selectedCustomerId = null;
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
-      await refresh({ preserveScroll: true });
+      await refresh({ preserveScroll: true, force: true });
       if (action === 'createAndSendInvoice' && response.result && response.result.id) {
         navigateToModal('invoice', response.result.id, { force: true });
       } else if (action === 'deleteCustomerProfile') {
@@ -3960,10 +4017,11 @@ export function initAdminRuntime(pageController) {
         confirmationDurationMinutes: duration,
         confirmationSchedule: schedule
       });
+      cancelDashboardLoad('schedule');
       if (response.result && typeof response.result === 'object') {
         state.confirmationSettings = response.result;
       }
-      saveDashboardCache();
+      state.loadedViews.schedule = { loadedAt: Date.now() };
       markModalClean();
       renderConfirmationSchedule();
       var savedStatus = $('[data-confirmation-schedule-status]');
@@ -3982,6 +4040,13 @@ export function initAdminRuntime(pageController) {
   }
 
   function renderAvailabilityPage() {
+    var openButton = $('[data-admin-slot-open]');
+    var slotForm = $('[data-admin-slot-form]');
+    if (openButton) openButton.disabled = false;
+    if (slotForm && slotForm.dataset.loadingView === 'true') {
+      delete slotForm.dataset.loadingView;
+      setFormBusy(slotForm, false);
+    }
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
@@ -4161,6 +4226,10 @@ export function initAdminRuntime(pageController) {
     event.preventDefault();
     var form = event.currentTarget;
     var errorEl = $('[data-admin-slot-error]', form);
+    if (!viewIsLoaded('schedule')) {
+      showFieldError(errorEl, 'Availability is still loading. Try again in a moment.', $('[data-admin-slot-date]', form));
+      return;
+    }
     var data = new FormData(form);
     var dateValue = String(data.get('date') || '');
     var startTime = String(data.get('startTime') || '');
@@ -4187,7 +4256,7 @@ export function initAdminRuntime(pageController) {
           endAt: validation.endAt,
           internalNote: data.get('internalNote') || null
         });
-        await refresh({ preserveScroll: true });
+        await refresh({ preserveScroll: true, force: true });
         if (errorEl) {
           errorEl.textContent = 'Slot updated.';
           errorEl.classList.add('is-success');
@@ -4237,7 +4306,7 @@ export function initAdminRuntime(pageController) {
     }
 
     if (document.body.contains(form)) setFormBusy(form, false);
-    await refresh({ preserveScroll: true });
+    await refresh({ preserveScroll: true, force: true });
 
     if (errorEl) {
       if (failures.length) {
@@ -4322,6 +4391,344 @@ export function initAdminRuntime(pageController) {
     if (dateInput) delete dateInput.dataset.datePickerBound;
   }
 
+  function applyRouteParameters(page) {
+    var params = new URLSearchParams(window.location.search);
+    state.page = page;
+    state.filter = 'pending';
+    state.invoiceFilter = 'unpaid';
+    state.bookingSort = 'asc';
+    state.slotFilter = 'all';
+    state.customerSearch = '';
+    state.invoiceSearch = '';
+    state.selectedSlotId = page === 'availability' ? params.get('slot') : null;
+    state.calendarView = 'week';
+    state.calendarAnchor = todayYmd();
+    state.slotEditorOpen = false;
+    state.hasRendered = false;
+
+    if (page === 'bookings' && ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))) {
+      state.filter = params.get('filter');
+    }
+    if (page === 'invoices' && ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))) {
+      state.invoiceFilter = params.get('filter');
+    }
+    if (['asc', 'desc'].includes(params.get('sort'))) {
+      state.bookingSort = params.get('sort');
+    }
+    syncSelectedModalState(modalRouteFromUrl());
+  }
+
+  function applyCurrentPageUrlParameters(page) {
+    var params = new URLSearchParams(window.location.search);
+    if (page === 'bookings') {
+      state.filter = ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))
+        ? params.get('filter')
+        : 'pending';
+      state.bookingSort = ['asc', 'desc'].includes(params.get('sort')) ? params.get('sort') : 'asc';
+      $all('[data-filter]').forEach(function (button) {
+        setPressed(button, button.dataset.filter === state.filter);
+      });
+      $all('[data-booking-sort]').forEach(function (button) {
+        setPressed(button, button.dataset.bookingSort === state.bookingSort);
+      });
+    }
+    if (page === 'invoices') {
+      state.invoiceFilter = ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))
+        ? params.get('filter')
+        : 'unpaid';
+      $all('[data-invoice-filter]').forEach(function (button) {
+        setPressed(button, button.dataset.invoiceFilter === state.invoiceFilter);
+      });
+    }
+    if (page === 'availability') {
+      state.selectedSlotId = params.get('slot');
+      var selectedSlot = state.selectedSlotId ? slotById(state.selectedSlotId) : null;
+      if (selectedSlot) state.calendarAnchor = formatDate(selectedSlot.start_at);
+    }
+    syncSelectedModalState(modalRouteFromUrl());
+  }
+
+  function setupCurrentPageEvents() {
+    if (state.page === 'dashboard' || state.page === 'availability') setupCalendarMedia();
+    if (state.page === 'dashboard' || state.page === 'availability') setupDashboardEvents();
+    if (state.page === 'bookings') setupBookingEvents();
+    if (state.page === 'availability') setupAvailabilityEvents();
+    if (state.page === 'customers') setupCustomerEvents();
+    if (state.page === 'invoices') setupInvoiceEvents();
+    if (state.page === 'marketing') setupMarketingEvents();
+    if (pageController && typeof pageController.afterEvents === 'function') {
+      pageController.afterEvents({ state: state });
+    }
+  }
+
+  function setupMarketingEvents() {
+    var form = $('[data-marketing-form]');
+    if (!form) return;
+    if (!form.dataset.bound) {
+      form.dataset.bound = 'true';
+      form.addEventListener('submit', handleActionSubmit);
+    }
+    if (!viewIsLoaded('marketing')) {
+      form.dataset.loadingView = 'true';
+      setFormBusy(form, true, 'Loading...');
+    }
+  }
+
+  function saveCurrentScrollPosition() {
+    if (!history.state || !history.state.checkautoAdmin) return;
+    history.replaceState(
+      Object.assign({}, history.state, { adminScrollY: Math.max(0, Number(window.scrollY || 0)) }),
+      '',
+      window.location.href
+    );
+  }
+
+  function scheduleScrollPositionSave() {
+    window.clearTimeout(scrollStateTimer);
+    scrollStateTimer = window.setTimeout(saveCurrentScrollPosition, 120);
+  }
+
+  function historyStateForPage(page, url, historyIndex) {
+    var route = modalRouteFromUrl(url);
+    return {
+      checkautoAdmin: true,
+      adminPage: page,
+      adminScrollY: 0,
+      adminHistoryIndex: Number(historyIndex || 0),
+      adminModalRoute: route,
+      adminModalDepth: route ? 1 : 0
+    };
+  }
+
+  function routePageFromUrl(value) {
+    if (typeof router.pageFromUrl !== 'function') return null;
+    return router.pageFromUrl(value);
+  }
+
+  function cleanupPageSurfaces() {
+    setNavOpen(false, { focus: false });
+    if (state.slotEditorOpen) setSlotEditorOpen(false, { restoreFocus: false });
+    closeConfirmDialog();
+    closeModal();
+    document.body.classList.remove('admin-slot-editor-open');
+    document.body.classList.remove('admin-modal-open');
+    setPageInteractionBlocked(false);
+  }
+
+  async function confirmPageNavigation() {
+    if (!modalIsDirty() && !slotEditorIsDirty()) return true;
+    var discard = await openConfirmDialog({
+      title: 'Discard changes?',
+      message: 'Leave this page and discard the changes you entered?',
+      cancelLabel: 'Keep editing',
+      confirmLabel: 'Discard changes',
+      danger: true
+    });
+    if (!discard) return false;
+    markModalClean();
+    slotEditorBaseline = '';
+    return true;
+  }
+
+  function reportNavigationRefreshError(error) {
+    if (isAbortError(error)) return;
+    if (!state.session) {
+      redirectTo(PATHS.login);
+      return;
+    }
+    showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+  }
+
+  async function navigatePage(page, url, options) {
+    var opts = options || {};
+    var destination = url instanceof URL ? url : new URL(String(url || ''), window.location.href);
+    if (!page || page === 'login' || typeof router.mountPage !== 'function') {
+      window.location.assign(destination.href);
+      return;
+    }
+
+    if (!opts.fromPopState && !(await confirmPageNavigation())) return;
+    if (!opts.fromPopState) saveCurrentScrollPosition();
+
+    var nextView = adminViewForPage(page);
+    if (activeDashboardLoad && activeDashboardLoad.view !== nextView) {
+      activeDashboardLoad.controller.abort();
+    }
+
+    var navigationId = state.navigationId + 1;
+    state.navigationId = navigationId;
+
+    if (!opts.fromPopState) {
+      var nextHistoryIndex = state.historyIndex + 1;
+      history.pushState(
+        historyStateForPage(page, destination, nextHistoryIndex),
+        '',
+        destination.pathname + destination.search + destination.hash
+      );
+      state.historyIndex = nextHistoryIndex;
+    }
+
+    cleanupPageSurfaces();
+    applyRouteParameters(page);
+
+    var mountedController;
+    try {
+      mountedController = await router.mountPage(
+        page,
+        pageController,
+        state,
+        function () { return state.navigationId === navigationId; }
+      );
+    } catch (error) {
+      window.location.assign(destination.href);
+      return;
+    }
+    if (!mountedController || state.navigationId !== navigationId) return;
+
+    pageController = mountedController;
+    els.stats = $('[data-admin-stats]');
+    els.bookingList = $('[data-admin-booking-list]');
+    setActiveNav();
+    setUserLabel();
+    setupCurrentPageEvents();
+    showConsole({ preserveScroll: true });
+
+    if (viewIsLoaded(nextView)) {
+      renderPage();
+      renderModalFromCurrentUrl();
+      state.hasRendered = true;
+      setSyncState('Updating', 'loading');
+    } else {
+      setSyncState('Loading', 'loading');
+    }
+
+    startRealtime();
+
+    if (opts.fromPopState) {
+      window.requestAnimationFrame(function () {
+        window.scrollTo(0, Math.max(0, Number(opts.restoreScroll || 0)));
+      });
+    } else {
+      window.scrollTo(0, 0);
+      focusElement($('#admin-main'));
+    }
+
+    refresh({
+      background: viewIsLoaded(nextView),
+      preserveScroll: true,
+      view: nextView
+    }).catch(reportNavigationRefreshError);
+  }
+
+  function navigateToAdminUrl(value, options) {
+    var destination;
+    try {
+      destination = value instanceof URL ? value : new URL(String(value || ''), window.location.href);
+    } catch (error) {
+      return;
+    }
+    var page = routePageFromUrl(destination);
+    if (!page || page === 'login') {
+      window.location.assign(destination.href);
+      return;
+    }
+    return navigatePage(page, destination, options);
+  }
+
+  function handleAdminRouteClick(event) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    var target = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!target || target.hasAttribute('download')) return;
+    var linkTarget = String(target.getAttribute('target') || '').toLowerCase();
+    if (linkTarget && linkTarget !== '_self') return;
+
+    var destination;
+    try {
+      destination = new URL(target.href, window.location.href);
+    } catch (error) {
+      return;
+    }
+    if (
+      destination.pathname === window.location.pathname &&
+      destination.search === window.location.search &&
+      destination.hash
+    ) return;
+
+    var page = routePageFromUrl(destination);
+    if (!page || page === 'login') return;
+    if (
+      destination.pathname === window.location.pathname &&
+      destination.search === window.location.search &&
+      destination.hash === window.location.hash
+    ) {
+      event.preventDefault();
+      setNavOpen(false, { focus: false });
+      return;
+    }
+    event.preventDefault();
+    navigatePage(page, destination).catch(reportNavigationRefreshError);
+  }
+
+  function handleAdminRouteIntent(event) {
+    if (typeof router.preloadPage !== 'function') return;
+    var target = event.target && event.target.closest ? event.target.closest('a[href]') : null;
+    if (!target) return;
+    var page = routePageFromUrl(target.href);
+    if (!page || page === 'login' || page === state.page) return;
+    router.preloadPage(page);
+  }
+
+  async function handleAdminPopState(event) {
+    window.clearTimeout(scrollStateTimer);
+    scrollStateTimer = null;
+    var page = typeof router.pageFromPathname === 'function'
+      ? router.pageFromPathname(window.location.pathname)
+      : null;
+    if (!page || page === 'login') return;
+
+    var targetHistoryIndex = Number(event.state && event.state.adminHistoryIndex);
+    if (!Number.isFinite(targetHistoryIndex)) targetHistoryIndex = state.historyIndex;
+
+    if (state.restoringHistory) {
+      state.restoringHistory = false;
+      state.historyIndex = targetHistoryIndex;
+      return;
+    }
+
+    var previousHistoryIndex = state.historyIndex;
+    if (!(await confirmPageNavigation())) {
+      var restoreDelta = previousHistoryIndex - targetHistoryIndex;
+      if (restoreDelta) {
+        state.restoringHistory = true;
+        history.go(restoreDelta);
+      }
+      return;
+    }
+
+    state.historyIndex = targetHistoryIndex;
+    if (page === state.page) {
+      applyCurrentPageUrlParameters(page);
+      renderPage();
+      renderModalFromCurrentUrl();
+      window.requestAnimationFrame(function () {
+        window.scrollTo(0, Math.max(0, Number(event.state && event.state.adminScrollY || 0)));
+      });
+      return;
+    }
+    await navigatePage(page, new URL(window.location.href), {
+      fromPopState: true,
+      restoreScroll: event.state && event.state.adminScrollY
+    });
+  }
+
+  function refreshVisiblePageIfStale() {
+    if (document.visibilityState === 'hidden' || !state.session || state.page === 'login' || state.isRefreshing) return;
+    var view = adminViewForPage(state.page);
+    var loaded = state.loadedViews && state.loadedViews[view];
+    if (loaded && Date.now() - Number(loaded.loadedAt || 0) < VIEW_FOCUS_MAX_AGE_MS) return;
+    refresh({ background: Boolean(loaded), preserveScroll: true, view: view }).catch(reportNavigationRefreshError);
+  }
+
   function setupLoginEvents() {
     var form = $('[data-admin-login-form]');
     if (!form) return;
@@ -4346,7 +4753,7 @@ export function initAdminRuntime(pageController) {
       try {
         var session = await login(String(data.get('email') || ''), String(data.get('password') || ''));
         storeSession(session);
-        await loadDashboard();
+        await loadDashboard('auth');
         redirectTo(PATHS.dashboard);
       } catch (error) {
         storeSession(null);
@@ -4396,7 +4803,7 @@ export function initAdminRuntime(pageController) {
       refreshButton.addEventListener('click', async function () {
         setButtonBusy(refreshButton, true, 'Refreshing...');
         try {
-          await refresh({ preserveScroll: true });
+          await refresh({ preserveScroll: true, force: true });
           showToast('Admin data refreshed.', 'success');
         } catch (error) {
           showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
@@ -4593,6 +5000,13 @@ export function initAdminRuntime(pageController) {
     var resetButton = $('[data-admin-slot-reset]', form);
     var deleteButton = $('[data-admin-slot-delete]', form);
     var errorEl = $('[data-admin-slot-error]', form);
+    var scheduleReady = viewIsLoaded('schedule');
+
+    if (!scheduleReady) {
+      if (openButton) openButton.disabled = true;
+      form.dataset.loadingView = 'true';
+      setFormBusy(form, true, 'Loading...');
+    }
 
     if (scheduleButton) {
       scheduleButton.addEventListener('click', function () {
@@ -4604,6 +5018,7 @@ export function initAdminRuntime(pageController) {
     if (openButton) {
       openButton.setAttribute('aria-expanded', 'false');
       openButton.addEventListener('click', function () {
+        if (!viewIsLoaded('schedule')) return;
         slotEditorReturnFocus = openButton;
         slotEditorReturnFocusSelector = focusSelectorFor(openButton);
         resetSlotForm({ keepOpen: true, restoreFocus: false });
@@ -4668,13 +5083,17 @@ export function initAdminRuntime(pageController) {
 
   async function refresh(options) {
     var opts = options || {};
+    var activityId = refreshActivityId + 1;
+    refreshActivityId = activityId;
+    var requestedView = opts.view || adminViewForPage(state.page);
     var preserveDirtyModal = modalIsDirty();
     var slotEditorDraft = captureSlotEditorDraft();
     state.isRefreshing = true;
     setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
-    setSyncState(opts.background ? 'Refreshing' : 'Loading', 'loading');
+    setSyncState(opts.background ? 'Updating' : 'Loading', 'loading');
     try {
-      await loadDashboard();
+      var applied = await loadDashboard(requestedView, { force: Boolean(opts.force) });
+      if (activityId !== refreshActivityId || !applied || adminViewForPage(state.page) !== requestedView) return false;
       showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
       setUserLabel();
       setActiveNav();
@@ -4688,12 +5107,16 @@ export function initAdminRuntime(pageController) {
       startRealtime();
       state.hasRendered = true;
       setSyncState('Synced', 'synced');
+      return true;
     } catch (error) {
-      setSyncState('Sync failed', 'error');
+      if (isAbortError(error) || activityId !== refreshActivityId) return false;
+      if (adminViewForPage(state.page) === requestedView) setSyncState('Sync failed', 'error');
       throw error;
     } finally {
-      state.isRefreshing = false;
-      setPageBusy(false);
+      if (activityId === refreshActivityId) {
+        state.isRefreshing = false;
+        if (adminViewForPage(state.page) === requestedView) setPageBusy(false);
+      }
     }
   }
 
@@ -4710,20 +5133,8 @@ export function initAdminRuntime(pageController) {
   }
 
   async function init() {
-    state.page = document.body.dataset.adminPage || '';
-    state.calendarAnchor = todayYmd();
-    var params = new URLSearchParams(window.location.search);
-    state.selectedSlotId = params.get('slot');
-    if (state.page === 'bookings' && ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))) {
-      state.filter = params.get('filter');
-    }
-    if (state.page === 'invoices' && ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))) {
-      state.invoiceFilter = params.get('filter');
-    }
-    if (['asc', 'desc'].includes(params.get('sort'))) {
-      state.bookingSort = params.get('sort');
-    }
-    syncSelectedModalState(modalRouteFromUrl());
+    clearLegacyDashboardCache();
+    applyRouteParameters(document.body.dataset.adminPage || '');
     replaceCurrentHistoryState();
 
     state.session = await getActiveSession();
@@ -4750,47 +5161,32 @@ export function initAdminRuntime(pageController) {
     els.stats = $('[data-admin-stats]');
 
     setupShellEvents();
-    window.addEventListener('popstate', applyUrlModalState);
-    if (state.page === 'dashboard' || state.page === 'availability') setupCalendarMedia();
-    if (state.page === 'dashboard' || state.page === 'availability') setupDashboardEvents();
-    if (state.page === 'bookings') setupBookingEvents();
-    if (state.page === 'availability') setupAvailabilityEvents();
-    if (state.page === 'customers') setupCustomerEvents();
-    if (state.page === 'invoices') setupInvoiceEvents();
-    if (pageController && typeof pageController.afterEvents === 'function') {
-      pageController.afterEvents({ state: state });
-    }
+    document.addEventListener('click', handleAdminRouteClick);
+    document.addEventListener('pointerover', handleAdminRouteIntent, { passive: true });
+    document.addEventListener('pointerdown', handleAdminRouteIntent, { passive: true });
+    document.addEventListener('focusin', handleAdminRouteIntent);
+    window.addEventListener('popstate', function (event) {
+      handleAdminPopState(event).catch(reportNavigationRefreshError);
+    });
+    window.addEventListener('scroll', scheduleScrollPositionSave, { passive: true });
+    document.addEventListener('visibilitychange', refreshVisiblePageIfStale);
+    window.addEventListener('focus', refreshVisiblePageIfStale);
+    setupCurrentPageEvents();
     startExpiryTicker();
-
-    if (restoreDashboardCache()) {
-      showConsole({ preserveScroll: true });
-      setUserLabel();
-      setActiveNav();
-      renderPage();
-      renderModalFromCurrentUrl();
-      startRealtime();
-      state.hasRendered = true;
-      refresh({ background: true, preserveScroll: true }).catch(function (error) {
-        if (!state.session) {
-          redirectTo(PATHS.login);
-          return;
-        }
-        showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
-      });
-      return;
-    }
 
     try {
       await refresh();
     } catch (error) {
-      storeSession(null);
-      redirectTo(PATHS.login);
+      if (!state.session) {
+        redirectTo(PATHS.login);
+        return;
+      }
+      showConsole({ preserveScroll: true });
+      setUserLabel();
+      setActiveNav();
+      showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  return init();
 }

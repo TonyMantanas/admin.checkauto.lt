@@ -6,10 +6,10 @@ import { drawers } from './core/drawers.js?v=20260727-3';
 import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260727-3';
 import { realtime } from './core/realtime.js?v=20260727-3';
-import { PATHS, PAGE_TITLES } from './core/routes.js?v=20260727-3';
-import { initAdminRuntime } from './core/runtime.js?v=20260728-11';
-import { renderShell } from './core/shell.js?v=20260727-3';
-import { state } from './core/state.js?v=20260727-3';
+import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260728-12';
+import { initAdminRuntime } from './core/runtime.js?v=20260728-12';
+import { renderShell } from './core/shell.js?v=20260728-12';
+import { state } from './core/state.js?v=20260728-12';
 import { toast } from './core/toast.js?v=20260727-3';
 import { validators } from './core/validation.js?v=20260727-3';
 
@@ -23,10 +23,10 @@ const pageControllers = {
   login: () => import('./pages/login.js?v=20260727-3')
 };
 
-function createContext(page) {
+function createContext(page, runtimeState = state) {
   return {
     page,
-    state,
+    state: runtimeState,
     api,
     auth,
     routes: { PATHS, PAGE_TITLES },
@@ -42,8 +42,48 @@ function createContext(page) {
   };
 }
 
+async function mountPage(page, previousController, runtimeState, isCurrent) {
+  const loadController = pageControllers[page] || pageControllers.dashboard;
+  const controller = await loadController();
+  if (typeof isCurrent === 'function' && !isCurrent()) return null;
+
+  const context = createContext(page, runtimeState);
+  if (previousController && typeof previousController.destroyPage === 'function') {
+    await previousController.destroyPage(createContext(
+      previousController.page || document.body.dataset.adminPage || page,
+      runtimeState
+    ));
+  }
+  if (typeof isCurrent === 'function' && !isCurrent()) return null;
+
+  document.body.dataset.adminPage = page;
+  document.title = `checkauto.lt ${PAGE_TITLES[page] || 'Admin'}`;
+
+  const root = document.querySelector('[data-page-root]');
+  if (root && typeof controller.renderStaticPage === 'function') {
+    controller.renderStaticPage(root, context);
+  }
+
+  if (typeof controller.initPage === 'function') {
+    await controller.initPage(context);
+  }
+  if (typeof isCurrent === 'function' && !isCurrent()) return null;
+
+  return controller;
+}
+
+function preloadPage(page) {
+  const loadController = pageControllers[page];
+  if (!loadController) return Promise.resolve(null);
+  return loadController().catch(() => null);
+}
+
 function renderBootstrapError(error) {
   const root = document.querySelector('[data-page-root]') || document.body;
+  const loading = document.querySelector('[data-admin-loading]');
+  const consoleRoot = document.querySelector('[data-admin-console]');
+  if (loading) loading.hidden = true;
+  if (consoleRoot) consoleRoot.hidden = false;
   root.innerHTML = `
     <section class="admin-loading">
       <div>
@@ -57,22 +97,17 @@ function renderBootstrapError(error) {
 
 async function boot() {
   const page = document.body.dataset.adminPage || 'dashboard';
-  const loadController = pageControllers[page] || pageControllers.dashboard;
-  const context = createContext(page);
-  const controller = await loadController();
 
   renderShell(page);
-
-  const root = document.querySelector('[data-page-root]');
-  if (root && typeof controller.renderStaticPage === 'function') {
-    controller.renderStaticPage(root, context);
-  }
-
-  if (typeof controller.initPage === 'function') {
-    await controller.initPage(context);
-  }
-
-  initAdminRuntime(controller);
+  const controller = await mountPage(page, null, state);
+  await initAdminRuntime(controller, {
+    mountPage,
+    preloadPage,
+    pageFromPathname,
+    pageFromUrl,
+    paths: PATHS,
+    titles: PAGE_TITLES
+  });
 }
 
 if (document.readyState === 'loading') {

@@ -26,3 +26,40 @@ export const PAGE_TITLES = {
   marketing: 'Marketing',
   login: 'Sign in'
 };
+
+const PAGE_BY_PATH = {
+  '/': 'dashboard',
+  '/bookings': 'bookings',
+  '/availability': 'availability',
+  '/customers': 'customers',
+  '/invoices': 'invoices',
+  '/marketing': 'marketing',
+  '/login': 'login'
+};
+
+export function pageFromPathname(pathname) {
+  let path = String(pathname || '/').replace(/\/{2,}/g, '/');
+
+  if (ADMIN_BASE_PATH) {
+    if (path === ADMIN_BASE_PATH) {
+      path = '/';
+    } else if (path.startsWith(ADMIN_BASE_PATH + '/')) {
+      path = path.slice(ADMIN_BASE_PATH.length);
+    } else {
+      return null;
+    }
+  }
+
+  if (path.length > 1) path = path.replace(/\/+$/, '');
+  return PAGE_BY_PATH[path] || null;
+}
+
+export function pageFromUrl(value) {
+  try {
+    const url = value instanceof URL ? value : new URL(String(value || ''), window.location.href);
+    if (url.origin !== window.location.origin) return null;
+    return pageFromPathname(url.pathname);
+  } catch (error) {
+    return null;
+  }
+}
