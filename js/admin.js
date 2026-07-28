@@ -16,7 +16,7 @@ import { validators } from './core/validation.js?v=20260727-3';
 const pageControllers = {
   dashboard: () => import('./pages/dashboard.js?v=20260728-9'),
   bookings: () => import('./pages/bookings.js?v=20260728-9'),
-  availability: () => import('./pages/availability.js?v=20260728-9'),
+  availability: () => import('./pages/availability.js?v=20260728-10'),
   customers: () => import('./pages/customers.js?v=20260728-9'),
   invoices: () => import('./pages/invoices.js?v=20260728-9'),
   marketing: () => import('./pages/marketing.js?v=20260728-9'),

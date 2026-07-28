@@ -4,32 +4,42 @@ export const page = 'availability';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <header class="admin-page-heading admin-page-heading-compact">
-      <h1>Availability</h1>
-      <div class="admin-page-actions">
-        <button
-          class="admin-button admin-button-secondary admin-icon-button"
-          type="button"
-          data-confirmation-schedule-open
-          aria-label="Edit confirmation schedule"
-          aria-haspopup="dialog"
-          title="Confirmation schedule"
-          hidden
-        >${ICONS.booking}</button>
-        <button
-          class="admin-button admin-button-primary"
-          type="button"
-          data-admin-slot-open
-          aria-haspopup="dialog"
-          aria-controls="admin-slot-editor"
-        >${ICONS.add}<span>Add slot</span></button>
-      </div>
-    </header>
-
     <section class="admin-availability-calendar-layout">
-      <section class="admin-panel admin-calendar-panel admin-availability-calendar-panel" aria-labelledby="availability-calendar-title">
-        <div class="admin-panel-header admin-panel-header-compact">
-          <h2 id="availability-calendar-title" data-admin-calendar-title>Availability</h2>
+      <section
+        class="admin-panel admin-calendar-panel admin-availability-calendar-panel"
+        aria-labelledby="availability-page-title availability-calendar-title"
+      >
+        <header class="admin-panel-header admin-panel-header-compact admin-workspace-header admin-availability-workspace-header">
+          <div class="admin-page-title admin-availability-title">
+            <h1 id="availability-page-title">Availability</h1>
+            <p
+              class="admin-count admin-availability-range"
+              id="availability-calendar-title"
+              data-admin-calendar-title
+              aria-live="polite"
+              aria-atomic="true"
+            >Today</p>
+          </div>
+          <div class="admin-page-actions admin-availability-actions">
+            <button
+              class="admin-button admin-button-secondary admin-icon-button"
+              type="button"
+              data-confirmation-schedule-open
+              aria-label="Edit confirmation schedule"
+              aria-haspopup="dialog"
+              title="Confirmation schedule"
+              hidden
+            >${ICONS.booking}</button>
+            <button
+              class="admin-button admin-button-primary admin-availability-add-button"
+              type="button"
+              data-admin-slot-open
+              aria-label="Add availability slot"
+              aria-haspopup="dialog"
+              aria-controls="admin-slot-editor"
+              title="Add slot"
+            >${ICONS.add}<span class="admin-availability-add-label">Add slot</span></button>
+          </div>
           <div class="admin-calendar-controls">
             <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period">${ICONS.previous}</button>
             <button class="admin-button admin-button-secondary" type="button" data-calendar-today>Today</button>
@@ -43,7 +53,7 @@ export function renderStaticPage(root) {
               <input type="date" autocomplete="off" data-calendar-date>
             </label>
           </div>
-        </div>
+        </header>
         <div
           class="admin-calendar"
           data-admin-calendar
