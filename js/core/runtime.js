@@ -1781,13 +1781,13 @@ export function initAdminRuntime(pageController) {
 
     els.stats.innerHTML =
       '<a class="admin-stat admin-stat-link" data-tone="' + (pending ? 'urgent' : 'neutral') + '" href="' + PATHS.bookings + '?filter=pending">' +
-        '<span>Pending review</span><strong>' + pending + '</strong><em>' + (pending ? 'Open queue' : 'No waiting bookings') + '</em>' +
+        '<span>Pending review</span><strong>' + pending + '</strong>' +
       '</a>' +
       '<a class="admin-stat admin-stat-link" data-tone="' + (confirmedToday ? 'active' : 'neutral') + '" href="' + PATHS.bookings + '?filter=confirmed">' +
-        '<span>Confirmed today</span><strong>' + confirmedToday + '</strong><em>Today schedule</em>' +
+        '<span>Confirmed today</span><strong>' + confirmedToday + '</strong>' +
       '</a>' +
       '<a class="admin-stat admin-stat-link" data-tone="' + (openNext7 ? 'available' : 'warning') + '" href="' + PATHS.availability + '">' +
-        '<span>Open next 7 days</span><strong>' + openNext7 + '</strong><em>Manage availability</em>' +
+        '<span>Open next 7 days</span><strong>' + openNext7 + '</strong>' +
       '</a>';
   }
 
@@ -1918,6 +1918,29 @@ export function initAdminRuntime(pageController) {
     return weekday + ' ' + dateValue.slice(5);
   }
 
+  function compactCalendarDate(dateValue, options) {
+    var opts = options || {};
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: TIME_ZONE,
+      weekday: opts.weekday ? 'short' : undefined,
+      day: 'numeric',
+      month: 'short',
+      year: opts.year ? 'numeric' : undefined
+    }).format(utcNoonFromYmd(dateValue));
+  }
+
+  function calendarRangeTitle(range, compact) {
+    if (state.calendarView === 'day') {
+      return compactCalendarDate(range.start, { weekday: true, year: !compact });
+    }
+
+    var end = addDaysYmd(range.endExclusive, -1);
+    var crossesYear = range.start.slice(0, 4) !== end.slice(0, 4);
+    return compactCalendarDate(range.start, { year: crossesYear }) +
+      ' - ' +
+      compactCalendarDate(end, { year: crossesYear || !compact });
+  }
+
   function bookingRowHtml(booking, attributeName) {
     var start = booking.final_start_at || booking.requested_start_at;
     var end = booking.final_end_at || booking.requested_end_at;
@@ -1948,33 +1971,9 @@ export function initAdminRuntime(pageController) {
       '</button>';
   }
 
-  function renderDashboardBookings() {
-    var list = $('[data-admin-dashboard-booking-list]') || $('[data-admin-booking-list]');
-    if (!list || state.page !== 'dashboard') return;
-    var bookings = state.bookings.filter(function (booking) {
-      return ['pending', 'confirmed'].includes(booking.status);
-    }).sort(function (a, b) {
-      return new Date(bookingScheduleStart(a)) - new Date(bookingScheduleStart(b));
-    }).slice(0, 8);
-
-    list.innerHTML = bookings.length
-      ? bookings.map(function (booking) {
-        return bookingRowHtml(booking, 'data-dashboard-booking-id');
-      }).join('')
-      : emptyState('No pending or confirmed bookings.');
-
-    $all('[data-dashboard-booking-id]', list).forEach(function (button) {
-      button.addEventListener('click', function () {
-        navigateToModal('booking', button.dataset.dashboardBookingId);
-      });
-    });
-    updateExpiryCountdowns();
-  }
-
   function renderDashboardPage() {
     els.stats = $('[data-admin-stats]');
     renderStats();
-    renderDashboardBookings();
     renderCalendar();
   }
 
@@ -2016,23 +2015,10 @@ export function initAdminRuntime(pageController) {
     var dateInput = $('[data-calendar-date]');
 
     if (calendarTitle) {
-      calendarTitle.textContent = state.calendarView === 'day'
-        ? range.start
-        : range.start + ' - ' + addDaysYmd(range.endExclusive, -1);
+      calendarTitle.textContent = calendarRangeTitle(range, calendarIsCompact());
+      calendarTitle.setAttribute('title', calendarRangeTitle(range, false));
     }
     if (dateInput) dateInput.value = state.calendarAnchor;
-
-    var legend = $('[data-admin-calendar-legend]');
-    if (legend) {
-      legend.innerHTML = [
-        ['available', 'Available'],
-        ['pending', 'Pending'],
-        ['confirmed', 'Confirmed'],
-        ['completed', 'Done']
-      ].map(function (item) {
-        return '<span data-tone="' + item[0] + '"><i></i>' + item[1] + '</span>';
-      }).join('');
-    }
 
     var byDay = {};
     range.days.forEach(function (day) { byDay[day] = []; });
@@ -2140,8 +2126,7 @@ export function initAdminRuntime(pageController) {
       event.title + ', ' + statusLabel(event.status);
     return '<button class="admin-calendar-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
       '<strong>' + escapeHtml(formatTime(event.start) + '-' + formatTime(event.end)) + '</strong>' +
-      '<span>' + escapeHtml(event.title) + '</span>' +
-      '<em>' + escapeHtml(statusLabel(event.status)) + '</em>' +
+      '<span>' + escapeHtml(statusLabel(event.status) + ': ' + event.title) + '</span>' +
     '</button>';
   }
 
@@ -2345,7 +2330,7 @@ export function initAdminRuntime(pageController) {
       hiddenInput('customerId', customer.id) +
       '<div class="admin-action-grid">' +
         '<label>Hold until date<input name="holdUntilDate" type="text" inputmode="numeric" required value="' + escapeHtml(holdDefaultDate) + '" placeholder="2026-12-31"></label>' +
-        '<label>Hold until time<input name="holdUntilTime" type="text" inputmode="numeric" required value="23:59" placeholder="23:59"></label>' +
+        '<label>Hold until time<input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
       '</div>' +
       '<label>Reason<textarea name="legalHoldReason" maxlength="500" required placeholder="Required legal or dispute reason"></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
@@ -2452,8 +2437,8 @@ export function initAdminRuntime(pageController) {
           '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
           '<div class="admin-action-grid">' +
             '<label>Date<input name="date" type="text" inputmode="numeric" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '" placeholder="2026-12-31"></label>' +
-            '<label>Start<span class="admin-select-wrap"><select name="startTime" required>' + timeOptions(timeInputValue(booking.requested_start_at)) + '</select></span></label>' +
-            '<label>End<span class="admin-select-wrap"><select name="endTime" required>' + timeOptions(timeInputValue(booking.requested_end_at)) + '</select></span></label>' +
+            '<label>Start<input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
+            '<label>End<input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
           '</div>' +
           '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
           '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
@@ -2592,13 +2577,13 @@ export function initAdminRuntime(pageController) {
       var customerEmail = customer.email || 'No email';
       var lastBooking = customer.last_booking_at ? formatDateTime(customer.last_booking_at) : 'No bookings yet';
       var customerMeta = (customer.phone || 'No phone') + ' · ' + bookings.length + ' booking' + (bookings.length === 1 ? '' : 's') + ' · ' + invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
+      var customerSummary = lastBooking + ' · ' + customerMeta;
       var customerLabel = [customerName, marketingLabel(customer.marketing_consent_status), customerEmail, lastBooking, customerMeta].join(', ');
       return '<button class="admin-customer-item admin-data-row' + (customer.id === state.selectedCustomerId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(customerLabel) + '" data-customer-id="' + escapeHtml(customer.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title">' + escapeHtml(customerName) + '</span></span>' +
         '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span></span>' +
         '<span class="admin-row-service admin-booking-meta">' + escapeHtml(customerEmail) + '</span>' +
-        '<span class="admin-row-date admin-booking-meta">' + escapeHtml(lastBooking) + '</span>' +
-        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(customerMeta) + '</span>' +
+        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(customerSummary) + '</span>' +
       '</button>';
     }).join('');
 
@@ -3249,37 +3234,6 @@ export function initAdminRuntime(pageController) {
     }).join('');
   }
 
-  function timeOptions(selectedTime, dateValue, disablePastStarts) {
-    var selected = selectedTime || '08:00';
-    var nowIso = new Date().toISOString();
-    var html = '';
-
-    for (var minutes = 0; minutes < 24 * 60; minutes += SLOT_STEP_MINUTES) {
-      var value = minutesToTime(minutes);
-      var disabled = false;
-      if (disablePastStarts && dateValue && isValidYmd(dateValue)) {
-        var iso = isoFromVilniusInput(dateValue, value);
-        disabled = Boolean(iso && new Date(iso) <= new Date(nowIso));
-      }
-      if (disabled && disablePastStarts) continue;
-      html += '<option value="' + value + '"' + (value === selected ? ' selected' : '') + (disabled ? ' disabled' : '') + '>' + value + '</option>';
-    }
-
-    return html;
-  }
-
-  function endTimeOptions(selectedTime, startTime) {
-    var selected = selectedTime || minutesToTime(timeToMinutes(startTime) + selectedServiceDuration());
-    var startMinutes = timeToMinutes(startTime);
-    var html = '';
-    for (var minutes = 0; minutes < 24 * 60; minutes += SLOT_STEP_MINUTES) {
-      if (minutes <= startMinutes) continue;
-      var value = minutesToTime(minutes);
-      html += '<option value="' + value + '"' + (value === selected ? ' selected' : '') + '>' + value + '</option>';
-    }
-    return html;
-  }
-
   function validateDateTimePair(dateValue, startTime, endTime) {
     if (!isValidYmd(dateValue)) {
       return { error: 'Use the date format YYYY-MM-DD.' };
@@ -3289,6 +3243,9 @@ export function initAdminRuntime(pageController) {
     var endAt = isoFromVilniusInput(dateValue, endTime);
     if (!startAt || !endAt) {
       return { error: 'Choose a valid start and end time.' };
+    }
+    if (timeToMinutes(startTime) % SLOT_STEP_MINUTES !== 0 || timeToMinutes(endTime) % SLOT_STEP_MINUTES !== 0) {
+      return { error: 'Use 15-minute increments for start and end times.' };
     }
     if (new Date(endAt) <= new Date(startAt)) {
       return { error: 'End time must be after start time.' };
@@ -4182,19 +4139,16 @@ export function initAdminRuntime(pageController) {
 
   function rebuildSlotTimeOptions(preserveEnd) {
     var dateInput = $('[data-admin-slot-date]');
-    var startSelect = $('[data-admin-slot-start]');
-    var endSelect = $('[data-admin-slot-end]');
-    if (!dateInput || !startSelect || !endSelect) return;
+    var startInput = $('[data-admin-slot-start]');
+    var endInput = $('[data-admin-slot-end]');
+    if (!dateInput || !startInput || !endInput) return;
 
-    var defaultStart = startSelect.value || startSelect.dataset.pendingDefault || defaultSlotDateTime().time;
-    startSelect.innerHTML = timeOptions(defaultStart, dateInput.value, true);
-    if (!startSelect.value && startSelect.options.length) startSelect.value = startSelect.options[0].value;
-    delete startSelect.dataset.pendingDefault;
+    var defaultStart = startInput.value || startInput.dataset.pendingDefault || defaultSlotDateTime().time;
+    startInput.value = defaultStart;
+    delete startInput.dataset.pendingDefault;
 
-    var endValue = preserveEnd ? endSelect.value : minutesToTime(timeToMinutes(startSelect.value) + selectedServiceDuration());
-    endSelect.innerHTML = endTimeOptions(endValue, startSelect.value);
-    if (!endSelect.value || timeToMinutes(endSelect.value) <= timeToMinutes(startSelect.value)) {
-      endSelect.value = minutesToTime(timeToMinutes(startSelect.value) + selectedServiceDuration());
+    if (!preserveEnd || !endInput.value || timeToMinutes(endInput.value) <= timeToMinutes(startInput.value)) {
+      endInput.value = minutesToTime(timeToMinutes(startInput.value) + selectedServiceDuration());
     }
     refreshCustomControls(document);
   }

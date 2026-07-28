@@ -2,15 +2,12 @@ import { ICONS } from '../core/icons.js?v=20260727-3';
 
 export const page = 'dashboard';
 
-export function renderStaticPage(root, context) {
-  const bookingsPath = context.routes.PATHS.bookings;
-
+export function renderStaticPage(root) {
   root.innerHTML = `
-    <header class="admin-page-heading admin-page-heading-compact">
+    <header class="admin-dashboard-summary">
       <h1>Dashboard</h1>
+      <section class="admin-stats" data-admin-stats aria-label="Today at a glance"></section>
     </header>
-
-    <section class="admin-stats" data-admin-stats aria-label="Today at a glance"></section>
 
     <section class="admin-dashboard-grid">
       <section class="admin-panel admin-calendar-panel" aria-labelledby="dashboard-schedule-title">
@@ -30,20 +27,7 @@ export function renderStaticPage(root, context) {
             </label>
           </div>
         </div>
-        <div class="admin-calendar-legend" id="dashboard-calendar-legend" data-admin-calendar-legend></div>
-        <div class="admin-calendar" data-admin-calendar role="region" aria-label="Schedule calendar" aria-describedby="dashboard-calendar-legend"></div>
-      </section>
-
-      <section class="admin-panel admin-dashboard-bookings-panel" aria-labelledby="dashboard-bookings-title">
-        <div class="admin-panel-header admin-panel-header-compact">
-          <h2 id="dashboard-bookings-title">Upcoming bookings</h2>
-          <a class="admin-inline-link" href="${bookingsPath}">View all</a>
-        </div>
-        <div
-          class="admin-booking-list admin-dashboard-booking-list"
-          data-admin-booking-list
-          data-admin-dashboard-booking-list
-        ></div>
+        <div class="admin-calendar" data-admin-calendar role="region" aria-label="Schedule calendar"></div>
       </section>
     </section>
   `;

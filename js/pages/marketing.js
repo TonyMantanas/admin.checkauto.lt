@@ -4,14 +4,10 @@ export const page = 'marketing';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <header class="admin-page-heading admin-page-heading-compact">
-      <h1>Marketing</h1>
-    </header>
-
     <section class="admin-marketing-layout">
       <section class="admin-panel admin-marketing-compose" aria-labelledby="marketing-compose-title">
-        <div class="admin-panel-header admin-panel-header-compact">
-          <h2 id="marketing-compose-title">New email</h2>
+        <div class="admin-panel-header admin-panel-header-compact admin-marketing-workspace-header">
+          <h1 id="marketing-compose-title">Marketing</h1>
           <p class="admin-count" data-marketing-audience-count role="status" aria-live="polite"></p>
         </div>
         <p class="admin-helper-text" id="marketing-audience-help">Only customers with active marketing consent will receive this email.</p>

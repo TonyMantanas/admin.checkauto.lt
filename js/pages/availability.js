@@ -44,13 +44,11 @@ export function renderStaticPage(root) {
             </label>
           </div>
         </div>
-        <div class="admin-calendar-legend" id="availability-calendar-legend" data-admin-calendar-legend></div>
         <div
           class="admin-calendar"
           data-admin-calendar
           role="region"
           aria-label="Availability calendar"
-          aria-describedby="availability-calendar-legend"
         ></div>
       </section>
     </section>
@@ -87,8 +85,8 @@ export function renderStaticPage(root) {
           <label>Date<input name="date" type="date" required data-admin-slot-date></label>
           <fieldset class="admin-time-range">
             <legend>Time</legend>
-            <label><span>Start</span><span class="admin-select-wrap"><select name="startTime" required data-admin-slot-start></select></span></label>
-            <label><span>End</span><span class="admin-select-wrap"><select name="endTime" required data-admin-slot-end></select></span></label>
+            <label><span>Start</span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
+            <label><span>End</span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
           </fieldset>
           <label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
           <label class="admin-field-wide">Note<input name="internalNote" type="text" maxlength="500" placeholder="Optional internal note"></label>

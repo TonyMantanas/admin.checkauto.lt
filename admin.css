@@ -83,7 +83,7 @@
 }
 
 html {
-  min-width: 20rem;
+  min-width: 0;
   min-height: 100%;
   background: var(--admin-canvas);
   -webkit-text-size-adjust: 100%;
@@ -91,7 +91,7 @@ html {
 }
 
 body {
-  min-width: 20rem;
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
   margin: 0;
@@ -892,11 +892,6 @@ fieldset {
   width: min(100%, 24rem);
 }
 
-.admin-panel > .admin-search {
-  width: min(calc(100% - (2 * var(--admin-space-5))), 28rem);
-  margin: var(--admin-space-4) var(--admin-space-5);
-}
-
 .admin-search input[type="search"] {
   appearance: none;
 }
@@ -913,8 +908,8 @@ fieldset {
    ========================================================================== */
 
 .admin-page-heading {
-  min-height: 2.75rem;
-  margin-block-end: var(--admin-space-4);
+  min-height: 2.25rem;
+  margin-block-end: var(--admin-space-2);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -923,7 +918,7 @@ fieldset {
 }
 
 .admin-page-heading-compact {
-  min-height: 2.5rem;
+  min-height: 2.25rem;
 }
 
 .admin-page-title {
@@ -963,33 +958,70 @@ fieldset {
   border-block-end: 1px solid var(--admin-border);
 }
 
-.admin-panel-header-compact {
-  min-height: 3.25rem;
+.admin-panel-header.admin-panel-header-compact {
+  min-height: 2.75rem;
+  padding: var(--admin-space-2) var(--admin-space-4);
 }
 
-.admin-operational-toolbar {
+.admin-panel-header.admin-workspace-header {
+  min-height: 3rem;
+  padding: var(--admin-space-2) var(--admin-space-4);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: center;
+  gap: var(--admin-space-3);
 }
 
-.admin-bookings-workbench .admin-operational-toolbar {
-  display: flex;
-  align-items: center;
+.admin-workspace-header .admin-page-title {
   flex-wrap: nowrap;
 }
 
-.admin-bookings-workbench .admin-operational-toolbar > :first-child {
-  width: auto;
-  flex: 1 1 auto;
+.admin-workspace-header h1 {
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
 }
 
-.admin-operational-toolbar > :last-child {
+.admin-workspace-header .admin-count {
+  white-space: nowrap;
+}
+
+.admin-marketing-workspace-header h1 {
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+.admin-workspace-controls {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--admin-space-2);
+}
+
+.admin-bookings-workspace-header .admin-workspace-controls > [data-admin-filters] {
+  flex: 0 1 auto;
+}
+
+.admin-customers-workspace-header .admin-search {
+  width: min(100%, 28rem);
   justify-self: end;
 }
 
-.admin-bookings-workbench .admin-operational-toolbar > :last-child {
-  flex: 0 0 auto;
+.admin-invoices-workspace-header .admin-search {
+  width: min(24rem, 42vw);
+}
+
+.admin-search-compact {
+  display: block;
+}
+
+.admin-search-compact > span {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .admin-dashboard-grid,
@@ -1005,7 +1037,7 @@ fieldset {
 
 .admin-dashboard-grid {
   display: grid;
-  gap: var(--admin-space-4);
+  gap: var(--admin-space-2);
 }
 
 .admin-workbench,
@@ -1047,22 +1079,42 @@ fieldset {
   overflow-y: auto;
 }
 
-.admin-stats {
-  margin-block-end: var(--admin-space-4);
+.admin-dashboard-summary {
+  min-width: 0;
+  margin-block-end: var(--admin-space-2);
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(8.5rem, 0.3fr) minmax(0, 1fr);
+  overflow: hidden;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-panel-radius);
   background: var(--admin-surface);
 }
 
+.admin-dashboard-summary > h1 {
+  min-width: 0;
+  padding: var(--admin-space-2) var(--admin-space-4);
+  display: flex;
+  align-items: center;
+  border-inline-end: 1px solid var(--admin-border);
+  font-size: 1.05rem;
+  letter-spacing: -0.015em;
+}
+
+.admin-stats {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .admin-stat {
   min-width: 0;
-  padding: var(--admin-space-3) var(--admin-space-4);
+  min-height: 2.75rem;
+  padding: var(--admin-space-2) var(--admin-space-3);
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: 0.15rem var(--admin-space-3);
+  align-items: center;
+  gap: var(--admin-space-2);
 }
 
 .admin-stat + .admin-stat {
@@ -1076,18 +1128,12 @@ fieldset {
 }
 
 .admin-stat strong {
-  grid-row: 1 / 3;
+  grid-row: 1;
   grid-column: 2;
   color: var(--admin-text);
-  font-size: 1.6rem;
+  font-size: 1.3rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-}
-
-.admin-stat em {
-  color: var(--admin-text-tertiary);
-  font-size: var(--admin-text-xs);
-  font-style: normal;
 }
 
 .admin-stat-link {
@@ -1153,7 +1199,7 @@ fieldset {
 }
 
 .admin-customer-list {
-  --admin-row-columns: minmax(12rem, 1.4fr) minmax(11rem, 1fr) minmax(9rem, 0.8fr) minmax(8rem, 0.7fr) minmax(8rem, 0.7fr);
+  --admin-row-columns: minmax(12rem, 1.25fr) minmax(11rem, 0.9fr) minmax(12rem, 1fr) minmax(17rem, 1.45fr);
 }
 
 .admin-invoice-list {
@@ -1477,42 +1523,9 @@ button.admin-mini-item::after {
 }
 
 .admin-calendar-controls {
-  flex: 1 1 auto;
-}
-
-.admin-calendar-legend {
-  min-height: 2.2rem;
-  padding: 0.45rem var(--admin-space-4);
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--admin-space-3);
-  flex-wrap: wrap;
-  border-block-end: 1px solid var(--admin-border);
-  background: var(--admin-surface-subtle);
-}
-
-.admin-calendar-legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--admin-text-secondary);
-  font-size: 0.6875rem;
-  font-weight: 650;
-  white-space: nowrap;
-}
-
-.admin-calendar-legend i {
-  width: 0.5rem;
-  height: 0.5rem;
-  border: 1px solid currentColor;
-  border-radius: 0.15rem;
-  background: var(--admin-surface-subtle);
-}
-
-.admin-calendar-legend [data-tone="available"] i {
-  color: var(--admin-text-tertiary);
-  background: var(--admin-surface-hover);
+  flex: 0 1 auto;
+  flex-wrap: nowrap;
+  gap: var(--admin-space-1);
 }
 
 .admin-confirmation-schedule-form {
@@ -1608,21 +1621,6 @@ button.admin-mini-item::after {
 .admin-confirmation-schedule-form > .admin-action-buttons {
   padding-block-start: var(--admin-space-1);
   border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-calendar-legend [data-tone="pending"] i {
-  color: var(--admin-warning);
-  background: var(--admin-warning-soft);
-}
-
-.admin-calendar-legend [data-tone="confirmed"] i {
-  color: var(--admin-info);
-  background: var(--admin-info-soft);
-}
-
-.admin-calendar-legend [data-tone="completed"] i {
-  color: var(--admin-success);
-  background: var(--admin-success-soft);
 }
 
 .admin-calendar {
@@ -1759,8 +1757,7 @@ button.admin-mini-item::after {
 }
 
 .admin-calendar-event strong,
-.admin-calendar-event span,
-.admin-calendar-event em {
+.admin-calendar-event span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1774,12 +1771,6 @@ button.admin-mini-item::after {
 
 .admin-calendar-event span {
   font-weight: 700;
-}
-
-.admin-calendar-event em {
-  color: var(--admin-text-secondary);
-  font-size: 0.625rem;
-  font-style: normal;
 }
 
 .admin-calendar-event[data-tone="available"] {
@@ -3161,32 +3152,31 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 54rem) {
-  .admin-stats {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-stat + .admin-stat {
-    border-inline-start: 0;
-    border-block-start: 1px solid var(--admin-border);
-  }
-
-  .admin-operational-toolbar {
+  .admin-panel-header.admin-workspace-header {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
   }
 
-  .admin-bookings-workbench .admin-operational-toolbar {
-    align-items: center;
+  .admin-workspace-controls {
+    justify-content: space-between;
   }
 
-  .admin-operational-toolbar > *,
-  .admin-operational-toolbar > :last-child {
-    justify-self: end;
+  .admin-bookings-workspace-header .admin-workspace-controls > [data-admin-filters] {
+    flex: 1 1 auto;
   }
 
-  .admin-operational-toolbar > .admin-search {
+  .admin-customers-workspace-header .admin-search {
     width: 100%;
     justify-self: stretch;
+  }
+
+  .admin-invoices-workspace-header .admin-workspace-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-invoices-workspace-header .admin-search {
+    width: 100%;
   }
 
   .admin-data-head {
@@ -3239,6 +3229,56 @@ button.admin-mini-item::after {
     white-space: normal;
   }
 
+  .admin-booking-list .admin-row-date {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .admin-booking-list .admin-row-service {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .admin-booking-list .admin-row-meta {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: end;
+    text-align: end;
+  }
+
+  .admin-customer-list .admin-row-service {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .admin-customer-list .admin-row-meta {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+
+  .admin-invoice-list .admin-row-service {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .admin-invoice-list .admin-row-amount {
+    grid-column: 2;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .admin-invoice-list .admin-row-date {
+    grid-column: 1;
+    grid-row: 3;
+  }
+
+  .admin-invoice-list .admin-row-meta {
+    grid-column: 2;
+    grid-row: 3;
+    justify-self: end;
+    text-align: end;
+  }
+
   .admin-mini-item {
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 0.25rem var(--admin-space-3);
@@ -3278,8 +3318,42 @@ button.admin-mini-item::after {
     min-height: var(--admin-mobile-header-height);
   }
 
+  .admin-dashboard-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-dashboard-summary > h1 {
+    min-height: 2.1rem;
+    padding: 0.4rem var(--admin-space-3);
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--admin-border);
+    font-size: 1rem;
+  }
+
+  .admin-stat {
+    min-height: 3.15rem;
+    padding: 0.4rem var(--admin-space-2);
+    grid-template-columns: minmax(0, 1fr);
+    align-content: center;
+    justify-items: center;
+    gap: 0.18rem;
+    text-align: center;
+  }
+
+  .admin-stat span {
+    grid-row: 2;
+    grid-column: 1;
+    line-height: 1.15;
+  }
+
+  .admin-stat strong {
+    grid-row: 1;
+    grid-column: 1;
+    font-size: 1.15rem;
+  }
+
   .admin-page-heading {
-    min-height: 2.5rem;
+    min-height: 2.25rem;
     margin-block-end: var(--admin-space-2);
   }
 
@@ -3292,30 +3366,67 @@ button.admin-mini-item::after {
   }
 
   .admin-calendar-panel > .admin-panel-header {
-    align-items: stretch;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    align-items: center;
+    gap: var(--admin-space-2);
+    padding: var(--admin-space-2);
   }
 
   .admin-calendar-panel > .admin-panel-header h2 {
-    width: 100%;
+    width: auto;
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 1;
+    overflow: hidden;
+    font-size: 1rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .admin-calendar-controls {
-    width: 100%;
-    justify-content: flex-end;
+    display: contents;
+  }
+
+  .admin-calendar-controls > [data-calendar-prev] {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .admin-calendar-controls > [data-calendar-today] {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .admin-calendar-controls > [data-calendar-next] {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
+  .admin-calendar-controls > .admin-segmented {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: start;
   }
 
   .admin-calendar-controls .admin-date-jump {
+    width: min(100%, 9rem);
+    grid-column: 2 / 5;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .admin-calendar-controls .admin-date-jump > span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .admin-calendar-controls .admin-date-jump input {
     width: 100%;
-    justify-content: flex-end;
-  }
-
-  .admin-date-jump input {
-    width: min(10rem, 60vw);
-  }
-
-  .admin-calendar-legend {
-    justify-content: flex-start;
-    gap: var(--admin-space-2);
   }
 
   .admin-confirmation-settings {
@@ -3422,26 +3533,62 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 30rem) {
-  .admin-page-heading {
+  .admin-bookings-workspace-header {
+    grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
   }
 
-  .admin-page-title {
-    display: grid;
-    gap: 0.15rem;
+  .admin-bookings-workspace-header .admin-workspace-controls {
+    display: contents;
   }
 
-  .admin-calendar-controls {
-    display: grid;
-    grid-template-columns: auto auto auto minmax(0, 1fr);
+  .admin-bookings-workspace-header [data-admin-filters] {
+    width: 100%;
+    grid-column: 1 / 3;
+    grid-row: 2;
   }
 
-  .admin-calendar-controls > .admin-segmented {
+  .admin-bookings-workspace-header [data-admin-filters] button:not(.admin-segmented-icon) {
+    padding-inline: 0.35rem;
+  }
+
+  .admin-bookings-workspace-header [data-admin-booking-sort] {
+    grid-column: 2;
+    grid-row: 1;
     justify-self: end;
   }
 
-  .admin-calendar-controls > .admin-date-jump {
-    grid-column: 1 / -1;
+  .admin-invoices-workspace-header {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: var(--admin-space-1);
+  }
+
+  .admin-invoices-workspace-header .admin-workspace-controls {
+    display: contents;
+  }
+
+  .admin-invoices-workspace-header .admin-page-title {
+    gap: var(--admin-space-1);
+  }
+
+  .admin-invoices-workspace-header .admin-search {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+
+  .admin-invoices-workspace-header [data-invoice-filters] {
+    grid-column: 2;
+    grid-row: 1;
+    justify-self: end;
+  }
+
+  .admin-invoices-workspace-header [data-invoice-filters] button:not(.admin-segmented-icon) {
+    padding-inline: 0.25rem;
+  }
+
+  .admin-page-heading {
+    align-items: center;
   }
 
   .admin-time-range {
@@ -3484,6 +3631,23 @@ button.admin-mini-item::after {
 
   .admin-segmented button:not(.admin-segmented-icon) {
     padding-inline: 0.45rem;
+  }
+}
+
+@media (max-width: 22rem) {
+  .admin-invoices-workspace-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-invoices-workspace-header [data-invoice-filters] {
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: end;
+  }
+
+  .admin-invoices-workspace-header .admin-search {
+    grid-column: 1;
+    grid-row: 3;
   }
 }
 
