@@ -118,7 +118,7 @@ export function renderStaticPage(root) {
           <div class="admin-action-buttons">
             <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Create slot</button>
             <button class="admin-button admin-button-secondary" type="button" data-admin-slot-reset hidden>New slot</button>
-            <button class="admin-button admin-button-danger" type="button" data-admin-slot-delete hidden>Delete slot</button>
+            <button class="admin-button admin-button-danger" type="button" data-admin-slot-delete hidden>Cancel slot</button>
           </div>
         </form>
       </section>

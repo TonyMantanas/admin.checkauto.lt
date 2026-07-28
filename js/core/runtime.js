@@ -31,7 +31,7 @@ export function initAdminRuntime(pageController) {
   };
   var SESSION_KEY = 'checkauto-admin-session';
   var DASHBOARD_CACHE_KEY = 'checkauto-admin-dashboard-cache';
-  var DASHBOARD_CACHE_VERSION = 2;
+  var DASHBOARD_CACHE_VERSION = 3;
   var DASHBOARD_CACHE_MAX_AGE_MS = 2 * 60 * 1000;
   var SESSION_REFRESH_MARGIN_MS = 60 * 1000;
   var TIME_ZONE = 'Europe/Vilnius';
@@ -681,13 +681,13 @@ export function initAdminRuntime(pageController) {
   function statusLabel(status) {
     return {
       available: 'Available',
+      bookable: 'Available',
       pending: 'Needs review',
       confirmed: 'Confirmed',
       rejected: 'Rejected',
       cancelled: 'Cancelled',
       completed: 'Completed',
       expired: 'Expired',
-      open: 'Available',
       sent: 'Sent',
       failed: 'Failed',
       partial: 'Partially sent',
@@ -696,7 +696,7 @@ export function initAdminRuntime(pageController) {
   }
 
   function statusTone(status) {
-    if (status === 'available' || status === 'open') return 'available';
+    if (status === 'available' || status === 'bookable') return 'available';
     if (status === 'pending') return 'pending';
     if (status === 'confirmed') return 'confirmed';
     if (status === 'completed') return 'completed';
@@ -786,6 +786,14 @@ export function initAdminRuntime(pageController) {
 
   function isActiveBookingStatus(status) {
     return ['pending', 'confirmed'].includes(status);
+  }
+
+  function slotIsBookable(slot) {
+    return Boolean(
+      slot &&
+      slot.is_bookable === true &&
+      slot.effective_status === 'bookable'
+    );
   }
 
   function getStoredSession() {
@@ -1493,20 +1501,20 @@ export function initAdminRuntime(pageController) {
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-            '<div><span class="section-label">Confirm</span><h2>Delete availability</h2></div>' +
+          '<div><span class="section-label">Confirm</span><h2>Cancel availability</h2></div>' +
           '</div>' +
-          '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + ' is part of a weekly series. Deleted availability cannot be restored here.</p>' +
+          '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + ' is part of a weekly series. Cancelled availability remains in history.</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Only this slot</button>' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Whole series</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Cancel this slot</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Cancel series</button>' +
           '</div>' +
         '</section>';
       document.body.classList.add('admin-modal-open');
       setPageInteractionBlocked(true);
       setUnderlyingModalBlocked(true);
       var panel = $('.admin-confirm-panel', root);
-      labelDialog(panel, 'Delete availability');
+      labelDialog(panel, 'Cancel availability');
       var message = $('[data-confirm-message]', root);
       if (panel && message) {
         dialogId += 1;
@@ -1654,15 +1662,15 @@ export function initAdminRuntime(pageController) {
         danger: true
       },
       deleteSlot: {
-        title: 'Delete availability',
-        message: 'Delete this availability slot entirely?',
-        confirmLabel: 'Delete slot',
+        title: 'Cancel availability',
+        message: 'Cancel this availability slot?',
+        confirmLabel: 'Cancel slot',
         danger: true
       },
       deleteSlotSeries: {
-        title: 'Delete availability series',
-        message: 'Delete every open slot in this weekly series?',
-        confirmLabel: 'Delete series',
+        title: 'Cancel availability series',
+        message: 'Cancel every open slot in this weekly series?',
+        confirmLabel: 'Cancel series',
         danger: true
       },
       redactBookingPii: {
@@ -1773,10 +1781,9 @@ export function initAdminRuntime(pageController) {
       return booking.status === 'confirmed' && start && formatDate(start) === today;
     }).length;
     var openNext7 = state.slots.filter(function (slot) {
-      return slot.status === 'open' &&
+      return slotIsBookable(slot) &&
         compareYmd(formatDate(slot.start_at), today) >= 0 &&
-        compareYmd(formatDate(slot.start_at), addDaysYmd(today, 7)) < 0 &&
-        !slotHasScheduleBooking(slot.id);
+        compareYmd(formatDate(slot.start_at), addDaysYmd(today, 7)) < 0;
     }).length;
 
     els.stats.innerHTML =
@@ -1810,31 +1817,28 @@ export function initAdminRuntime(pageController) {
     });
   }
 
-  function slotHasScheduleBooking(slotId) {
-    return state.bookings.some(function (booking) {
-      return booking.availability_slot_id === slotId && isScheduleStatus(booking.status);
-    });
-  }
-
   function buildCalendarEvents() {
     var bookingBySlot = latestBookingsBySlot(function (booking) {
       return isScheduleStatus(booking.status);
     });
     var events = [];
+    var renderedBookingIds = {};
 
     state.slots.forEach(function (slot) {
-      if (slot.status !== 'open') return;
       var booking = bookingBySlot[slot.id];
       if (booking) {
         events.push(calendarEventFromBooking(booking, slot));
+        renderedBookingIds[booking.id] = true;
         return;
       }
+
+      if (!slotIsBookable(slot)) return;
 
       events.push({
         id: 'slot:' + slot.id,
         type: 'slot',
         slotId: slot.id,
-        status: 'available',
+        status: 'bookable',
         start: slot.start_at,
         end: slot.end_at,
         title: serviceNameById(slot.service_id),
@@ -1844,7 +1848,7 @@ export function initAdminRuntime(pageController) {
     });
 
     state.bookings.forEach(function (booking) {
-      if (booking.availability_slot_id) return;
+      if (renderedBookingIds[booking.id]) return;
       if (!isScheduleStatus(booking.status)) return;
       events.push(calendarEventFromBooking(booking, null));
     });
@@ -3303,8 +3307,8 @@ export function initAdminRuntime(pageController) {
       markInvoicePaid: 'Saving...',
       resendInvoice: 'Sending...',
       voidInvoice: 'Voiding...',
-      deleteSlot: 'Deleting...',
-      deleteSlotSeries: 'Deleting...',
+      deleteSlot: 'Cancelling...',
+      deleteSlotSeries: 'Cancelling...',
       updateSlot: 'Saving...',
       createSlot: 'Creating...',
       setCustomerLegalHold: 'Saving...',
@@ -3330,8 +3334,8 @@ export function initAdminRuntime(pageController) {
       markInvoicePaid: 'Invoice marked paid.',
       resendInvoice: 'Invoice resent.',
       voidInvoice: 'Invoice voided.',
-      deleteSlot: 'Availability slot deleted.',
-      deleteSlotSeries: 'Availability series deleted.',
+      deleteSlot: 'Availability slot cancelled.',
+      deleteSlotSeries: 'Availability series cancelled.',
       updateSlot: 'Availability slot updated.',
       createSlot: 'Availability slot created.',
       setCustomerLegalHold: 'Legal hold set.',
@@ -4262,9 +4266,8 @@ export function initAdminRuntime(pageController) {
     var slots = state.slots.slice().sort(function (a, b) { return new Date(a.start_at) - new Date(b.start_at); });
 
     slots = slots.filter(function (slot) {
-      if (slot.status !== 'open') return false;
+      if (!slotIsBookable(slot)) return false;
       if (completedSlotIds[slot.id]) return false;
-      if (new Date(slot.end_at) < new Date()) return false;
       if (state.slotFilter !== 'all' && slot.status !== state.slotFilter) return false;
       return true;
     }).slice(0, 120);
@@ -4288,7 +4291,7 @@ export function initAdminRuntime(pageController) {
           (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' - ' + booking.customer_name) + '</a>' : '') +
         '</div>' +
         '<div class="admin-slot-actions">' +
-          (!hasActiveBooking ? '<button class="admin-button admin-button-danger" type="button" data-delete-slot="' + escapeHtml(slot.id) + '">Delete</button>' : '') +
+          (!hasActiveBooking ? '<button class="admin-button admin-button-danger" type="button" data-delete-slot="' + escapeHtml(slot.id) + '">Cancel</button>' : '') +
         '</div>' +
       '</div>';
     }).join('');
