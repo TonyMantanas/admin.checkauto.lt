@@ -1,5 +1,6 @@
 import { ICONS } from './icons.js?v=20260727-3';
-import { state } from './state.js?v=20260728-12';
+import { state } from './state.js?v=20260729-1';
+import { auth } from './auth.js?v=20260729-1';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -17,6 +18,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
   var ADMIN_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-bookings';
+  var MFA_RECOVERY_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-mfa-recovery';
   var ADMIN_BASE_PATH = (
     window.location.pathname === '/admin' ||
     window.location.pathname.startsWith('/admin/')
@@ -764,8 +766,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function getStoredSession() {
+    var sessionValue = null;
     try {
-      return JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      sessionValue = JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null');
+      if (sessionValue) {
+        state.sessionPersistence = 'session';
+        return sessionValue;
+      }
+    } catch (error) {
+      // Continue to durable storage when session storage is unavailable.
+    }
+    try {
+      sessionValue = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+      if (sessionValue) state.sessionPersistence = 'local';
+      return sessionValue;
     } catch (error) {
       return null;
     }
@@ -779,15 +793,42 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
-  function storeSession(session) {
+  function storeSession(session, rememberDevice) {
     state.session = session;
     if (session) {
-      localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+      if (typeof rememberDevice === 'boolean') {
+        state.sessionPersistence = rememberDevice ? 'local' : 'session';
+      } else if (!state.sessionPersistence) {
+        state.sessionPersistence = 'session';
+      }
+      try {
+        if (state.sessionPersistence === 'local') {
+          localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+          sessionStorage.removeItem(SESSION_KEY);
+        } else {
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+          localStorage.removeItem(SESSION_KEY);
+        }
+      } catch (error) {
+        state.sessionPersistence = 'session';
+        try {
+          sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+          localStorage.removeItem(SESSION_KEY);
+        } catch (storageError) {
+          // Keep the in-memory session for restricted browsing contexts.
+        }
+      }
       scheduleSessionRefresh(session);
     } else {
       window.clearTimeout(sessionRefreshTimer);
       sessionRefreshTimer = null;
-      localStorage.removeItem(SESSION_KEY);
+      try {
+        localStorage.removeItem(SESSION_KEY);
+        sessionStorage.removeItem(SESSION_KEY);
+      } catch (error) {
+        // In-memory state is still cleared below.
+      }
+      state.sessionPersistence = '';
       clearLegacyDashboardCache();
       if (state.refreshController) state.refreshController.abort();
       state.refreshController = null;
@@ -941,21 +982,38 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     };
   }
 
-  async function login(email, password) {
-    var response = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: SUPABASE_ANON_KEY
-      },
-      body: JSON.stringify({ email: email, password: password })
-    });
+  function isSecuritySessionCode(code) {
+    return [
+      'authentication_required',
+      'mfa_enrollment_required',
+      'mfa_challenge_required',
+      'session_reauthentication_required',
+      'session_expired'
+    ].includes(String(code || ''));
+  }
 
-    if (!response.ok) {
-      throw new Error('Sign in failed. Check your email and password.');
+  function actionNeedsIdempotency(action) {
+    return ['createAndSendInvoice', 'resendInvoice', 'sendMarketingCampaign'].includes(action);
+  }
+
+  function ensureActionIdempotency(payload) {
+    if (!payload || !actionNeedsIdempotency(payload.action) || payload.idempotencyKey) return payload;
+    var randomPart = window.crypto && typeof window.crypto.randomUUID === 'function'
+      ? window.crypto.randomUUID()
+      : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    return { ...payload, idempotencyKey: randomPart };
+  }
+
+  async function revokeAndClearSession(session) {
+    var targetSession = session || state.session;
+    try {
+      await auth.signOut(targetSession, 'global');
+    } catch (error) {
+      // The local session must still be removed if it has already expired.
+    } finally {
+      closeRealtime();
+      storeSession(null);
     }
-
-    return response.json();
   }
 
   function adminViewForPage(page) {
@@ -1011,13 +1069,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         signal: controller.signal
       });
 
-      if (response.status === 401 || response.status === 403) {
-        storeSession(null);
-        throw new Error('This account is not approved for admin access or the session has expired.');
+      var data = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        if (response.status === 401 || isSecuritySessionCode(data.code)) {
+          await revokeAndClearSession();
+          throw new Error('Sign in again to verify your account.');
+        }
+        if (data.code === 'insufficient_role') {
+          redirectTo(PATHS.dashboard);
+          throw new Error(data.error || 'Your admin role cannot access this section.');
+        }
+        throw new Error(data.error || 'Could not load admin data.');
       }
-
-      if (!response.ok) throw new Error('Could not load admin data.');
-      var data = await response.json();
       if (requestId !== state.refreshRequestId || controller.signal.aborted) return false;
 
       applyDashboardData(data);
@@ -1050,6 +1113,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!(await ensureActiveSession())) {
       throw new Error('This account is not approved for admin access or the session has expired.');
     }
+    payload = ensureActionIdempotency(payload);
     var response = await fetch(ADMIN_ENDPOINT, {
       method: 'POST',
       headers: authHeaders(),
@@ -1059,6 +1123,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var data = await response.json().catch(function () { return {}; });
     if (!response.ok) {
+      if (response.status === 401 || isSecuritySessionCode(data.code)) {
+        await revokeAndClearSession();
+        redirectTo(PATHS.login);
+      }
       throw new Error(data.error || 'The action could not be completed.');
     }
     return data;
@@ -1820,6 +1888,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var target = $('[data-admin-user]');
     if (target && state.staff) {
       target.textContent = state.staff.display_name + ' - ' + state.staff.role;
+    }
+    if (state.staff) {
+      var canUseSensitivePages = ['owner', 'admin'].includes(state.staff.role);
+      ['customers', 'invoices', 'marketing'].forEach(function (page) {
+        var link = $('[data-admin-nav="' + page + '"]');
+        if (link) link.hidden = !canUseSensitivePages;
+      });
     }
   }
 
@@ -4729,44 +4804,372 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     refresh({ background: Boolean(loaded), preserveScroll: true, view: view }).catch(reportNavigationRefreshError);
   }
 
-  function setupLoginEvents() {
-    var form = $('[data-admin-login-form]');
-    if (!form) return;
-    var sessionStatus = $('[data-admin-login-session]');
-    if (sessionStatus) {
-      sessionStatus.textContent = '';
-      sessionStatus.hidden = true;
-    }
-    form.hidden = false;
-    var emailInput = $('[name="email"]', form);
-    if (emailInput) focusElement(emailInput);
+  function setupLoginEvents(initialMessage) {
+    var passwordForm = $('[data-admin-login-form]');
+    if (!passwordForm) return;
 
-    form.addEventListener('submit', async function (event) {
+    var title = $('#admin-login-title');
+    var sessionStatus = $('[data-admin-login-session]');
+    var enrollStep = $('[data-admin-mfa-enroll]');
+    var challengeStep = $('[data-admin-mfa-challenge]');
+    var recoveryStep = $('[data-admin-mfa-recovery]');
+    var codesStep = $('[data-admin-mfa-codes]');
+    var enrollForm = $('[data-admin-mfa-enroll-form]');
+    var challengeForm = $('[data-admin-mfa-challenge-form]');
+    var recoveryForm = $('[data-admin-mfa-recovery-form]');
+    var activeFactor = null;
+    var activeChallenge = null;
+    var recoveryCodes = [];
+
+    function loginSteps() {
+      return [passwordForm, enrollStep, challengeStep, recoveryStep, codesStep];
+    }
+
+    function showLoginStep(step, heading) {
+      loginSteps().forEach(function (item) {
+        if (item) item.hidden = item !== step;
+      });
+      if (title) {
+        title.textContent = heading || 'Sign in';
+        title.hidden = step !== passwordForm;
+      }
+      if (sessionStatus) {
+        sessionStatus.hidden = !sessionStatus.textContent;
+      }
+      var firstInput = $('input:not([type="checkbox"])', step);
+      if (firstInput) focusElement(firstInput);
+    }
+
+    function setStatus(target, message, input) {
+      if (!target) return;
+      target.textContent = message || '';
+      if (!target.id) target.id = 'admin-login-status-' + Math.random().toString(36).slice(2);
+      if (input) {
+        if (message) {
+          input.setAttribute('aria-invalid', 'true');
+          input.setAttribute('aria-describedby', target.id);
+        } else {
+          input.removeAttribute('aria-invalid');
+          input.removeAttribute('aria-describedby');
+        }
+      }
+    }
+
+    function normalizeVerificationCode(value) {
+      return String(value || '').replace(/\D/g, '').slice(0, 6);
+    }
+
+    function normalizeRecoveryCode(value) {
+      return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 32);
+    }
+
+    function bindCodeInput(input, normalizer) {
+      if (!input) return;
+      input.addEventListener('input', function () {
+        var normalized = normalizer(input.value);
+        if (input.value !== normalized) input.value = normalized;
+        input.removeAttribute('aria-invalid');
+      });
+    }
+
+    async function confirmApprovedStaff(session) {
+      var response = await fetch(ADMIN_ENDPOINT + '?view=auth', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + session.access_token
+        },
+        cache: 'no-store'
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (response.ok || [
+        'mfa_enrollment_required',
+        'mfa_challenge_required',
+        'session_reauthentication_required'
+      ].includes(body.code)) return;
+      throw new Error(body.error || 'This account is not approved for the admin console.');
+    }
+
+    async function beginMfa(session) {
+      await confirmApprovedStaff(session);
+      var factors = await auth.listFactors(session);
+
+      if (factors.totp.length) {
+        activeFactor = factors.totp[0];
+        activeChallenge = await auth.challengeTotp(session, activeFactor.id);
+        if (sessionStatus) sessionStatus.textContent = '';
+        showLoginStep(challengeStep, 'Verify it’s you');
+        return;
+      }
+
+      for (var i = 0; i < factors.unverifiedTotp.length; i += 1) {
+        await auth.removeFactor(session, factors.unverifiedTotp[i].id);
+      }
+
+      activeFactor = await auth.enrollTotp(session);
+      activeChallenge = await auth.challengeTotp(session, activeFactor.id);
+
+      var qrRoot = $('[data-admin-mfa-qr]');
+      var secretTarget = $('[data-admin-mfa-secret]');
+      if (qrRoot) {
+        qrRoot.replaceChildren();
+        var qrCode = String(activeFactor && activeFactor.totp && activeFactor.totp.qr_code || '');
+        if (qrCode.startsWith('data:image/svg+xml;utf-8,')) {
+          var image = document.createElement('img');
+          image.src = qrCode;
+          image.alt = 'Authenticator setup QR code';
+          image.width = 208;
+          image.height = 208;
+          qrRoot.appendChild(image);
+        }
+      }
+      if (secretTarget) {
+        secretTarget.textContent = String(activeFactor && activeFactor.totp && activeFactor.totp.secret || '');
+      }
+      if (sessionStatus) sessionStatus.textContent = '';
+      showLoginStep(enrollStep, 'Secure your account');
+    }
+
+    async function completeMfa(verificationCode, rememberDevice, status, codeInput) {
+      if (!/^\d{6}$/.test(verificationCode)) {
+        setStatus(status, 'Enter the 6-digit code from your authenticator app.', codeInput);
+        focusElement(codeInput);
+        return;
+      }
+
+      var verifiedSession = await auth.verifyTotp(
+        state.session,
+        activeFactor.id,
+        activeChallenge.id,
+        verificationCode
+      );
+      if (!verifiedSession || auth.assuranceLevel(verifiedSession) !== 'aal2') {
+        throw new Error('MFA verification did not upgrade the session. Try signing in again.');
+      }
+
+      storeSession(verifiedSession, rememberDevice);
+      var recoveryResult = null;
+      try {
+        var response = await adminAction({ action: 'ensureMfaRecoveryCodes' });
+        recoveryResult = response && response.result;
+      } catch (error) {
+        // A recovery-code service failure must not strand a newly enrolled user.
+        recoveryResult = null;
+      }
+
+      await loadDashboard('auth', { force: true });
+
+      if (
+        recoveryResult &&
+        recoveryResult.created === true &&
+        Array.isArray(recoveryResult.codes) &&
+        recoveryResult.codes.length
+      ) {
+        recoveryCodes = recoveryResult.codes.slice();
+        var list = $('[data-admin-mfa-code-list]');
+        if (list) {
+          list.replaceChildren();
+          recoveryCodes.forEach(function (code) {
+            var item = document.createElement('li');
+            item.textContent = code;
+            list.appendChild(item);
+          });
+        }
+        showLoginStep(codesStep, 'Save your recovery codes');
+        return;
+      }
+
+      redirectTo(PATHS.dashboard);
+    }
+
+    if (sessionStatus) {
+      sessionStatus.textContent = initialMessage || '';
+      sessionStatus.hidden = !sessionStatus.textContent;
+    }
+    showLoginStep(passwordForm, 'Sign in');
+
+    bindCodeInput($('[name="verificationCode"]', enrollForm), normalizeVerificationCode);
+    bindCodeInput($('[name="verificationCode"]', challengeForm), normalizeVerificationCode);
+    bindCodeInput($('[name="recoveryCode"]', recoveryForm), function (value) {
+      return String(value || '').toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 40);
+    });
+
+    passwordForm.addEventListener('submit', async function (event) {
       event.preventDefault();
       var status = $('[data-admin-login-status]');
-      if (status && !status.id) status.id = 'admin-login-error';
-      var data = new FormData(event.currentTarget);
-      status.textContent = '';
-      $all('input', form).forEach(function (input) { input.removeAttribute('aria-invalid'); });
-      setFormBusy(form, true, 'Signing in...');
+      var emailInput = $('[name="email"]', passwordForm);
+      var passwordInput = $('[name="password"]', passwordForm);
+      var data = new FormData(passwordForm);
+      setStatus(status, '', emailInput);
+      if (passwordInput) passwordInput.removeAttribute('aria-invalid');
+      setFormBusy(passwordForm, true, 'Signing in...');
 
       try {
-        var session = await login(String(data.get('email') || ''), String(data.get('password') || ''));
-        storeSession(session);
-        await loadDashboard('auth');
-        redirectTo(PATHS.dashboard);
+        var session = await auth.signInWithPassword(
+          String(data.get('email') || ''),
+          String(data.get('password') || '')
+        );
+        storeSession(session, false);
+        await beginMfa(session);
+        if (passwordInput) passwordInput.value = '';
       } catch (error) {
-        storeSession(null);
-        status.textContent = error instanceof Error ? error.message : 'Sign in failed.';
-        $all('input', form).forEach(function (input) {
-          input.setAttribute('aria-invalid', 'true');
-          if (status.id) input.setAttribute('aria-describedby', status.id);
-        });
-        focusElement($('[name="email"]', form));
+        await revokeAndClearSession();
+        setStatus(status, error instanceof Error ? error.message : 'Sign in failed.', emailInput);
+        if (passwordInput) {
+          passwordInput.setAttribute('aria-invalid', 'true');
+          if (status && status.id) passwordInput.setAttribute('aria-describedby', status.id);
+        }
+        focusElement(emailInput);
       } finally {
-        if (document.body.contains(form)) setFormBusy(form, false);
+        if (document.body.contains(passwordForm)) setFormBusy(passwordForm, false);
       }
     });
+
+    if (enrollForm) {
+      enrollForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        var status = $('[data-admin-mfa-enroll-status]');
+        var codeInput = $('[name="verificationCode"]', enrollForm);
+        var data = new FormData(enrollForm);
+        setStatus(status, '', codeInput);
+        setFormBusy(enrollForm, true, 'Verifying...');
+        try {
+          await completeMfa(
+            normalizeVerificationCode(data.get('verificationCode')),
+            data.get('rememberDevice') === 'on',
+            status,
+            codeInput
+          );
+        } catch (error) {
+          setStatus(status, error instanceof Error ? error.message : 'Verification failed.', codeInput);
+          focusElement(codeInput);
+        } finally {
+          if (document.body.contains(enrollForm)) setFormBusy(enrollForm, false);
+        }
+      });
+    }
+
+    if (challengeForm) {
+      challengeForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        var status = $('[data-admin-mfa-challenge-status]');
+        var codeInput = $('[name="verificationCode"]', challengeForm);
+        var data = new FormData(challengeForm);
+        setStatus(status, '', codeInput);
+        setFormBusy(challengeForm, true, 'Verifying...');
+        try {
+          await completeMfa(
+            normalizeVerificationCode(data.get('verificationCode')),
+            data.get('rememberDevice') === 'on',
+            status,
+            codeInput
+          );
+        } catch (error) {
+          setStatus(status, error instanceof Error ? error.message : 'Verification failed.', codeInput);
+          focusElement(codeInput);
+        } finally {
+          if (document.body.contains(challengeForm)) setFormBusy(challengeForm, false);
+        }
+      });
+    }
+
+    var recoveryButton = $('[data-admin-mfa-use-recovery]');
+    if (recoveryButton) {
+      recoveryButton.addEventListener('click', function () {
+        showLoginStep(recoveryStep, 'Use a recovery code');
+      });
+    }
+
+    var recoveryBack = $('[data-admin-mfa-back]');
+    if (recoveryBack) {
+      recoveryBack.addEventListener('click', function () {
+        showLoginStep(challengeStep, 'Verify it’s you');
+      });
+    }
+
+    if (recoveryForm) {
+      recoveryForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        var status = $('[data-admin-mfa-recovery-status]');
+        var codeInput = $('[name="recoveryCode"]', recoveryForm);
+        var code = normalizeRecoveryCode(codeInput && codeInput.value);
+        setStatus(status, '', codeInput);
+        if (code.length < 16) {
+          setStatus(status, 'Enter one complete recovery code.', codeInput);
+          focusElement(codeInput);
+          return;
+        }
+        setFormBusy(recoveryForm, true, 'Recovering...');
+        try {
+          var response = await fetch(MFA_RECOVERY_ENDPOINT, {
+            method: 'POST',
+            headers: authHeaders(),
+            cache: 'no-store',
+            body: JSON.stringify({ recoveryCode: code })
+          });
+          var body = await response.json().catch(function () { return {}; });
+          if (!response.ok) {
+            var recoveryError = new Error(body.error || 'That recovery code could not be used.');
+            recoveryError.retryAfter = response.headers.get('Retry-After');
+            throw recoveryError;
+          }
+          storeSession(null);
+          passwordForm.reset();
+          recoveryForm.reset();
+          if (sessionStatus) {
+            sessionStatus.textContent = 'Recovery code accepted. Sign in again to set up a new authenticator.';
+          }
+          showLoginStep(passwordForm, 'Sign in');
+        } catch (error) {
+          setStatus(status, error instanceof Error ? error.message : 'Account recovery failed.', codeInput);
+          focusElement(codeInput);
+        } finally {
+          if (document.body.contains(recoveryForm)) setFormBusy(recoveryForm, false);
+        }
+      });
+    }
+
+    var copyButton = $('[data-admin-mfa-copy]');
+    if (copyButton) {
+      copyButton.addEventListener('click', async function () {
+        var secret = String($('[data-admin-mfa-secret]') && $('[data-admin-mfa-secret]').textContent || '');
+        try {
+          await navigator.clipboard.writeText(secret);
+          copyButton.textContent = 'Copied';
+        } catch (error) {
+          copyButton.textContent = 'Select and copy the key';
+        }
+      });
+    }
+
+    var downloadButton = $('[data-admin-mfa-download]');
+    if (downloadButton) {
+      downloadButton.addEventListener('click', function () {
+        if (!recoveryCodes.length) return;
+        var contents = [
+          'checkauto.lt admin recovery codes',
+          'Each code works once. Keep these private.',
+          '',
+          recoveryCodes.join('\n'),
+          ''
+        ].join('\n');
+        var url = URL.createObjectURL(new Blob([contents], { type: 'text/plain;charset=utf-8' }));
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'checkauto-admin-recovery-codes.txt';
+        link.click();
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    var finishButton = $('[data-admin-mfa-finish]');
+    if (finishButton) {
+      finishButton.addEventListener('click', function () {
+        recoveryCodes = [];
+        redirectTo(PATHS.dashboard);
+      });
+    }
   }
 
   function setupShellEvents() {
@@ -4815,9 +5218,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var logoutButton = $('[data-admin-logout]');
     if (logoutButton) {
-      logoutButton.addEventListener('click', function () {
-        closeRealtime();
-        storeSession(null);
+      logoutButton.addEventListener('click', async function () {
+        setButtonBusy(logoutButton, true, 'Signing out...');
+        await revokeAndClearSession();
         redirectTo(PATHS.login);
       });
     }
@@ -5141,17 +5544,31 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (state.page === 'login') {
       if (state.session) {
-        redirectTo(PATHS.dashboard);
-        return;
+        if (auth.assuranceLevel(state.session) === 'aal2') {
+          try {
+            var factors = await auth.listFactors(state.session);
+            if (factors.totp.length) {
+              await loadDashboard('auth', { force: true });
+              redirectTo(PATHS.dashboard);
+              return;
+            }
+          } catch (error) {
+            // Fall through to a clean password sign-in.
+          }
+        }
+        await revokeAndClearSession(state.session);
+        setupLoginEvents('For your security, sign in again and verify with MFA.');
+      } else {
+        setupLoginEvents();
       }
-      setupLoginEvents();
       if (pageController && typeof pageController.afterInit === 'function') {
         pageController.afterInit({ state: state });
       }
       return;
     }
 
-    if (!state.session) {
+    if (!state.session || auth.assuranceLevel(state.session) !== 'aal2') {
+      if (state.session) await revokeAndClearSession(state.session);
       redirectTo(PATHS.login);
       return;
     }

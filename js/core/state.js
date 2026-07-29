@@ -1,6 +1,7 @@
 export const state = {
   page: '',
   session: null,
+  sessionPersistence: '',
   staff: null,
   bookings: [],
   services: [],
