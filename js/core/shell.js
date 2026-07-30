@@ -1,4 +1,4 @@
-import { PATHS } from './routes.js?v=20260728-12';
+import { PATHS } from './routes.js?v=20260730-3';
 import { ICONS } from './icons.js?v=20260727-3';
 
 const groups = [
@@ -72,6 +72,14 @@ export function renderShell(page) {
             aria-label="Refresh admin data"
             title="Refresh"
           >${ICONS.refresh}</button>
+          <a
+            class="admin-button admin-button-secondary admin-icon-button"
+            href="${PATHS.account}"
+            data-admin-nav="account"
+            ${page === 'account' ? 'aria-current="page"' : ''}
+            aria-label="Account settings"
+            title="Account settings"
+          >${ICONS.user}</a>
           <button
             class="admin-button admin-button-ghost admin-icon-button"
             type="button"

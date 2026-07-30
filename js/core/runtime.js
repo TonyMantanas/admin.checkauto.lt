@@ -1,6 +1,6 @@
 import { ICONS } from './icons.js?v=20260727-3';
-import { state } from './state.js?v=20260729-1';
-import { auth } from './auth.js?v=20260729-1';
+import { state } from './state.js?v=20260730-2';
+import { auth } from './auth.js?v=20260730-3';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -33,6 +33,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     customers: adminPath('/customers/'),
     invoices: adminPath('/invoices/'),
     marketing: adminPath('/marketing/'),
+    account: adminPath('/account/'),
     login: adminPath('/login/')
   };
   var SESSION_KEY = 'checkauto-admin-session';
@@ -69,6 +70,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var ICON_PHONE = ICONS.phone;
   var ICON_REFRESH = ICONS.refresh;
   var ICON_USER = ICONS.user;
+  var ROLE_LABELS = {
+    owner: 'Owner',
+    admin: 'Administrator',
+    inspector: 'Inspector',
+    viewer: 'Viewer'
+  };
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -76,6 +83,41 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function $all(selector, root) {
     return Array.prototype.slice.call((root || document).querySelectorAll(selector));
+  }
+
+  function rolesForStaff(staff) {
+    if (!staff) return [];
+    var values = Array.isArray(staff.roles)
+      ? staff.roles
+      : staff.role
+        ? [staff.role]
+        : [];
+    return values.filter(function (role, index) {
+      return typeof role === 'string' && role && values.indexOf(role) === index;
+    });
+  }
+
+  function staffHasRole(staff, role) {
+    return rolesForStaff(staff).includes(role);
+  }
+
+  function staffHasAccess(staff, accessRight, legacyRoles) {
+    if (!staff) return false;
+    if (Array.isArray(staff.access_rights)) {
+      return staff.access_rights.includes(accessRight);
+    }
+    return (legacyRoles || []).some(function (role) {
+      return staffHasRole(staff, role);
+    });
+  }
+
+  function staffRoleSummary(staff) {
+    var roles = rolesForStaff(staff);
+    return roles.map(function (role) {
+      return ROLE_LABELS[role] || String(role)
+        .replace(/[._-]+/g, ' ')
+        .replace(/\b\w/g, function (character) { return character.toUpperCase(); });
+    }).join(', ');
   }
 
   function escapeSelectorValue(value) {
@@ -1023,7 +1065,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       bookings: 'bookings',
       customers: 'customers',
       invoices: 'invoices',
-      marketing: 'marketing'
+      marketing: 'marketing',
+      account: 'auth'
     }[page || state.page] || 'all';
   }
 
@@ -1443,7 +1486,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     if (route.type === 'confirmationSchedule') {
-      if (state.page === 'availability' && state.staff && state.staff.role === 'owner') {
+      if (
+        state.page === 'availability' &&
+        staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])
+      ) {
         renderConfirmationScheduleModal();
       } else {
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
@@ -1887,10 +1933,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function setUserLabel() {
     var target = $('[data-admin-user]');
     if (target && state.staff) {
-      target.textContent = state.staff.display_name + ' - ' + state.staff.role;
+      var roleSummary = staffRoleSummary(state.staff);
+      target.textContent = state.staff.display_name + (roleSummary ? ' - ' + roleSummary : '');
     }
     if (state.staff) {
-      var canUseSensitivePages = ['owner', 'admin'].includes(state.staff.role);
+      var canUseSensitivePages = staffHasAccess(
+        state.staff,
+        'sensitive_data.access',
+        ['owner', 'admin']
+      );
       ['customers', 'invoices', 'marketing'].forEach(function (page) {
         var link = $('[data-admin-nav="' + page + '"]');
         if (link) link.hidden = !canUseSensitivePages;
@@ -3943,11 +3994,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderConfirmationScheduleAccess() {
     var button = $('[data-confirmation-schedule-open]');
     if (!button) return;
-    button.hidden = !(state.staff && state.staff.role === 'owner');
+    button.hidden = !staffHasAccess(
+      state.staff,
+      'confirmation_schedule.manage',
+      ['owner']
+    );
   }
 
   function renderConfirmationScheduleModal() {
-    if (!state.staff || state.staff.role !== 'owner') return;
+    if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) return;
     var modal = openModal(confirmationScheduleFormHtml(), 'lg');
     var form = $('[data-confirmation-schedule-form]', modal);
     if (!form) return;
@@ -3986,7 +4041,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!form) return;
 
     var settings = state.confirmationSettings;
-    var canEdit = Boolean(state.staff && state.staff.role === 'owner');
+    var canEdit = staffHasAccess(
+      state.staff,
+      'confirmation_schedule.manage',
+      ['owner']
+    );
     var hours = confirmationScheduleHours();
     var hoursByDay = {};
     hours.forEach(function (entry) {
@@ -4034,7 +4093,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var status = $('[data-confirmation-schedule-status]', form);
     var duration = Number(($('[data-confirmation-duration]', form) || {}).value || 0);
 
-    if (!state.staff || state.staff.role !== 'owner') {
+    if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) {
       if (status) status.textContent = 'Only the organization owner can change this schedule.';
       return;
     }
@@ -4259,7 +4318,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var selectedStaff = staffSelect.value;
     staffSelect.innerHTML = '<option value="">Unassigned</option>' + state.staffList.filter(function (staff) { return staff.is_active; }).map(function (staff) {
-      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedStaff ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + ' - ' + escapeHtml(staff.role) + '</option>';
+      var roleSummary = staffRoleSummary(staff);
+      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedStaff ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + (roleSummary ? ' - ' + escapeHtml(roleSummary) : '') + '</option>';
     }).join('');
 
     if (!dateInput.value) {
@@ -5413,7 +5473,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (scheduleButton) {
       scheduleButton.addEventListener('click', function () {
-        if (!state.staff || state.staff.role !== 'owner') return;
+        if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) return;
         navigateToModal('confirmationSchedule', 'edit');
       });
     }

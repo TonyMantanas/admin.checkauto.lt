@@ -702,6 +702,12 @@ fieldset {
   line-height: 0;
 }
 
+.admin-shell-actions .admin-icon-button[aria-current="page"] {
+  color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border));
+}
+
 .admin-icon {
   width: 1rem;
   height: 1rem;
@@ -932,6 +938,7 @@ fieldset {
 }
 
 .admin-login-panel input,
+.admin-login-panel select,
 .admin-slot-form input,
 .admin-action-form input,
 .admin-action-form textarea,
@@ -1025,6 +1032,212 @@ fieldset {
   font-size: var(--admin-text-xs);
   font-weight: 400;
   line-height: 1.45;
+}
+
+/* Account settings and password recovery
+   ========================================================================== */
+
+.admin-account-layout {
+  width: min(100%, 74rem);
+  margin-inline: auto;
+  display: grid;
+  gap: var(--admin-space-4);
+}
+
+.admin-account-heading {
+  padding-block: var(--admin-space-2);
+}
+
+.admin-account-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: var(--admin-space-4);
+}
+
+.admin-account-details {
+  margin: 0;
+  padding: 0 var(--admin-space-5);
+}
+
+.admin-account-details > div {
+  min-height: 3.2rem;
+  padding-block: 0.65rem;
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 0.42fr) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--admin-space-4);
+  border-block-end: 1px solid var(--admin-border);
+}
+
+.admin-account-details > div[hidden] {
+  display: none;
+}
+
+.admin-account-details dt {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 650;
+}
+
+.admin-account-details dd {
+  min-width: 0;
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--admin-text);
+  font-weight: 650;
+}
+
+.admin-account-access {
+  padding: var(--admin-space-5);
+}
+
+.admin-account-role {
+  padding: var(--admin-space-4);
+  display: grid;
+  gap: var(--admin-space-1);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-account-role span {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-account-role-list {
+  margin: var(--admin-space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--admin-space-2);
+  list-style: none;
+}
+
+.admin-account-role-chip {
+  padding: 0.3rem 0.6rem;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: 999px;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+}
+
+.admin-account-access-label {
+  margin: var(--admin-space-5) 0 0;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 650;
+}
+
+.admin-account-rights {
+  margin: var(--admin-space-3) 0 0;
+  padding-inline-start: 1.25rem;
+  display: grid;
+  gap: var(--admin-space-2);
+}
+
+.admin-account-rights li::marker {
+  color: var(--admin-success);
+}
+
+.admin-account-security {
+  grid-column: 1 / -1;
+}
+
+.admin-account-security-content {
+  padding: var(--admin-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-5);
+}
+
+.admin-account-security-content > p {
+  min-width: 0;
+  max-width: 47rem;
+}
+
+.admin-account-security-content strong {
+  overflow-wrap: anywhere;
+}
+
+.admin-account-reset-status {
+  min-height: 0;
+  margin: 0 var(--admin-space-5) var(--admin-space-5);
+  font-size: var(--admin-text-xs);
+  font-weight: 650;
+}
+
+.admin-account-reset-status:not(:empty) {
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+}
+
+.admin-account-reset-status[data-tone="success"]:not(:empty) {
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+  border-color: color-mix(in srgb, var(--admin-success) 30%, var(--admin-border));
+}
+
+.admin-account-reset-status[data-tone="error"]:not(:empty) {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+  border-color: color-mix(in srgb, var(--admin-danger) 30%, var(--admin-border));
+}
+
+.admin-reset-panel {
+  width: min(100%, 32rem);
+}
+
+.admin-reset-intro {
+  margin-block-start: var(--admin-space-2);
+  color: var(--admin-text-secondary);
+  line-height: 1.55;
+}
+
+.admin-reset-panel > .admin-login-session {
+  margin-block-start: var(--admin-space-5);
+  color: var(--admin-text-secondary);
+}
+
+.admin-reset-requirements {
+  margin: 0;
+  padding: var(--admin-space-3) var(--admin-space-4) var(--admin-space-3) 2rem;
+  display: grid;
+  gap: var(--admin-space-1);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface-subtle);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-reset-result {
+  margin-block-start: var(--admin-space-5);
+  display: grid;
+  gap: var(--admin-space-3);
+}
+
+.admin-reset-result p,
+.admin-reset-notice {
+  color: var(--admin-text-secondary);
+}
+
+.admin-reset-result .admin-button {
+  margin-block-start: var(--admin-space-2);
+  justify-self: start;
+}
+
+.admin-reset-notice {
+  margin-block-start: var(--admin-space-6);
+  padding-block-start: var(--admin-space-3);
+  border-block-start: 1px solid var(--admin-border);
+  font-size: var(--admin-text-xs);
 }
 
 /* Page hierarchy and work surfaces
@@ -3300,6 +3513,14 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 54rem) {
+  .admin-account-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-account-security {
+    grid-column: 1;
+  }
+
   .admin-panel-header.admin-workspace-header {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
@@ -3516,6 +3737,28 @@ button.admin-mini-item::after {
 
   .admin-panel-header {
     padding: var(--admin-space-3);
+  }
+
+  .admin-account-details {
+    padding-inline: var(--admin-space-3);
+  }
+
+  .admin-account-reset-status {
+    margin-inline: var(--admin-space-3);
+  }
+
+  .admin-account-access,
+  .admin-account-security-content {
+    padding: var(--admin-space-3);
+  }
+
+  .admin-account-security-content {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-account-security-content .admin-button {
+    width: 100%;
   }
 
   .admin-calendar-panel > .admin-panel-header {
@@ -3759,6 +4002,11 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 30rem) {
+  .admin-account-details > div {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
   .admin-bookings-workspace-header {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -3909,6 +4157,7 @@ button.admin-mini-item::after {
   .admin-nav-group a,
   .admin-nav a,
   .admin-login-panel input,
+  .admin-login-panel select,
   .admin-slot-form input,
   .admin-action-form input,
   .admin-action-form textarea,

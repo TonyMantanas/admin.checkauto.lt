@@ -81,6 +81,18 @@ async function signInWithPassword(email, password) {
   return normalizeSession(session);
 }
 
+async function exchangeRecoveryCode(code, codeVerifier) {
+  const session = await request('/token?grant_type=pkce', {
+    method: 'POST',
+    body: {
+      auth_code: code,
+      code_verifier: codeVerifier
+    },
+    errorMessage: 'This reset link is invalid, expired, or was opened in a different browser.'
+  });
+  return normalizeSession(session);
+}
+
 async function getUser(session) {
   return request('/user', {
     session,
@@ -162,6 +174,7 @@ export const auth = {
   challengeTotp,
   decodeJwt,
   enrollTotp,
+  exchangeRecoveryCode,
   factorsFromUser,
   getUser,
   listFactors,
