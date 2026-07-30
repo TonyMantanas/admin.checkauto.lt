@@ -5037,7 +5037,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         try {
           await completeMfa(
             normalizeVerificationCode(data.get('verificationCode')),
-            data.get('rememberDevice') === 'on',
+            false,
             status,
             codeInput
           );

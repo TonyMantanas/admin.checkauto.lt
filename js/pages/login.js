@@ -39,11 +39,6 @@ export function renderStaticPage(root) {
                 required
               >
             </label>
-            <label class="admin-checkbox admin-mfa-trust">
-              <input name="rememberDevice" type="checkbox">
-              <span>Keep me signed in on this device for up to 60 days</span>
-            </label>
-            <p class="admin-field-help">Leave this off on a shared or public device.</p>
             <p class="admin-status" data-admin-mfa-enroll-status role="status" aria-live="polite"></p>
             <button class="admin-button admin-button-primary" type="submit">Verify and continue</button>
           </form>
@@ -69,7 +64,6 @@ export function renderStaticPage(root) {
               <input name="rememberDevice" type="checkbox">
               <span>Keep me signed in on this device for up to 60 days</span>
             </label>
-            <p class="admin-field-help">Leave this off on a shared or public device.</p>
             <p class="admin-status" data-admin-mfa-challenge-status role="status" aria-live="polite"></p>
             <div class="admin-mfa-actions">
               <button class="admin-button admin-button-ghost" type="button" data-admin-mfa-use-recovery>Use a recovery code</button>
