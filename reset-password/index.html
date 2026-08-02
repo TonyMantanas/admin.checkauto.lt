@@ -18,8 +18,8 @@
       <section class="admin-login" aria-label="Reset admin account password">
         <div class="admin-login-panel admin-reset-panel">
           <div class="admin-brand">check<span>auto</span>.lt</div>
-          <h1>Reset password</h1>
-          <p class="admin-reset-intro">
+          <h1 id="reset-page-title" data-reset-page-title tabindex="-1">Reset password</h1>
+          <p class="admin-reset-intro" data-reset-intro>
             Verify your authenticator, then choose a new password. This recovery session is never saved in the browser.
           </p>
 
@@ -99,15 +99,12 @@
             <a class="admin-button admin-button-secondary" href="../login/">Return to sign in</a>
           </section>
 
-          <section class="admin-reset-result" data-reset-success hidden aria-labelledby="reset-success-title" role="status" aria-live="polite" tabindex="-1">
-            <h2 id="reset-success-title" tabindex="-1">Password changed</h2>
-            <p>
-              Every active session has been revoked. Supabase has also requested a security notification email.
-            </p>
+          <section class="admin-reset-result" data-reset-success hidden aria-labelledby="reset-page-title" role="status" aria-live="polite" tabindex="-1">
+            <p>Sign in with your new password.</p>
             <a class="admin-button admin-button-primary" href="../login/">Sign in again</a>
           </section>
 
-          <p class="admin-reset-notice">
+          <p class="admin-reset-notice" data-reset-notice>
             Reset links expire after 15 minutes and can be used only once.
           </p>
         </div>
@@ -115,6 +112,6 @@
     </main>
   </div>
 
-  <script type="module" src="../js/reset-password.js?v=20260730-5"></script>
+  <script type="module" src="../js/reset-password.js?v=20260802-1"></script>
 </body>
 </html>

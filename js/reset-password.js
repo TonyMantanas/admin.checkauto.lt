@@ -91,26 +91,39 @@ function isRecentRecoverySession(session, requireTotp = false) {
 }
 
 function setOnlyVisible(section) {
+  const successSection = target('[data-reset-success]');
   const sections = [
     target('[data-reset-loading]'),
     target('[data-reset-mfa]'),
     target('[data-reset-password]'),
     target('[data-reset-error]'),
-    target('[data-reset-success]')
+    successSection
   ];
   for (const item of sections) {
     if (item) item.hidden = item !== section;
   }
+  const isSuccess = section === successSection;
+  const pageTitle = target('[data-reset-page-title]');
+  const intro = target('[data-reset-intro]');
+  const notice = target('[data-reset-notice]');
+  if (pageTitle) pageTitle.textContent = isSuccess ? 'Password changed' : 'Reset password';
+  if (intro) intro.hidden = isSuccess;
+  if (notice) notice.hidden = isSuccess;
+  document.title = isSuccess
+    ? 'Password changed · checkauto.lt'
+    : 'Reset password · checkauto.lt';
   const sectionSelect = section && target('select', section);
   const visibleSelect = sectionSelect && !sectionSelect.closest('[hidden]')
     ? sectionSelect
     : null;
-  const focusTarget = section && (
-    visibleSelect ||
-    target('input', section) ||
-    target('h2', section) ||
-    section
-  );
+  const focusTarget = isSuccess
+    ? pageTitle
+    : section && (
+      visibleSelect ||
+      target('input', section) ||
+      target('h2', section) ||
+      section
+    );
   if (focusTarget) window.requestAnimationFrame(() => focusTarget.focus());
 }
 
