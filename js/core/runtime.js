@@ -1,4 +1,4 @@
-import { ICONS } from './icons.js?v=20260727-3';
+import { ICONS } from './icons.js?v=20260802-1';
 import { state } from './state.js?v=20260730-2';
 import { auth } from './auth.js?v=20260730-3';
 
@@ -60,15 +60,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var slotEditorReturnFocusSelector = '';
   var slotEditorBaseline = '';
   var calendarMediaQuery = null;
+  var navigationMediaQuery = null;
+  var ICON_ALERT = ICONS.alert;
   var ICON_BACK = ICONS.back;
   var ICON_BOOKING = ICONS.booking;
   var ICON_CLOSE = ICONS.close;
   var ICON_EMAIL = ICONS.email;
   var ICON_EXTERNAL = ICONS.external;
   var ICON_INVOICE = ICONS.invoice;
+  var ICON_INFO = ICONS.info;
   var ICON_MAP = ICONS.map;
   var ICON_PHONE = ICONS.phone;
   var ICON_REFRESH = ICONS.refresh;
+  var ICON_SUCCESS = ICONS.check;
   var ICON_USER = ICONS.user;
   var ROLE_LABELS = {
     owner: 'Owner',
@@ -262,11 +266,50 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setPageBusy(busy, label) {
     var pageRoot = $('[data-page-root]');
-    if (pageRoot) pageRoot.setAttribute('aria-busy', busy ? 'true' : 'false');
+    if (pageRoot) {
+      pageRoot.setAttribute('aria-busy', busy ? 'true' : 'false');
+      if (busy && !viewIsLoaded(adminViewForPage(state.page))) {
+        pageRoot.dataset.loadState = 'loading';
+      } else if (!busy && pageRoot.dataset.loadState !== 'error') {
+        delete pageRoot.dataset.loadState;
+      }
+    }
     if (els.loading) {
       els.loading.setAttribute('role', 'status');
       els.loading.setAttribute('aria-live', 'polite');
       els.loading.setAttribute('aria-label', label || 'Loading admin data');
+    }
+  }
+
+  function clearPageLoadError() {
+    var pageRoot = $('[data-page-root]');
+    if (!pageRoot) return;
+    var feedback = $('[data-admin-load-feedback]', pageRoot);
+    if (feedback) feedback.remove();
+    if (pageRoot.dataset.loadState === 'error') delete pageRoot.dataset.loadState;
+  }
+
+  function renderPageLoadError() {
+    var pageRoot = $('[data-page-root]');
+    if (!pageRoot) return;
+    clearPageLoadError();
+    pageRoot.dataset.loadState = 'error';
+
+    var feedback = document.createElement('div');
+    feedback.className = 'admin-load-feedback';
+    feedback.setAttribute('data-admin-load-feedback', '');
+    feedback.setAttribute('role', 'alert');
+    feedback.innerHTML =
+      '<span>This page could not be loaded.</span>' +
+      '<button class="admin-button admin-button-secondary" type="button" data-admin-load-retry>Try again</button>';
+    pageRoot.prepend(feedback);
+
+    var retry = $('[data-admin-load-retry]', feedback);
+    if (retry) {
+      retry.addEventListener('click', function () {
+        refresh({ preserveScroll: true, force: true, view: adminViewForPage(state.page) })
+          .catch(reportNavigationRefreshError);
+      });
     }
   }
 
@@ -717,17 +760,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return 'neutral';
   }
 
-  function bookingStatusDescription(status) {
-    return {
-      pending: 'The requested time still needs an admin decision.',
-      confirmed: 'The time is scheduled and the customer has been notified.',
-      completed: 'The service is finished. Payment and invoicing can now be reviewed.',
-      rejected: 'The request was declined and is no longer active.',
-      cancelled: 'The confirmed booking was cancelled.',
-      expired: 'The request was not confirmed before its review deadline.'
-    }[status] || 'Current booking workflow state.';
-  }
-
   function invoiceStatusLabel(invoice) {
     if (!invoice) return 'No invoice';
     if (invoice.invoice_status === 'void') return 'Void';
@@ -740,19 +772,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!invoice) return 'available';
     if (invoice.invoice_status === 'void') return 'void';
     return invoice.payment_status === 'paid' ? 'paid' : 'unpaid';
-  }
-
-  function invoiceStatusDescription(invoice) {
-    if (invoice.invoice_status === 'void') {
-      return 'This invoice is cancelled for accounting. Its number and PDF remain retained.';
-    }
-    if (invoice.payment_status === 'paid') {
-      return 'Payment has been recorded. The invoice remains available as a retained record.';
-    }
-    if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) {
-      return 'Payment is overdue. The PDF can be reviewed or resent to the customer.';
-    }
-    return 'Payment has not been recorded. The PDF can be reviewed or resent.';
   }
 
   function emailStatusLabel(status) {
@@ -1181,6 +1200,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root = document.createElement('div');
       root.className = 'admin-toast-root';
       root.setAttribute('data-admin-toast-root', '');
+      root.setAttribute('role', 'region');
       root.setAttribute('aria-label', 'Notifications');
       document.body.appendChild(root);
     }
@@ -1190,38 +1210,87 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function showToast(message, type, options) {
     var opts = options || {};
     var root = ensureToastRoot();
+    var toastType = ['success', 'error', 'info'].includes(type) ? type : 'info';
     var existing = $all('.admin-toast', root).find(function (item) {
-      return item.dataset.message === String(message || '') && item.dataset.type === String(type || 'info');
+      return !item.classList.contains('is-leaving') &&
+        item.dataset.message === String(message || '') &&
+        item.dataset.type === toastType;
     });
-    if (existing) return existing;
-
-    var toast = document.createElement('div');
-    toast.className = 'admin-toast';
-    toast.dataset.type = type || 'info';
-    toast.dataset.message = String(message || '');
-    toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-    toast.setAttribute('aria-live', type === 'error' ? 'assertive' : 'polite');
-    toast.setAttribute('aria-atomic', 'true');
-    toast.innerHTML =
-      '<span class="admin-toast-message">' + escapeHtml(message) + '</span>' +
-      '<button class="admin-toast-close" type="button" aria-label="Dismiss notification">×</button>';
-    root.appendChild(toast);
-
-    function dismiss() {
-      if (!toast.parentNode || toast.classList.contains('is-leaving')) return;
-      toast.classList.add('is-leaving');
-      window.setTimeout(function () {
-        if (toast.parentNode) toast.parentNode.removeChild(toast);
-      }, 220);
+    if (existing) {
+      existing.classList.remove('is-leaving');
+      existing.classList.add('is-visible');
+      if (typeof existing._adminScheduleDismiss === 'function') existing._adminScheduleDismiss();
+      return existing;
     }
-
-    $('.admin-toast-close', toast).addEventListener('click', dismiss);
 
     var persistent = Object.prototype.hasOwnProperty.call(opts, 'persistent')
       ? Boolean(opts.persistent)
-      : type === 'error';
-    if (!persistent) {
-      window.setTimeout(dismiss, Number(opts.duration || (type === 'success' ? 5200 : 6500)));
+      : toastType === 'error';
+    var duration = Number(opts.duration || (toastType === 'success' ? 5200 : 6500));
+    var icon = toastType === 'error' ? ICON_ALERT : (toastType === 'success' ? ICON_SUCCESS : ICON_INFO);
+
+    var toast = document.createElement('div');
+    toast.className = 'admin-toast';
+    toast.dataset.type = toastType;
+    toast.dataset.message = String(message || '');
+    toast.dataset.persistent = persistent ? 'true' : 'false';
+    toast.innerHTML =
+      '<span class="admin-toast-icon" aria-hidden="true">' + icon + '</span>' +
+      '<span class="admin-toast-message" role="' + (toastType === 'error' ? 'alert' : 'status') + '"' +
+        (toastType === 'error' ? '' : ' aria-live="polite"') + ' aria-atomic="true">' + escapeHtml(message) + '</span>' +
+      '<button class="admin-toast-close admin-icon-button" type="button" aria-label="Dismiss notification" title="Dismiss">' + ICON_CLOSE + '</button>';
+    root.appendChild(toast);
+
+    var dismissTimer = 0;
+
+    function clearDismissTimer() {
+      window.clearTimeout(dismissTimer);
+      dismissTimer = 0;
+    }
+
+    function dismiss(immediate) {
+      if (!toast.parentNode || toast.classList.contains('is-leaving')) return;
+      clearDismissTimer();
+      if (immediate) {
+        toast.parentNode.removeChild(toast);
+        return;
+      }
+      toast.classList.add('is-leaving');
+      toast.classList.remove('is-visible');
+      window.setTimeout(function () {
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 180);
+    }
+
+    function scheduleDismiss() {
+      clearDismissTimer();
+      if (persistent || (document.activeElement && toast.contains(document.activeElement))) return;
+      dismissTimer = window.setTimeout(function () { dismiss(false); }, duration);
+    }
+
+    toast._adminDismiss = dismiss;
+    toast._adminScheduleDismiss = scheduleDismiss;
+    $('.admin-toast-close', toast).addEventListener('click', function () { dismiss(false); });
+    toast.addEventListener('mouseenter', clearDismissTimer);
+    toast.addEventListener('mouseleave', scheduleDismiss);
+    toast.addEventListener('focusin', clearDismissTimer);
+    toast.addEventListener('focusout', function () {
+      window.setTimeout(scheduleDismiss, 0);
+    });
+
+    window.requestAnimationFrame(function () {
+      if (toast.parentNode) toast.classList.add('is-visible');
+    });
+    scheduleDismiss();
+
+    while ($all('.admin-toast', root).length > 3) {
+      var toasts = $all('.admin-toast', root);
+      var oldest = toasts.find(function (item) {
+        return item !== toast && item.dataset.persistent !== 'true';
+      }) || toasts.find(function (item) { return item !== toast; });
+      if (!oldest) break;
+      if (typeof oldest._adminDismiss === 'function') oldest._adminDismiss(true);
+      else oldest.remove();
     }
     return toast;
   }
@@ -1622,7 +1691,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-            '<div><span class="section-label">Confirm</span><h2>' + escapeHtml(options.title || 'Confirm action') + '</h2></div>' +
+            '<div><h2>' + escapeHtml(options.title || 'Confirm action') + '</h2></div>' +
           '</div>' +
           '<p data-confirm-message>' + escapeHtml(options.message || 'Continue?') + '</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
@@ -1668,7 +1737,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-          '<div><span class="section-label">Confirm</span><h2>Cancel availability</h2></div>' +
+          '<div><h2>Cancel availability</h2></div>' +
           '</div>' +
           '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + ' is part of a weekly series. Cancelled availability remains in history.</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
@@ -1711,7 +1780,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="lg" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-            '<div><span class="section-label">Confirm</span><h2>Send marketing email</h2></div>' +
+            '<div><h2>Send marketing email</h2></div>' +
           '</div>' +
           '<p data-confirm-message>Send this email to ' + audienceCount + ' customer' + (audienceCount === 1 ? '' : 's') + ' with active marketing consent?</p>' +
           '<div class="admin-email-preview admin-email-preview-modal"><iframe title="Marketing send preview" sandbox="" data-confirm-marketing-preview></iframe></div>' +
@@ -1879,23 +1948,49 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return document.body.classList.contains('is-nav-open');
   }
 
+  function navigationIsMobile() {
+    if (navigationMediaQuery) return Boolean(navigationMediaQuery.matches);
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 68.75rem)').matches);
+  }
+
   function setNavOpen(open, options) {
     var opts = options || {};
     var consoleRoot = $('.admin-console');
     var sidebar = $('#admin-sidebar');
     var toggle = $('[data-admin-nav-toggle]');
+    var mobileHeader = $('.admin-mobile-header');
     var pageRoot = $('[data-page-root]');
-    document.body.classList.toggle('is-nav-open', Boolean(open));
-    if (consoleRoot) consoleRoot.classList.toggle('is-nav-open', Boolean(open));
+    var mobile = navigationIsMobile();
+    var shouldOpen = Boolean(open) && mobile;
+    document.body.classList.toggle('is-nav-open', shouldOpen);
+    if (consoleRoot) consoleRoot.classList.toggle('is-nav-open', shouldOpen);
     if (toggle) {
-      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      toggle.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
       toggle.setAttribute('aria-controls', 'admin-sidebar');
-      toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
-      toggle.setAttribute('title', open ? 'Close navigation' : 'Open navigation');
+      toggle.setAttribute('aria-label', shouldOpen ? 'Close navigation' : 'Open navigation');
+      toggle.setAttribute('title', shouldOpen ? 'Close navigation' : 'Open navigation');
     }
-    if (sidebar) sidebar.classList.toggle('is-nav-open', Boolean(open));
+    if (sidebar) {
+      sidebar.classList.toggle('is-nav-open', shouldOpen);
+      if (!mobile) {
+        sidebar.removeAttribute('inert');
+        sidebar.removeAttribute('aria-hidden');
+        sidebar.removeAttribute('role');
+        sidebar.removeAttribute('aria-modal');
+      } else if (shouldOpen) {
+        sidebar.removeAttribute('inert');
+        sidebar.removeAttribute('aria-hidden');
+        sidebar.setAttribute('role', 'dialog');
+        sidebar.setAttribute('aria-modal', 'true');
+      } else {
+        sidebar.setAttribute('inert', '');
+        sidebar.setAttribute('aria-hidden', 'true');
+        sidebar.removeAttribute('role');
+        sidebar.removeAttribute('aria-modal');
+      }
+    }
     if (pageRoot) {
-      if (open) {
+      if (shouldOpen) {
         pageRoot.setAttribute('inert', '');
         pageRoot.setAttribute('aria-hidden', 'true');
       } else {
@@ -1903,8 +1998,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         pageRoot.removeAttribute('aria-hidden');
       }
     }
+    if (mobileHeader) {
+      if (shouldOpen) {
+        mobileHeader.setAttribute('inert', '');
+        mobileHeader.setAttribute('aria-hidden', 'true');
+      } else {
+        mobileHeader.removeAttribute('inert');
+        mobileHeader.removeAttribute('aria-hidden');
+      }
+    }
 
-    if (open && opts.focus !== false) {
+    if (shouldOpen && opts.focus !== false) {
       var currentLink = sidebar && ($('[aria-current="page"]', sidebar) || $('[data-admin-nav]', sidebar));
       window.setTimeout(function () {
         if (!navIsOpen()) return;
@@ -1916,7 +2020,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           target.focus();
         }
       }, 80);
-    } else if (!open && opts.restoreFocus) {
+    } else if (!shouldOpen && opts.restoreFocus && mobile) {
       focusElement(toggle);
     }
   }
@@ -2176,6 +2280,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!window.matchMedia || calendarMediaQuery) return;
     calendarMediaQuery = window.matchMedia('(max-width: 820px)');
     var handleChange = function () {
+      if (!viewIsLoaded(adminViewForPage(state.page))) return;
       renderCalendar();
     };
     if (typeof calendarMediaQuery.addEventListener === 'function') {
@@ -2188,6 +2293,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderCalendar() {
     var calendar = $('[data-admin-calendar]');
     if (!calendar) return;
+    $all('[data-calendar-prev], [data-calendar-today], [data-calendar-next], [data-calendar-view] button, [data-calendar-date]').forEach(function (control) {
+      control.disabled = false;
+    });
     applyCalendarLayout(calendar);
 
     var range = calendarRange();
@@ -2342,6 +2450,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderBookingsPage() {
     els.bookingList = $('[data-admin-booking-list]');
+    $all('[data-filter], [data-booking-sort]').forEach(function (control) {
+      control.disabled = false;
+    });
     renderBookings();
   }
 
@@ -2418,16 +2529,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
+          '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
           '<div class="admin-modal-status-line">' +
             '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
-            '<span class="admin-status-explanation">' + escapeHtml(bookingStatusDescription(booking.status)) + '</span>' +
           '</div>' +
-          '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<section class="admin-detail-section admin-booking-overview">' +
-        '<span class="admin-section-kicker">Review first</span>' +
         '<h3>Booking details</h3>' +
         expiryCountdownHtml(booking, 'full') +
         '<div class="admin-booking-overview-grid">' +
@@ -2579,7 +2688,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<h2>Invoice and payment</h2>' +
         '<div class="admin-modal-status-line">' +
           '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
-          '<span class="admin-status-explanation">' + escapeHtml(invoiceStatusDescription(invoice)) + '</span>' +
         '</div>' +
         '<div class="admin-detail-list">' +
           detailRow('Invoice', invoice.invoice_number) +
@@ -2716,6 +2824,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderCustomersPage() {
     var search = $('[data-customer-search]');
+    if (search) search.disabled = false;
     if (search && search.value !== state.customerSearch) search.value = state.customerSearch;
     var clear = $('[data-customer-clear]');
     if (clear) {
@@ -2792,15 +2901,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }[status] || 'No marketing consent';
   }
 
-  function marketingStatusDescription(status) {
-    return {
-      opted_in: 'The customer can receive marketing emails.',
-      withdrawn: 'The customer withdrew permission. Marketing emails must not be sent.',
-      suppressed: 'Marketing delivery is blocked for this customer.',
-      not_asked: 'No permission to send marketing emails is recorded.'
-    }[status] || 'No permission to send marketing emails is recorded.';
-  }
-
   function renderCustomerModal(customerId) {
     var customer = customerById(customerId);
     if (!customer) return;
@@ -2852,11 +2952,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var html =
       '<div class="admin-modal-header" data-customer-modal="' + escapeHtml(customer.id) + '">' +
         '<div>' +
+          '<h2>' + escapeHtml(customer.display_name) + '</h2>' +
           '<div class="admin-modal-status-line">' +
             '<span class="admin-status-pill" data-status="' + escapeHtml(marketingTone(customer.marketing_consent_status)) + '">' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</span>' +
-            '<span class="admin-status-explanation">' + escapeHtml(marketingStatusDescription(customer.marketing_consent_status)) + '</span>' +
           '</div>' +
-          '<h2>' + escapeHtml(customer.display_name) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
@@ -2887,7 +2986,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<div>' +
             '<h3>Current data status</h3>' +
             '<div class="admin-privacy-status-grid">' +
-              '<div class="admin-privacy-status-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong><p>' + escapeHtml(marketingStatusDescription(customer.marketing_consent_status)) + '</p></div>' +
+              '<div class="admin-privacy-status-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong></div>' +
               '<div class="admin-privacy-status-card"><span>Legal retention</span><strong>' + escapeHtml(holdStatus) + '</strong><p>' + escapeHtml(holdDescription) + '</p></div>' +
               '<div class="admin-privacy-status-card"><span>Erasure request</span><strong>' + escapeHtml(erasureStatus) + '</strong><p>' + escapeHtml(erasureDescription) + '</p></div>' +
               '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong><p>' + escapeHtml(profileDescription) + '</p></div>' +
@@ -3061,6 +3160,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderInvoicesPage() {
     var search = $('[data-invoice-search]');
+    if (search) search.disabled = false;
+    $all('[data-invoice-filter]').forEach(function (control) {
+      control.disabled = false;
+    });
     if (search && search.value !== state.invoiceSearch) search.value = state.invoiceSearch;
     var clear = $('[data-invoice-clear]');
     if (clear) {
@@ -3188,16 +3291,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
+          '<h2>' + escapeHtml(invoice.invoice_number) + '</h2>' +
           '<div class="admin-modal-status-line">' +
             '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
-            '<span class="admin-status-explanation">' + escapeHtml(invoiceStatusDescription(invoice)) + '</span>' +
           '</div>' +
-          '<h2>' + escapeHtml(invoice.invoice_number) + '</h2>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close invoice" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<section class="admin-detail-section admin-invoice-overview">' +
-        '<span class="admin-section-kicker">Review first</span>' +
         '<h3>Invoice details</h3>' +
         '<div class="admin-invoice-overview-grid">' +
           '<div class="admin-invoice-primary-fact">' +
@@ -3328,8 +3429,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var modal = openModal(
       '<div class="admin-modal-header">' +
         '<div>' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(campaign.status)) + '">' + escapeHtml(statusLabel(campaign.status || 'sent')) + '</span>' +
           '<h2>' + escapeHtml(campaign.subject) + '</h2>' +
+          '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(campaign.status)) + '">' + escapeHtml(statusLabel(campaign.status || 'sent')) + '</span>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close campaign" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
@@ -3600,7 +3701,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     target.textContent = label;
     target.dataset.state = tone || 'synced';
     target.setAttribute('role', 'status');
-    target.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+    target.setAttribute('aria-live', 'polite');
     target.setAttribute('aria-atomic', 'true');
   }
 
@@ -3936,7 +4037,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<div class="admin-modal-header">' +
         '<div>' +
           '<h2>Confirmation schedule</h2>' +
-          '<p class="admin-detail-note">Set when pending bookings count down toward automatic expiry.</p>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close confirmation schedule" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
@@ -4249,7 +4349,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     var title = $('[data-admin-slot-form-title]');
-    var note = $('[data-admin-slot-mode-note]');
     var slotId = $('[data-admin-slot-id]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
     var staffSelect = $('[data-admin-slot-staff]', form);
@@ -4266,7 +4365,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var service = serviceById(slot.service_id);
       if (!state.hasRendered) state.calendarAnchor = formatDate(slot.start_at);
       if (title) title.textContent = 'Edit slot';
-      if (note) note.textContent = 'Editing an open slot. Booked slots are read-only in the calendar.';
       if (slotId) slotId.value = slot.id;
       if (serviceSelect) serviceSelect.value = serviceSelect.tagName === 'SELECT' && service ? service.code : 'all';
       if (staffSelect) staffSelect.value = slot.assigned_staff_id || '';
@@ -4288,7 +4386,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     if (title) title.textContent = 'New slot';
-    if (note) note.textContent = 'Select an open slot in the calendar to edit it.';
     if (slotId) slotId.value = '';
     if (submit) submit.textContent = 'Create slot';
     if (reset) reset.hidden = true;
@@ -4671,7 +4768,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       redirectTo(PATHS.login);
       return;
     }
-    showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+    if (viewIsLoaded(adminViewForPage(state.page))) {
+      showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+    }
   }
 
   async function navigatePage(page, url, options) {
@@ -4723,6 +4822,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     pageController = mountedController;
     els.stats = $('[data-admin-stats]');
     els.bookingList = $('[data-admin-booking-list]');
+    clearPageLoadError();
     setActiveNav();
     setUserLabel();
     setupCurrentPageEvents();
@@ -5234,9 +5334,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setupShellEvents() {
     var navToggle = $('[data-admin-nav-toggle]');
-    var navClose = $('[data-admin-nav-close]');
     var sidebar = $('#admin-sidebar');
     if (sidebar && !sidebar.hasAttribute('tabindex')) sidebar.setAttribute('tabindex', '-1');
+    if (window.matchMedia) {
+      navigationMediaQuery = window.matchMedia('(max-width: 68.75rem)');
+      var handleNavigationModeChange = function () {
+        setNavOpen(false, { focus: false, restoreFocus: false });
+      };
+      if (typeof navigationMediaQuery.addEventListener === 'function') {
+        navigationMediaQuery.addEventListener('change', handleNavigationModeChange);
+      } else if (typeof navigationMediaQuery.addListener === 'function') {
+        navigationMediaQuery.addListener(handleNavigationModeChange);
+      }
+    }
+    setNavOpen(false, { focus: false, restoreFocus: false });
     if (navToggle) {
       navToggle.setAttribute('aria-expanded', 'false');
       navToggle.setAttribute('aria-controls', 'admin-sidebar');
@@ -5244,21 +5355,40 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         setNavOpen(!navIsOpen(), { focus: true, restoreFocus: true });
       });
     }
-    if (navClose) {
+    $all('[data-admin-nav-close]').forEach(function (navClose) {
       navClose.addEventListener('click', function () {
         setNavOpen(false, { restoreFocus: true });
       });
-    }
+    });
     $all('[data-admin-nav]').forEach(function (link) {
       link.addEventListener('click', function () {
         setNavOpen(false, { focus: false });
       });
     });
     document.addEventListener('keydown', function (event) {
-      if (event.key !== 'Escape' || !navIsOpen()) return;
+      if (!navIsOpen()) return;
       if (!ensureConfirmRoot().hidden || !ensureModalRoot().hidden) return;
-      event.preventDefault();
-      setNavOpen(false, { restoreFocus: true });
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setNavOpen(false, { restoreFocus: true });
+        return;
+      }
+      if (event.key !== 'Tab' || !sidebar) return;
+      var focusables = focusableElements(sidebar);
+      if (!focusables.length) {
+        event.preventDefault();
+        sidebar.focus();
+        return;
+      }
+      var first = focusables[0];
+      var last = focusables[focusables.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     });
 
     var refreshButton = $('[data-admin-refresh]');
@@ -5269,7 +5399,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           await refresh({ preserveScroll: true, force: true });
           showToast('Admin data refreshed.', 'success');
         } catch (error) {
-          showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+          if (viewIsLoaded(adminViewForPage(state.page))) {
+            showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+          }
         } finally {
           if (document.body.contains(refreshButton)) setButtonBusy(refreshButton, false);
         }
@@ -5549,15 +5681,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var activityId = refreshActivityId + 1;
     refreshActivityId = activityId;
     var requestedView = opts.view || adminViewForPage(state.page);
+    var hadLoadedView = viewIsLoaded(requestedView);
     var preserveDirtyModal = modalIsDirty();
     var slotEditorDraft = captureSlotEditorDraft();
     state.isRefreshing = true;
+    if (!hadLoadedView) clearPageLoadError();
     setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
     setSyncState(opts.background ? 'Updating' : 'Loading', 'loading');
     try {
       var applied = await loadDashboard(requestedView, { force: Boolean(opts.force) });
       if (activityId !== refreshActivityId || !applied || adminViewForPage(state.page) !== requestedView) return false;
       showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
+      clearPageLoadError();
       setUserLabel();
       setActiveNav();
       renderPage();
@@ -5573,7 +5708,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return true;
     } catch (error) {
       if (isAbortError(error) || activityId !== refreshActivityId) return false;
-      if (adminViewForPage(state.page) === requestedView) setSyncState('Sync failed', 'error');
+      if (adminViewForPage(state.page) === requestedView) {
+        setSyncState('Sync failed', 'error');
+        if (!hadLoadedView) renderPageLoadError();
+      }
       throw error;
     } finally {
       if (activityId === refreshActivityId) {
@@ -5584,6 +5722,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderPage() {
+    clearPageLoadError();
     if (pageController && typeof pageController.beforeRender === 'function') {
       pageController.beforeRender({ state: state });
     }
@@ -5650,6 +5789,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     window.addEventListener('focus', refreshVisiblePageIfStale);
     setupCurrentPageEvents();
     startExpiryTicker();
+    setPageBusy(true, 'Loading admin data');
+    setSyncState('Loading', 'loading');
+    showConsole({ preserveScroll: true });
 
     try {
       await refresh();
@@ -5661,7 +5803,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showConsole({ preserveScroll: true });
       setUserLabel();
       setActiveNav();
-      showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+      if (viewIsLoaded(adminViewForPage(state.page))) {
+        showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
+      }
     }
   }
 

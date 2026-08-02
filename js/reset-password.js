@@ -104,11 +104,7 @@ function setOnlyVisible(section) {
   }
   const isSuccess = section === successSection;
   const pageTitle = target('[data-reset-page-title]');
-  const intro = target('[data-reset-intro]');
-  const notice = target('[data-reset-notice]');
   if (pageTitle) pageTitle.textContent = isSuccess ? 'Password changed' : 'Reset password';
-  if (intro) intro.hidden = isSuccess;
-  if (notice) notice.hidden = isSuccess;
   document.title = isSuccess
     ? 'Password changed · checkauto.lt'
     : 'Reset password · checkauto.lt';

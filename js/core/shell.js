@@ -1,5 +1,5 @@
 import { PATHS } from './routes.js?v=20260730-3';
-import { ICONS } from './icons.js?v=20260727-3';
+import { ICONS } from './icons.js?v=20260802-1';
 
 const groups = [
   {
@@ -44,7 +44,16 @@ export function renderShell(page) {
     </header>
 
     <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin navigation">
-      <a class="admin-brand admin-sidebar-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
+      <div class="admin-sidebar-header">
+        <a class="admin-brand admin-sidebar-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
+        <button
+          class="admin-button admin-button-secondary admin-icon-button admin-sidebar-close"
+          type="button"
+          data-admin-nav-close
+          aria-label="Close navigation"
+          title="Close navigation"
+        >${ICONS.close}</button>
+      </div>
       <nav class="admin-sidebar-nav" aria-label="Primary">
         ${groups.map((group) => `
           <section class="admin-nav-group">
@@ -95,6 +104,8 @@ export function renderShell(page) {
       type="button"
       data-admin-nav-close
       aria-label="Close navigation"
+      aria-hidden="true"
+      tabindex="-1"
     ></button>
   `;
 }

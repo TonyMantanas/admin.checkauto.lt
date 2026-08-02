@@ -8,7 +8,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ddhhhieitupjixynjrry.supabase.co; form-action 'self'; upgrade-insecure-requests">
   <script src="../js/frame-guard.js?v=20260730-1"></script>
   <title>Reset password · checkauto.lt</title>
-  <link rel="stylesheet" href="../admin.css?v=20260730-4">
+  <link rel="stylesheet" href="../admin.css?v=20260802-5">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 </head>
 <body class="admin-page admin-login-page admin-reset-page" data-admin-page="reset-password">
@@ -19,9 +19,6 @@
         <div class="admin-login-panel admin-reset-panel">
           <div class="admin-brand">check<span>auto</span>.lt</div>
           <h1 id="reset-page-title" data-reset-page-title tabindex="-1">Reset password</h1>
-          <p class="admin-reset-intro" data-reset-intro>
-            Verify your authenticator, then choose a new password. This recovery session is never saved in the browser.
-          </p>
 
           <p
             class="admin-login-session"
@@ -30,9 +27,7 @@
             aria-live="polite"
           >Validating the reset link…</p>
 
-          <section class="admin-mfa-step" data-reset-mfa hidden aria-labelledby="reset-mfa-title">
-            <h2 id="reset-mfa-title" tabindex="-1">Verify it’s you</h2>
-            <p>Enter the current 6-digit code from your authenticator app.</p>
+          <section class="admin-mfa-step" data-reset-mfa hidden aria-labelledby="reset-page-title">
             <form data-reset-mfa-form novalidate>
               <label data-reset-factor-row hidden>
                 Authenticator
@@ -55,9 +50,7 @@
             </form>
           </section>
 
-          <section class="admin-mfa-step" data-reset-password hidden aria-labelledby="reset-password-title">
-            <h2 id="reset-password-title" tabindex="-1">Choose a new password</h2>
-            <p>Use a unique password that you do not use for another account.</p>
+          <section class="admin-mfa-step" data-reset-password hidden aria-labelledby="reset-page-title">
             <form data-reset-password-form novalidate>
               <label>
                 New password
@@ -81,11 +74,6 @@
                   required
                 >
               </label>
-              <ul class="admin-reset-requirements" aria-label="Password requirements">
-                <li>At least 14 characters</li>
-                <li>No more than 72 UTF-8 bytes</li>
-                <li>Different from your email and current password</li>
-              </ul>
               <p class="admin-status" data-reset-password-status role="status" aria-live="polite"></p>
               <button class="admin-button admin-button-primary" type="submit">Change password</button>
             </form>
@@ -104,14 +92,11 @@
             <a class="admin-button admin-button-primary" href="../login/">Sign in again</a>
           </section>
 
-          <p class="admin-reset-notice" data-reset-notice>
-            Reset links expire after 15 minutes and can be used only once.
-          </p>
         </div>
       </section>
     </main>
   </div>
 
-  <script type="module" src="../js/reset-password.js?v=20260802-1"></script>
+  <script type="module" src="../js/reset-password.js?v=20260802-2"></script>
 </body>
 </html>

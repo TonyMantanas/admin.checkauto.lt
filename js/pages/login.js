@@ -99,11 +99,14 @@ export function renderStaticPage(root) {
 
         <section class="admin-mfa-step" data-admin-mfa-codes hidden aria-labelledby="admin-mfa-codes-title">
           <h2 id="admin-mfa-codes-title">Save your recovery codes</h2>
-          <p>Each code works once. Store them somewhere private and separate from this device. They won’t be shown again.</p>
+          <div class="admin-mfa-codes-warning" role="note">
+            <span class="admin-mfa-codes-warning-mark" aria-hidden="true">!</span>
+            <p><strong>Save these codes now.</strong> Each code works once, and you won’t be able to view them again.</p>
+          </div>
           <ol class="admin-mfa-code-list" data-admin-mfa-code-list></ol>
           <div class="admin-mfa-actions">
             <button class="admin-button admin-button-secondary" type="button" data-admin-mfa-download>Download codes</button>
-            <button class="admin-button admin-button-primary" type="button" data-admin-mfa-finish>Saved — continue</button>
+            <button class="admin-button admin-button-primary" type="button" data-admin-mfa-finish>Continue</button>
           </div>
           <p class="admin-status" data-admin-mfa-codes-status role="status" aria-live="polite"></p>
         </section>

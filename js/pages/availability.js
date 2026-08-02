@@ -1,4 +1,5 @@
-import { ICONS } from '../core/icons.js?v=20260727-3';
+import { ICONS } from '../core/icons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260802-1';
 
 export const page = 'availability';
 
@@ -38,19 +39,20 @@ export function renderStaticPage(root) {
               aria-haspopup="dialog"
               aria-controls="admin-slot-editor"
               title="Add slot"
+              disabled
             >${ICONS.add}<span class="admin-availability-add-label">Add slot</span></button>
           </div>
           <div class="admin-calendar-controls">
-            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period">${ICONS.previous}</button>
-            <button class="admin-button admin-button-secondary" type="button" data-calendar-today>Today</button>
-            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period">${ICONS.next}</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period" disabled>${ICONS.previous}</button>
+            <button class="admin-button admin-button-secondary" type="button" data-calendar-today disabled>Today</button>
+            <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period" disabled>${ICONS.next}</button>
             <div class="admin-segmented" data-calendar-view role="group" aria-label="Availability calendar view">
-              <button class="is-active" type="button" data-view="week" aria-pressed="true">Week</button>
-              <button type="button" data-view="day" aria-pressed="false">Day</button>
+              <button class="is-active" type="button" data-view="week" aria-pressed="true" disabled>Week</button>
+              <button type="button" data-view="day" aria-pressed="false" disabled>Day</button>
             </div>
             <label class="admin-date-jump">
               <span>Jump to</span>
-              <input type="date" autocomplete="off" data-calendar-date>
+              <input type="date" autocomplete="off" data-calendar-date disabled>
             </label>
           </div>
         </header>
@@ -59,7 +61,7 @@ export function renderStaticPage(root) {
           data-admin-calendar
           role="region"
           aria-label="Availability calendar"
-        ></div>
+        >${skeletons.calendar()}</div>
       </section>
     </section>
 
@@ -113,7 +115,6 @@ export function renderStaticPage(root) {
               <option value="8">8 weeks</option>
             </select></span></label>
           </fieldset>
-          <p class="admin-slot-mode-note" data-admin-slot-mode-note>Choose a date and time for this slot.</p>
           <div class="admin-form-error" data-admin-slot-error role="status" aria-live="polite"></div>
           <div class="admin-action-buttons">
             <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Create slot</button>

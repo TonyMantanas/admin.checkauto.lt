@@ -7,21 +7,21 @@ import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260727-3';
 import { realtime } from './core/realtime.js?v=20260727-3';
 import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260730-3';
-import { initAdminRuntime } from './core/runtime.js?v=20260730-4';
-import { renderShell } from './core/shell.js?v=20260730-4';
+import { initAdminRuntime } from './core/runtime.js?v=20260802-1';
+import { renderShell } from './core/shell.js?v=20260802-1';
 import { state } from './core/state.js?v=20260730-2';
 import { toast } from './core/toast.js?v=20260727-3';
 import { validators } from './core/validation.js?v=20260727-3';
 
 const pageControllers = {
-  dashboard: () => import('./pages/dashboard.js?v=20260728-9'),
-  bookings: () => import('./pages/bookings.js?v=20260728-9'),
-  availability: () => import('./pages/availability.js?v=20260728-11'),
-  customers: () => import('./pages/customers.js?v=20260728-9'),
-  invoices: () => import('./pages/invoices.js?v=20260728-9'),
-  marketing: () => import('./pages/marketing.js?v=20260728-9'),
-  account: () => import('./pages/account.js?v=20260730-5'),
-  login: () => import('./pages/login.js?v=20260730-1')
+  dashboard: () => import('./pages/dashboard.js?v=20260802-2'),
+  bookings: () => import('./pages/bookings.js?v=20260802-2'),
+  availability: () => import('./pages/availability.js?v=20260802-2'),
+  customers: () => import('./pages/customers.js?v=20260802-2'),
+  invoices: () => import('./pages/invoices.js?v=20260802-2'),
+  marketing: () => import('./pages/marketing.js?v=20260802-2'),
+  account: () => import('./pages/account.js?v=20260802-2'),
+  login: () => import('./pages/login.js?v=20260802-1')
 };
 
 function createContext(page, runtimeState = state) {

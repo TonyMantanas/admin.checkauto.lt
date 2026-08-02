@@ -1,3 +1,5 @@
+import { skeletons } from '../core/skeletons.js?v=20260802-1';
+
 export const page = 'invoices';
 
 export function renderStaticPage(root) {
@@ -7,7 +9,7 @@ export function renderStaticPage(root) {
         <div class="admin-panel-header admin-workspace-header admin-invoices-workspace-header">
           <div class="admin-page-title">
             <h1>Invoices</h1>
-            <p class="admin-count" data-invoice-count role="status" aria-live="polite"></p>
+            <p class="admin-count" data-invoice-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
           </div>
           <div class="admin-workspace-controls">
             <label class="admin-search admin-search-inline admin-search-compact">
@@ -17,17 +19,18 @@ export function renderStaticPage(root) {
                 data-invoice-search
                 placeholder="Search invoices"
                 autocomplete="off"
+                disabled
               >
             </label>
             <div class="admin-segmented" data-invoice-filters role="group" aria-label="Filter invoices">
-              <button type="button" data-invoice-filter="all" aria-pressed="false">All</button>
-              <button class="is-active" type="button" data-invoice-filter="unpaid" aria-pressed="true">Unpaid</button>
-              <button type="button" data-invoice-filter="paid" aria-pressed="false">Paid</button>
-              <button type="button" data-invoice-filter="void" aria-pressed="false">Void</button>
+              <button type="button" data-invoice-filter="all" aria-pressed="false" disabled>All</button>
+              <button class="is-active" type="button" data-invoice-filter="unpaid" aria-pressed="true" disabled>Unpaid</button>
+              <button type="button" data-invoice-filter="paid" aria-pressed="false" disabled>Paid</button>
+              <button type="button" data-invoice-filter="void" aria-pressed="false" disabled>Void</button>
             </div>
           </div>
         </div>
-        <div class="admin-invoice-list" data-invoice-list></div>
+        <div class="admin-invoice-list" data-invoice-list>${skeletons.list('invoices')}</div>
       </section>
     </section>
   `;

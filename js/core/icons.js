@@ -4,12 +4,15 @@ function icon(name) {
 
 export const ICONS = Object.freeze({
   add: icon('plus'),
+  alert: icon('alert-circle'),
   back: icon('arrow-left'),
   booking: icon('calendar-event'),
+  check: icon('circle-check'),
   close: icon('x'),
   email: icon('mail'),
   external: icon('external-link'),
   invoice: icon('file-invoice'),
+  info: icon('info-circle'),
   map: icon('map-pin'),
   menu: icon('menu'),
   next: icon('chevron-right'),

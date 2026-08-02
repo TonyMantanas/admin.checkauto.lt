@@ -11,28 +11,6 @@ const roleLabels = Object.freeze({
   viewer: 'Viewer'
 });
 
-const accessRightLabels = Object.freeze({
-  'admin_console.access': 'View dashboard, bookings and availability',
-  'operations.manage': 'Manage bookings and availability',
-  'sensitive_data.access': 'View customers, invoices and marketing',
-  'billing_email.manage': 'Manage invoices and email',
-  'privacy.manage': 'Manage privacy records',
-  'confirmation_schedule.manage': 'Manage the confirmation schedule'
-});
-
-const legacyRoleAccess = Object.freeze({
-  owner: Object.keys(accessRightLabels),
-  admin: [
-    'admin_console.access',
-    'operations.manage',
-    'sensitive_data.access',
-    'billing_email.manage',
-    'privacy.manage'
-  ],
-  inspector: ['admin_console.access', 'operations.manage'],
-  viewer: ['admin_console.access']
-});
-
 let requestController = null;
 
 function base64Url(bytes) {
@@ -169,13 +147,6 @@ function humanizeIdentifier(value) {
     : 'Unknown';
 }
 
-function assignedAccessRights(staff, roles) {
-  const values = Array.isArray(staff && staff.access_rights)
-    ? staff.access_rights
-    : roles.flatMap((role) => legacyRoleAccess[role] || []);
-  return Array.from(new Set(values.filter((right) => typeof right === 'string' && right)));
-}
-
 function renderAccount(staff) {
   const resetButton = target('[data-account-password-reset]');
   if (!staff) {
@@ -184,24 +155,26 @@ function renderAccount(staff) {
   }
 
   const authEmail = String(staff.auth_email || '');
-  const profileEmail = String(staff.email || '');
+  const phone = String(staff.phone || '');
+  const createdAt = formatAccountDate(staff.auth_created_at);
+  const lastSignInAt = formatAccountDate(staff.auth_last_sign_in_at);
   const roles = assignedRoles(staff);
-  const accessRights = assignedAccessRights(staff, roles);
 
   setText('[data-account-name]', String(staff.display_name || ''));
   setText('[data-account-auth-email]', authEmail);
-  setOptionalRow(
-    '[data-account-profile-email-row]',
-    profileEmail && profileEmail.toLocaleLowerCase() !== authEmail.toLocaleLowerCase()
-      ? profileEmail
-      : ''
-  );
-  setOptionalRow('[data-account-phone-row]', String(staff.phone || ''));
-  setOptionalRow('[data-account-calendar-email-row]', String(staff.calendar_email || ''));
-  setOptionalRow('[data-account-created-row]', formatAccountDate(staff.auth_created_at));
-  setOptionalRow('[data-account-last-sign-in-row]', formatAccountDate(staff.auth_last_sign_in_at));
+  setOptionalRow('[data-account-phone-row]', phone);
+  setOptionalRow('[data-account-created-row]', createdAt);
+  setOptionalRow('[data-account-last-sign-in-row]', lastSignInAt);
   setText('[data-account-status]', staff.is_active ? 'Active' : 'Inactive');
-  setText('[data-account-reset-email]', authEmail);
+  const accountContact = target('[data-account-contact]');
+  if (accountContact) accountContact.hidden = !phone;
+  const accountMetadata = target('[data-account-metadata]');
+  if (accountMetadata) accountMetadata.hidden = !createdAt && !lastSignInAt;
+  const accountStatus = target('[data-account-status]');
+  if (accountStatus) {
+    accountStatus.dataset.status = staff.is_active ? 'active' : 'inactive';
+    accountStatus.classList.remove('is-skeleton');
+  }
 
   const rolesList = target('[data-account-roles]');
   if (rolesList) {
@@ -210,18 +183,6 @@ function renderAccount(staff) {
       const item = document.createElement('li');
       item.className = 'admin-account-role-chip';
       item.textContent = role ? (roleLabels[role] || humanizeIdentifier(role)) : 'None assigned';
-      return item;
-    }));
-  }
-
-  const rightsList = target('[data-account-rights]');
-  if (rightsList) {
-    const rights = accessRights.length ? accessRights : [''];
-    rightsList.replaceChildren(...rights.map((right) => {
-      const item = document.createElement('li');
-      item.textContent = right
-        ? (accessRightLabels[right] || humanizeIdentifier(right))
-        : 'No access assigned';
       return item;
     }));
   }
@@ -299,94 +260,72 @@ export const page = 'account';
 export function renderStaticPage(root) {
   root.innerHTML = `
     <section class="admin-account-layout" aria-labelledby="account-page-title">
-      <header class="admin-account-heading">
-        <h1 id="account-page-title">Account</h1>
-      </header>
-
-      <div class="admin-account-grid">
-        <section class="admin-panel admin-account-panel" aria-labelledby="account-details-title">
-          <div class="admin-panel-header">
-            <h2 id="account-details-title">Personal information</h2>
+      <section class="admin-panel admin-account-panel">
+        <header class="admin-panel-header admin-workspace-header admin-account-header">
+          <div class="admin-page-title">
+            <h1 id="account-page-title">Account</h1>
           </div>
-          <dl class="admin-account-details">
-            <div>
-              <dt>Full name</dt>
-              <dd data-account-name>Loading…</dd>
-            </div>
-            <div>
-              <dt>Sign-in email</dt>
-              <dd data-account-auth-email>Loading…</dd>
-            </div>
-            <div data-account-profile-email-row hidden>
-              <dt>Profile email</dt>
-              <dd></dd>
-            </div>
-            <div data-account-phone-row hidden>
-              <dt>Phone</dt>
-              <dd></dd>
-            </div>
-            <div data-account-calendar-email-row hidden>
-              <dt>Calendar email</dt>
-              <dd></dd>
-            </div>
-            <div>
-              <dt>Account status</dt>
-              <dd data-account-status>Loading…</dd>
-            </div>
-            <div data-account-created-row hidden>
-              <dt>Account created</dt>
-              <dd></dd>
-            </div>
-            <div data-account-last-sign-in-row hidden>
-              <dt>Last sign-in</dt>
-              <dd></dd>
-            </div>
-          </dl>
-        </section>
+        </header>
 
-        <section class="admin-panel admin-account-panel" aria-labelledby="account-access-title">
-          <div class="admin-panel-header">
-            <h2 id="account-access-title">Roles and access</h2>
-          </div>
-          <div class="admin-account-access">
-            <div class="admin-account-role">
-              <span>Roles</span>
+        <div class="admin-account-content">
+          <section class="admin-account-profile" aria-labelledby="account-details-title">
+            <div class="admin-account-identity">
+              <div class="admin-account-identity-copy">
+                <h2 id="account-details-title" data-account-name><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-name" aria-hidden="true"></span></h2>
+                <p data-account-auth-email><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-email" aria-hidden="true"></span></p>
+              </div>
+              <span
+                class="admin-status-pill admin-account-status is-skeleton"
+                data-account-status
+                data-status=""
+              ><span class="admin-skeleton admin-skeleton-pill" aria-hidden="true"></span></span>
+            </div>
+            <dl class="admin-account-details" data-account-contact hidden>
+              <div data-account-phone-row hidden>
+                <dt>Phone</dt>
+                <dd></dd>
+              </div>
+            </dl>
+          </section>
+
+          <div class="admin-account-settings">
+            <section class="admin-account-section admin-account-roles" aria-labelledby="account-roles-title">
+              <h2 id="account-roles-title">Roles</h2>
               <ul class="admin-account-role-list" data-account-roles>
-                <li class="admin-account-role-chip">Loading…</li>
+                <li class="admin-account-role-chip admin-skeleton-role" aria-hidden="true"><span class="admin-skeleton admin-skeleton-line"></span></li>
               </ul>
-            </div>
-            <h3 class="admin-account-access-label">Permissions</h3>
-            <ul class="admin-account-rights" data-account-rights>
-              <li>Loading…</li>
-            </ul>
-          </div>
-        </section>
+            </section>
 
-        <section class="admin-panel admin-account-panel admin-account-security" aria-labelledby="account-security-title">
-          <div class="admin-panel-header">
-            <h2 id="account-security-title">Password</h2>
+            <section class="admin-account-section admin-account-security" aria-labelledby="account-security-title">
+              <h2 id="account-security-title">Password</h2>
+              <button
+                class="admin-button admin-button-secondary"
+                type="button"
+                data-account-password-reset
+                disabled
+              >Send reset link</button>
+              <p
+                class="admin-account-reset-status"
+                data-account-reset-status
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+              ></p>
+            </section>
           </div>
-          <div class="admin-account-security-content">
-            <p>
-              A reset link will be sent to
-              <strong data-account-reset-email>your sign-in email</strong>.
-            </p>
-            <button
-              class="admin-button admin-button-primary"
-              type="button"
-              data-account-password-reset
-              disabled
-            >Send reset link</button>
+        </div>
+
+        <dl class="admin-account-metadata" data-account-metadata aria-label="Account activity" hidden>
+          <div data-account-created-row hidden>
+            <dt>Account created</dt>
+            <dd></dd>
           </div>
-          <p
-            class="admin-account-reset-status"
-            data-account-reset-status
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          ></p>
-        </section>
-      </div>
+          <div data-account-last-sign-in-row hidden>
+            <dt>Last sign-in</dt>
+            <dd></dd>
+          </div>
+        </dl>
+      </section>
     </section>
   `;
 }
