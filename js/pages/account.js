@@ -1,3 +1,5 @@
+import { auth } from '../core/auth.js?v=20260802-4';
+
 const SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
 const PASSWORD_RESET_ENDPOINT = `${SUPABASE_URL}/functions/v1/admin-password-reset`;
@@ -12,6 +14,7 @@ const roleLabels = Object.freeze({
 });
 
 let requestController = null;
+let signOutOthersPending = false;
 
 function base64Url(bytes) {
   let binary = '';
@@ -105,6 +108,162 @@ function formatAccountDate(value) {
   }).format(new Date(value));
 }
 
+function accountSessionId(session) {
+  return String(session && (session.id || session.session_id) || '');
+}
+
+function isCurrentAccountSession(session, currentSessionId) {
+  return currentSessionId
+    ? accountSessionId(session) === currentSessionId
+    : Boolean(session && session.is_current === true);
+}
+
+function approximateSessionLabel(session) {
+  const suppliedLabel = String(
+    session && (session.label || session.safe_label) || ''
+  ).trim();
+  if (suppliedLabel) return suppliedLabel.slice(0, 120);
+
+  const userAgent = String(session && session.user_agent || '');
+  let browser = '';
+  let platform = '';
+
+  if (/EdgiOS\//i.test(userAgent) || /EdgA?\//i.test(userAgent)) browser = 'Microsoft Edge';
+  else if (/OP(?:iOS|R)\//i.test(userAgent)) browser = 'Opera';
+  else if (/CriOS\//i.test(userAgent) || /Chrome\//i.test(userAgent)) browser = 'Chrome';
+  else if (/FxiOS\//i.test(userAgent) || /Firefox\//i.test(userAgent)) browser = 'Firefox';
+  else if (/Version\/[^\s]+.*Safari\//i.test(userAgent)) browser = 'Safari';
+
+  if (/iPad/i.test(userAgent)) platform = 'iPad';
+  else if (/iPhone|iPod/i.test(userAgent)) platform = 'iPhone';
+  else if (/Android/i.test(userAgent)) platform = 'Android';
+  else if (/Macintosh|Mac OS X/i.test(userAgent)) platform = 'Mac';
+  else if (/Windows/i.test(userAgent)) platform = 'Windows';
+  else if (/CrOS/i.test(userAgent)) platform = 'ChromeOS';
+  else if (/Linux/i.test(userAgent)) platform = 'Linux';
+
+  if (browser && platform) return `${browser} on ${platform}`;
+  if (browser) return browser;
+  if (platform) return `Browser on ${platform}`;
+  return 'Unknown browser';
+}
+
+function sessionDateRow(label, value) {
+  const row = document.createElement('div');
+  const term = document.createElement('dt');
+  const description = document.createElement('dd');
+  const formatted = formatAccountDate(value);
+
+  term.textContent = label;
+  if (formatted) {
+    const time = document.createElement('time');
+    time.dateTime = String(value);
+    time.textContent = formatted;
+    description.appendChild(time);
+  } else {
+    description.textContent = 'Not available';
+  }
+  row.append(term, description);
+  return row;
+}
+
+function sessionListItem(session, currentSessionId) {
+  const item = document.createElement('li');
+  const identity = document.createElement('div');
+  const titleRow = document.createElement('div');
+  const title = document.createElement('strong');
+  const dates = document.createElement('dl');
+  const isCurrent = isCurrentAccountSession(session, currentSessionId);
+
+  item.className = 'admin-account-session';
+  if (isCurrent) item.dataset.current = 'true';
+  identity.className = 'admin-account-session-identity';
+  titleRow.className = 'admin-account-session-title';
+  title.textContent = approximateSessionLabel(session);
+  titleRow.appendChild(title);
+
+  if (isCurrent) {
+    const badge = document.createElement('span');
+    badge.className = 'admin-status-pill admin-account-session-current';
+    badge.dataset.status = 'active';
+    badge.textContent = 'Current';
+    titleRow.appendChild(badge);
+  }
+
+  identity.appendChild(titleRow);
+  dates.className = 'admin-account-session-dates';
+  dates.append(
+    sessionDateRow('Signed in', session && session.created_at),
+    sessionDateRow('Last active', session && session.last_active_at)
+  );
+  item.append(identity, dates);
+  return item;
+}
+
+function hasOtherAccountSessions(sessions, currentSessionId) {
+  if (sessions.some((session) => isCurrentAccountSession(session, currentSessionId))) {
+    return sessions.some((session) => !isCurrentAccountSession(session, currentSessionId));
+  }
+  return sessions.length > 1;
+}
+
+function setSessionsStatus(message, tone = '') {
+  const status = target('[data-account-sessions-status]');
+  if (!status) return;
+  status.textContent = message || '';
+  status.dataset.tone = tone;
+}
+
+function renderAccountSessions(state) {
+  const list = target('[data-account-sessions]');
+  const count = target('[data-account-session-count]');
+  const button = target('[data-account-sign-out-others]');
+  if (!list || !count) return;
+
+  const isLoaded = Boolean(state.loadedViews && state.loadedViews.auth);
+  if (!isLoaded) {
+    count.textContent = 'Loading…';
+    list.setAttribute('aria-busy', 'true');
+    if (button) button.disabled = true;
+    return;
+  }
+
+  const currentSessionId = auth.sessionId(state.session);
+  const sessions = (Array.isArray(state.accountSessions) ? state.accountSessions : [])
+    .filter((session) => session && typeof session === 'object')
+    .slice()
+    .sort((left, right) => {
+      const leftCurrent = isCurrentAccountSession(left, currentSessionId) ? 1 : 0;
+      const rightCurrent = isCurrentAccountSession(right, currentSessionId) ? 1 : 0;
+      if (leftCurrent !== rightCurrent) return rightCurrent - leftCurrent;
+      const leftActiveAt = Date.parse(left.last_active_at || '') || 0;
+      const rightActiveAt = Date.parse(right.last_active_at || '') || 0;
+      return rightActiveAt - leftActiveAt;
+    });
+
+  count.textContent = `${sessions.length} ${sessions.length === 1 ? 'session' : 'sessions'}`;
+  list.removeAttribute('aria-busy');
+  if (sessions.length) {
+    list.replaceChildren(...sessions.map((session) => (
+      sessionListItem(session, currentSessionId)
+    )));
+  } else {
+    const empty = document.createElement('li');
+    empty.className = 'admin-account-session-empty';
+    empty.textContent = 'Session details are unavailable.';
+    list.replaceChildren(empty);
+  }
+
+  if (button) {
+    const hasOtherSessions = hasOtherAccountSessions(sessions, currentSessionId);
+    button.disabled = signOutOthersPending || !hasOtherSessions;
+    button.classList.toggle('is-loading', signOutOthersPending);
+    if (signOutOthersPending) button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
+    button.textContent = signOutOthersPending ? 'Signing out…' : 'Sign out other sessions';
+  }
+}
+
 function setStatus(message, tone = '') {
   const status = target('[data-account-reset-status]');
   if (!status) return;
@@ -188,6 +347,46 @@ function renderAccount(staff) {
   }
 
   if (resetButton) resetButton.disabled = !authEmail;
+}
+
+async function signOutOtherSessions(state) {
+  if (signOutOthersPending) return;
+  if (!state.session || !state.session.access_token) {
+    setSessionsStatus('Refresh the page and sign in again before managing sessions.', 'error');
+    return;
+  }
+
+  const currentSessionId = auth.sessionId(state.session);
+  const sessions = Array.isArray(state.accountSessions) ? state.accountSessions : [];
+  if (!hasOtherAccountSessions(sessions, currentSessionId)) {
+    renderAccountSessions(state);
+    return;
+  }
+
+  signOutOthersPending = true;
+  renderAccountSessions(state);
+  setSessionsStatus('Signing out other sessions…', 'loading');
+
+  try {
+    await auth.signOut(state.session, 'others');
+    state.accountSessions = sessions.filter((session) => (
+      isCurrentAccountSession(session, currentSessionId)
+    ));
+    if (state.loadedViews && state.loadedViews.auth) {
+      state.loadedViews.auth.loadedAt = Date.now();
+    }
+    signOutOthersPending = false;
+    renderAccountSessions(state);
+    setSessionsStatus('Other sessions signed out. This session remains active.', 'success');
+  } catch (error) {
+    signOutOthersPending = false;
+    renderAccountSessions(state);
+    setSessionsStatus(
+      error instanceof Error ? error.message : 'Other sessions could not be signed out.',
+      'error'
+    );
+  }
+
 }
 
 async function requestPasswordReset(state, button) {
@@ -315,6 +514,36 @@ export function renderStaticPage(root) {
           </div>
         </div>
 
+        <section class="admin-account-sessions" aria-labelledby="account-sessions-title">
+          <header class="admin-account-sessions-header">
+            <div class="admin-account-sessions-heading">
+              <h2 id="account-sessions-title">Active sessions</h2>
+              <span class="admin-account-session-count" data-account-session-count>Loading…</span>
+            </div>
+            <button
+              class="admin-button admin-button-danger"
+              type="button"
+              data-account-sign-out-others
+              aria-describedby="account-sessions-status"
+              disabled
+            >Sign out other sessions</button>
+          </header>
+          <ul class="admin-account-session-list" data-account-sessions aria-busy="true">
+            <li class="admin-account-session admin-account-session-skeleton" aria-hidden="true">
+              <span class="admin-skeleton admin-skeleton-line"></span>
+              <span class="admin-skeleton admin-skeleton-line"></span>
+            </li>
+          </ul>
+          <p
+            id="account-sessions-status"
+            class="admin-account-sessions-status"
+            data-account-sessions-status
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          ></p>
+        </section>
+
         <dl class="admin-account-metadata" data-account-metadata aria-label="Account activity" hidden>
           <div data-account-created-row hidden>
             <dt>Account created</dt>
@@ -332,16 +561,26 @@ export function renderStaticPage(root) {
 
 export function beforeRender({ state }) {
   renderAccount(state.staff);
+  renderAccountSessions(state);
 }
 
 export function afterEvents({ state }) {
   const resetButton = target('[data-account-password-reset]');
+  const signOutOthersButton = target('[data-account-sign-out-others]');
   renderAccount(state.staff);
-  if (!resetButton || resetButton.dataset.bound === 'true') return;
-  resetButton.dataset.bound = 'true';
-  resetButton.addEventListener('click', () => {
-    requestPasswordReset(state, resetButton);
-  });
+  renderAccountSessions(state);
+  if (resetButton && resetButton.dataset.bound !== 'true') {
+    resetButton.dataset.bound = 'true';
+    resetButton.addEventListener('click', () => {
+      requestPasswordReset(state, resetButton);
+    });
+  }
+  if (signOutOthersButton && signOutOthersButton.dataset.bound !== 'true') {
+    signOutOthersButton.dataset.bound = 'true';
+    signOutOthersButton.addEventListener('click', () => {
+      signOutOtherSessions(state);
+    });
+  }
 }
 
 export function destroyPage() {

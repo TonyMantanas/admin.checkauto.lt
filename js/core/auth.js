@@ -152,12 +152,17 @@ async function verifyTotp(session, factorId, challengeId, code) {
   return normalizeSession(verified);
 }
 
-async function signOut(session, scope = 'global') {
+async function signOut(session, scope = 'local') {
+  if (!['local', 'others'].includes(scope)) {
+    throw new TypeError('Frontend sign-out scope must be "local" or "others".');
+  }
   if (!session || !session.access_token) return;
   await request(`/logout?scope=${encodeURIComponent(scope)}`, {
     method: 'POST',
     session,
-    errorMessage: 'The server could not revoke this session.'
+    errorMessage: scope === 'others'
+      ? 'Other sessions could not be signed out.'
+      : 'The server could not revoke this session.'
   });
 }
 

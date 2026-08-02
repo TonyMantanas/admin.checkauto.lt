@@ -1,6 +1,6 @@
 import { ICONS } from './icons.js?v=20260802-1';
-import { state } from './state.js?v=20260730-2';
-import { auth } from './auth.js?v=20260730-3';
+import { state } from './state.js?v=20260802-1';
+import { auth } from './auth.js?v=20260802-4';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -895,6 +895,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.refreshController = null;
       activeDashboardLoad = null;
       state.staff = null;
+      state.accountSessions = [];
       [
         'bookings',
         'services',
@@ -919,6 +920,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function applyDashboardData(data) {
     if (!data || typeof data !== 'object') return;
     if (data.staff) state.staff = data.staff;
+    if (Array.isArray(data.accountSessions)) state.accountSessions = data.accountSessions;
     [
       'bookings',
       'services',
@@ -1019,7 +1021,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         return session;
       }
 
-      storeSession(null);
+      await revokeAndClearSession(session);
       return null;
     })();
 
@@ -1068,7 +1070,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   async function revokeAndClearSession(session) {
     var targetSession = session || state.session;
     try {
-      await auth.signOut(targetSession, 'global');
+      await auth.signOut(targetSession, 'local');
     } catch (error) {
       // The local session must still be removed if it has already expired.
     } finally {

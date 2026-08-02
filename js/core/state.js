@@ -3,6 +3,7 @@ export const state = {
   session: null,
   sessionPersistence: '',
   staff: null,
+  accountSessions: [],
   bookings: [],
   services: [],
   slots: [],
