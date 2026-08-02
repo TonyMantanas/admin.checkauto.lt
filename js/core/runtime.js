@@ -45,6 +45,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var DEFAULT_END_HOUR = 22;
   var HOUR_HEIGHT = 56;
   var SLOT_STEP_MINUTES = 15;
+  var DEFAULT_SLOT_DURATION_MINUTES = 60;
 
   var els = {};
   var activeDashboardLoad = null;
@@ -622,10 +623,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function serviceById(id) {
     return state.services.find(function (service) { return service.id === id; }) || null;
-  }
-
-  function serviceByCode(code) {
-    return state.services.find(function (service) { return service.code === code; }) || null;
   }
 
   function staffById(id) {
@@ -4427,17 +4424,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       startSelect.dataset.pendingDefault = defaults.time;
     }
 
-    rebuildSlotTimeOptions();
+    rebuildSlotTimeOptions(true);
     refreshCustomControls(document);
-  }
-
-  function selectedServiceDuration() {
-    var serviceSelect = $('[data-admin-slot-service]');
-    var service = serviceByCode(serviceSelect && serviceSelect.value);
-    if (service) return Number(service.default_duration_minutes) || 120;
-    return state.services.filter(function (item) { return item.is_public; }).reduce(function (max, item) {
-      return Math.max(max, Number(item.default_duration_minutes) || 0);
-    }, 0) || 120;
   }
 
   function rebuildSlotTimeOptions(preserveEnd) {
@@ -4451,7 +4439,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     delete startInput.dataset.pendingDefault;
 
     if (!preserveEnd || !endInput.value || timeToMinutes(endInput.value) <= timeToMinutes(startInput.value)) {
-      endInput.value = minutesToTime(timeToMinutes(startInput.value) + selectedServiceDuration());
+      endInput.value = minutesToTime(timeToMinutes(startInput.value) + DEFAULT_SLOT_DURATION_MINUTES);
     }
     refreshCustomControls(document);
   }
@@ -5635,13 +5623,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
     }
 
-    [serviceSelect, dateInput, startSelect].forEach(function (input) {
+    [serviceSelect, dateInput].forEach(function (input) {
       if (!input) return;
       input.addEventListener('change', function () {
-        rebuildSlotTimeOptions(false);
+        rebuildSlotTimeOptions(true);
         refreshCustomControls(form);
       });
     });
+
+    if (startSelect) {
+      startSelect.addEventListener('change', function () {
+        rebuildSlotTimeOptions(false);
+        refreshCustomControls(form);
+      });
+    }
 
     if (dateInput) {
       dateInput.addEventListener('input', function () {
