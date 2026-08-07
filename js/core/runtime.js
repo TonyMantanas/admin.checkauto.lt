@@ -2,7 +2,7 @@ import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260804-1';
 import { auth } from './auth.js?v=20260804-1';
-import { syncOwnerNavigation } from './shell.js?v=20260804-1';
+import { syncStaffNavigation } from './shell.js?v=20260807-1';
 import { toast } from './toast.js?v=20260804-1';
 
 /* ==========================================================================
@@ -53,6 +53,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var HOUR_HEIGHT = 56;
   var SLOT_STEP_MINUTES = 15;
   var DEFAULT_SLOT_DURATION_MINUTES = 60;
+  var PAGE_ACCESS_RIGHTS = {
+    customers: 'sensitive_data.access',
+    invoices: 'sensitive_data.access',
+    marketing: 'sensitive_data.access',
+    users: 'staff_users.manage'
+  };
 
   var els = {};
   var activeDashboardLoad = null;
@@ -69,6 +75,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var slotEditorBaseline = '';
   var calendarMediaQuery = null;
   var navigationMediaQuery = null;
+  var redirectPending = false;
   var ICON_ALERT = ICONS.alert;
   var ICON_BACK = ICONS.back;
   var ICON_BOOKING = ICONS.booking;
@@ -130,6 +137,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         .replace(/[._-]+/g, ' ')
         .replace(/\b\w/g, function (character) { return character.toUpperCase(); });
     }).join(', ');
+  }
+
+  function staffCanAccessPage(staff, page) {
+    var accessRight = PAGE_ACCESS_RIGHTS[page];
+    if (!accessRight) return true;
+    if (!staff) return false;
+    if (page === 'users' && !staffHasRole(staff, 'owner')) return false;
+    return staffHasAccess(
+      staff,
+      accessRight,
+      accessRight === 'sensitive_data.access' ? ['owner', 'admin'] : ['owner']
+    );
   }
 
   function escapeSelectorValue(value) {
@@ -959,6 +978,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function redirectTo(path) {
     if (window.location.pathname !== path) {
+      redirectPending = true;
       window.location.replace(path);
     }
   }
@@ -2079,21 +2099,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setUserLabel() {
     var target = $('[data-admin-user]');
-    syncOwnerNavigation(state.staff, state.page);
+    syncStaffNavigation(state.staff, state.page);
     if (target && state.staff) {
       var roleSummary = staffRoleSummary(state.staff);
       target.textContent = state.staff.display_name + (roleSummary ? ' - ' + roleSummary : '');
-    }
-    if (state.staff) {
-      var canUseSensitivePages = staffHasAccess(
-        state.staff,
-        'sensitive_data.access',
-        ['owner', 'admin']
-      );
-      ['customers', 'invoices', 'marketing'].forEach(function (page) {
-        var link = $('[data-admin-nav="' + page + '"]');
-        if (link) link.hidden = !canUseSensitivePages;
-      });
     }
   }
 
@@ -4816,6 +4825,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    var accessRedirected = !staffCanAccessPage(state.staff, page);
+    if (accessRedirected) {
+      page = 'dashboard';
+      destination = new URL(PATHS.dashboard, window.location.href);
+      if (opts.fromPopState) {
+        history.replaceState(
+          historyStateForPage(page, destination, state.historyIndex),
+          '',
+          destination.pathname + destination.search + destination.hash
+        );
+      }
+      if (state.page === page) {
+        setNavOpen(false, { focus: false });
+        setActiveNav();
+        return;
+      }
+    }
+
     if (!opts.fromPopState && !(await confirmPageNavigation())) return;
     if (!opts.fromPopState) saveCurrentScrollPosition();
 
@@ -4945,6 +4972,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!target) return;
     var page = routePageFromUrl(target.href);
     if (!page || page === 'login' || page === state.page) return;
+    if (!staffCanAccessPage(state.staff, page)) return;
     router.preloadPage(page);
   }
 
@@ -5937,6 +5965,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     try {
       var applied = await loadDashboard(requestedView, { force: Boolean(opts.force) });
       if (activityId !== refreshActivityId || !applied || adminViewForPage(state.page) !== requestedView) return false;
+      if (!staffCanAccessPage(state.staff, state.page)) {
+        redirectTo(PATHS.dashboard);
+        return false;
+      }
       showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
       clearPageLoadError();
       setUserLabel();
@@ -6057,11 +6089,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     startExpiryTicker();
     setPageBusy(true, 'Loading admin data');
     setSyncState('Loading', 'loading');
-    showConsole({ preserveScroll: true });
+    if (!PAGE_ACCESS_RIGHTS[state.page]) {
+      showConsole({ preserveScroll: true });
+    }
 
     try {
       await refresh();
     } catch (error) {
+      if (redirectPending) return;
       if (!state.session) {
         redirectTo(PATHS.login);
         return;

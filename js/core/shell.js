@@ -13,14 +13,14 @@ const groups = [
     items: [
       { page: 'bookings', label: 'Bookings', href: PATHS.bookings },
       { page: 'availability', label: 'Availability', href: PATHS.availability },
-      { page: 'customers', label: 'Customers', href: PATHS.customers },
-      { page: 'invoices', label: 'Invoices', href: PATHS.invoices }
+      { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access' },
+      { page: 'invoices', label: 'Invoices', href: PATHS.invoices, accessRight: 'sensitive_data.access' }
     ]
   },
   {
     label: 'Growth',
     items: [
-      { page: 'marketing', label: 'Marketing', href: PATHS.marketing }
+      { page: 'marketing', label: 'Marketing', href: PATHS.marketing, accessRight: 'sensitive_data.access' }
     ]
   }
 ];
@@ -55,18 +55,22 @@ export function renderShell(page) {
         >${ICONS.close}</button>
       </div>
       <nav class="admin-sidebar-nav" aria-label="Primary">
-        ${groups.map((group) => `
-          <section class="admin-nav-group">
+        ${groups.map((group) => {
+          const startsHidden = group.items.every((item) => item.accessRight);
+          return `
+          <section class="admin-nav-group"${startsHidden ? ' hidden' : ''}>
             <p class="admin-nav-group-label">${group.label}</p>
             ${group.items.map((item) => `
               <a
                 href="${item.href}"
                 data-admin-nav="${item.page}"
+                ${item.accessRight ? `data-admin-access="${item.accessRight}" hidden` : ''}
                 ${item.page === page ? 'class="is-active" aria-current="page"' : ''}
               >${item.label}</a>
             `).join('')}
           </section>
-        `).join('')}
+        `;
+        }).join('')}
         <div data-admin-owner-nav></div>
       </nav>
       <div class="admin-sidebar-account">
@@ -120,11 +124,38 @@ function staffRoles(staff) {
   return values.filter((role, index) => typeof role === 'string' && values.indexOf(role) === index);
 }
 
-export function syncOwnerNavigation(staff, page) {
+function staffHasAccess(staff, accessRight, legacyRoles = []) {
+  if (!staff) return false;
+  if (Array.isArray(staff.access_rights)) {
+    return staff.access_rights.includes(accessRight);
+  }
+  const roles = staffRoles(staff);
+  return legacyRoles.some((role) => roles.includes(role));
+}
+
+function syncAccessControlledNavigation(staff) {
+  document.querySelectorAll('[data-admin-access]').forEach((link) => {
+    const accessRight = link.dataset.adminAccess;
+    const legacyRoles = accessRight === 'sensitive_data.access' ? ['owner', 'admin'] : [];
+    link.hidden = !staffHasAccess(staff, accessRight, legacyRoles);
+  });
+
+  document.querySelectorAll('.admin-sidebar-nav > .admin-nav-group').forEach((group) => {
+    const links = Array.from(group.querySelectorAll('[data-admin-nav]'));
+    group.hidden = links.length > 0 && links.every((link) => link.hidden);
+  });
+}
+
+export function syncStaffNavigation(staff, page) {
+  syncAccessControlledNavigation(staff);
+
   const target = document.querySelector('[data-admin-owner-nav]');
   if (!target) return;
 
-  if (!staffRoles(staff).includes('owner')) {
+  if (
+    !staffRoles(staff).includes('owner') ||
+    !staffHasAccess(staff, 'staff_users.manage', ['owner'])
+  ) {
     target.replaceChildren();
     return;
   }
