@@ -1,4 +1,4 @@
-import { PATHS } from './routes.js?v=20260730-3';
+import { PATHS } from './routes.js?v=20260804-1';
 import { ICONS } from './icons.js?v=20260802-1';
 
 const groups = [
@@ -67,6 +67,7 @@ export function renderShell(page) {
             `).join('')}
           </section>
         `).join('')}
+        <div data-admin-owner-nav></div>
       </nav>
       <div class="admin-sidebar-account">
         <div class="admin-sidebar-user">
@@ -108,4 +109,40 @@ export function renderShell(page) {
       tabindex="-1"
     ></button>
   `;
+}
+
+function staffRoles(staff) {
+  const values = Array.isArray(staff && staff.roles)
+    ? staff.roles
+    : staff && staff.role
+      ? [staff.role]
+      : [];
+  return values.filter((role, index) => typeof role === 'string' && values.indexOf(role) === index);
+}
+
+export function syncOwnerNavigation(staff, page) {
+  const target = document.querySelector('[data-admin-owner-nav]');
+  if (!target) return;
+
+  if (!staffRoles(staff).includes('owner')) {
+    target.replaceChildren();
+    return;
+  }
+
+  const section = document.createElement('section');
+  const label = document.createElement('p');
+  const link = document.createElement('a');
+
+  section.className = 'admin-nav-group';
+  label.className = 'admin-nav-group-label';
+  label.textContent = 'Organization';
+  link.href = PATHS.users;
+  link.dataset.adminNav = 'users';
+  link.textContent = 'Users';
+  if (page === 'users') {
+    link.className = 'is-active';
+    link.setAttribute('aria-current', 'page');
+  }
+  section.append(label, link);
+  target.replaceChildren(section);
 }

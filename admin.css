@@ -313,6 +313,10 @@ fieldset {
   gap: var(--admin-space-5);
 }
 
+[data-admin-owner-nav] {
+  display: contents;
+}
+
 .admin-nav-group {
   display: grid;
   gap: 0.2rem;
@@ -479,6 +483,13 @@ fieldset {
   margin: 0;
   color: var(--admin-text-secondary);
   line-height: 1.55;
+}
+
+.admin-password-guidance {
+  margin: calc(var(--admin-space-2) * -1) 0 0;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  line-height: 1.45;
 }
 
 .admin-mfa-qr {
@@ -2300,6 +2311,322 @@ button.admin-mini-item::after {
   justify-content: center;
 }
 
+/* Owner user management
+   ========================================================================== */
+
+.admin-users-workbench,
+.admin-users-workbench > .admin-panel {
+  min-width: 0;
+}
+
+.admin-users-workspace-header .admin-workspace-controls {
+  justify-self: end;
+}
+
+.admin-user-list {
+  min-width: 0;
+}
+
+.admin-user-row {
+  min-width: 0;
+  min-height: 4.25rem;
+  padding: 0.75rem var(--admin-space-4);
+  display: grid;
+  grid-template-columns:
+    minmax(12rem, 1.35fr)
+    minmax(9rem, 1fr)
+    minmax(9rem, 0.9fr)
+    minmax(9rem, 0.85fr)
+    auto;
+  align-items: center;
+  gap: var(--admin-space-3);
+  border-block-end: 1px solid var(--admin-border);
+  background: var(--admin-surface);
+}
+
+.admin-user-row:last-child {
+  border-block-end: 0;
+}
+
+.admin-user-row:not(.admin-user-row-skeleton):hover {
+  background: var(--admin-surface-hover);
+}
+
+.admin-user-row > * {
+  min-width: 0;
+}
+
+.admin-user-primary,
+.admin-user-activity {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-user-primary strong {
+  overflow: hidden;
+  color: var(--admin-text);
+  font-size: var(--admin-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-user-primary span,
+.admin-user-activity span,
+.admin-user-activity strong {
+  overflow: hidden;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-user-activity strong {
+  color: var(--admin-accent);
+}
+
+.admin-user-roles,
+.admin-user-statuses {
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-1);
+  flex-wrap: wrap;
+}
+
+.admin-user-role-chip {
+  min-height: 1.35rem;
+  padding: 0.16rem 0.45rem;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface-subtle);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.admin-user-role-empty {
+  color: var(--admin-danger);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+}
+
+.admin-user-self-label {
+  color: var(--admin-text-tertiary);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+  text-align: end;
+  white-space: nowrap;
+}
+
+.admin-user-row-skeleton {
+  pointer-events: none;
+}
+
+.admin-user-row-skeleton .admin-skeleton-pill {
+  width: min(100%, 5rem);
+}
+
+.admin-users-access-state {
+  min-height: 18rem;
+  padding: var(--admin-space-6);
+  display: grid;
+  grid-template-columns: auto minmax(0, 28rem);
+  place-content: center;
+  align-items: start;
+  gap: var(--admin-space-3);
+  background: var(--admin-surface);
+}
+
+.admin-users-access-state > div {
+  display: grid;
+  gap: var(--admin-space-2);
+}
+
+.admin-users-access-icon {
+  width: 2rem;
+  height: 2rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.admin-users-access-icon .admin-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.admin-user-form-grid {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-3);
+}
+
+.admin-field-optional {
+  color: var(--admin-text-tertiary);
+  font-weight: 550;
+}
+
+.admin-user-role-fieldset,
+.admin-user-password-fields,
+.admin-user-modal-section {
+  min-width: 0;
+}
+
+.admin-user-role-fieldset,
+.admin-user-password-fields {
+  display: grid;
+  gap: var(--admin-space-3);
+}
+
+.admin-user-role-fieldset > legend,
+.admin-user-password-fields > legend {
+  margin-block-end: var(--admin-space-1);
+  color: var(--admin-text);
+  font-size: var(--admin-text-md);
+  font-weight: 700;
+}
+
+.admin-user-role-fieldset > p,
+.admin-user-password-fields > p,
+.admin-user-modal-section > p,
+.admin-user-section-heading p,
+.admin-user-access-section > div > p {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-user-role-choices {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-2);
+}
+
+.admin-action-form .admin-user-role-choice {
+  min-height: 4rem;
+  padding: 0.65rem 0.7rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--admin-space-2);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  background: var(--admin-surface-subtle);
+  cursor: pointer;
+}
+
+.admin-action-form .admin-user-role-choice:hover {
+  border-color: var(--admin-border-strong);
+  background: var(--admin-surface-hover);
+}
+
+.admin-user-role-choice input {
+  width: 1rem;
+  min-height: 1rem;
+  margin: 0.15rem 0 0;
+}
+
+.admin-user-role-choice > span {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-user-role-choice strong {
+  color: var(--admin-text);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-user-role-choice small {
+  color: var(--admin-text-secondary);
+  font-size: 0.6875rem;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.admin-user-readonly-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.35rem;
+  color: var(--admin-text);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
+}
+
+.admin-user-readonly-field strong {
+  min-height: 2.25rem;
+  padding: 0.55rem 0.6rem;
+  overflow: hidden;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface-subtle);
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-user-modal-section {
+  padding-block: var(--admin-space-5);
+  display: grid;
+  gap: var(--admin-space-3);
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-user-form .admin-user-modal-section:first-child {
+  padding-block-start: 0;
+  border-block-start: 0;
+}
+
+.admin-user-section-heading,
+.admin-user-access-section {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+}
+
+.admin-user-section-heading > div,
+.admin-user-access-section > div {
+  min-width: 0;
+  display: grid;
+  gap: var(--admin-space-1);
+}
+
+.admin-user-temp-form {
+  padding: var(--admin-space-3);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-user-temp-form .admin-action-buttons {
+  justify-content: flex-start;
+}
+
+.admin-user-current-note {
+  width: 100%;
+  flex-basis: 100%;
+  color: var(--admin-text-tertiary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-user-modal-loading {
+  min-height: 9rem;
+  display: grid;
+  align-content: center;
+  gap: var(--admin-space-3);
+}
+
 /* Calendar
    ========================================================================== */
 
@@ -4039,6 +4366,35 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 54rem) {
+  .admin-user-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: var(--admin-space-2) var(--admin-space-3);
+  }
+
+  .admin-user-primary {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .admin-user-row > .admin-button,
+  .admin-user-row > .admin-user-self-label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .admin-user-roles,
+  .admin-user-statuses,
+  .admin-user-activity {
+    grid-column: 1 / -1;
+  }
+
+  .admin-user-activity {
+    display: flex;
+    gap: var(--admin-space-2);
+    flex-wrap: wrap;
+  }
+
   .admin-account-content {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -4564,6 +4920,43 @@ button.admin-mini-item::after {
 }
 
 @media (max-width: 30rem) {
+  .admin-users-workspace-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-users-workspace-header .admin-workspace-controls {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .admin-users-workspace-header .admin-workspace-controls .admin-button {
+    flex: 1 1 auto;
+  }
+
+  .admin-users-access-state {
+    min-height: 14rem;
+    padding: var(--admin-space-5);
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .admin-user-form-grid,
+  .admin-user-role-choices {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-user-section-heading,
+  .admin-user-access-section {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .admin-user-access-section .admin-button,
+  .admin-user-temp-form .admin-button {
+    width: 100%;
+  }
+
   .admin-account-identity {
     flex-wrap: wrap;
   }
@@ -4737,6 +5130,7 @@ button.admin-mini-item::after {
   .admin-slot-form input,
   .admin-action-form input,
   .admin-action-form textarea,
+  .admin-user-readonly-field strong,
   .admin-date-jump input,
   .admin-search input,
   .admin-select-wrap select,

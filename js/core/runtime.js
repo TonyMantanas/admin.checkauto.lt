@@ -1,6 +1,9 @@
 import { ICONS } from './icons.js?v=20260802-1';
-import { state } from './state.js?v=20260802-1';
-import { auth } from './auth.js?v=20260802-4';
+import { modals } from './modals.js?v=20260804-1';
+import { state } from './state.js?v=20260804-1';
+import { auth } from './auth.js?v=20260804-1';
+import { syncOwnerNavigation } from './shell.js?v=20260804-1';
+import { toast } from './toast.js?v=20260804-1';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -19,6 +22,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
   var ADMIN_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-bookings';
   var MFA_RECOVERY_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-mfa-recovery';
+  var TEMP_PASSWORD_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-temp-password';
   var ADMIN_BASE_PATH = (
     window.location.pathname === '/admin' ||
     window.location.pathname.startsWith('/admin/')
@@ -33,12 +37,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     customers: adminPath('/customers/'),
     invoices: adminPath('/invoices/'),
     marketing: adminPath('/marketing/'),
+    users: adminPath('/users/'),
     account: adminPath('/account/'),
     login: adminPath('/login/')
   };
   var SESSION_KEY = 'checkauto-admin-session';
   var SESSION_REFRESH_MARGIN_MS = 60 * 1000;
   var VIEW_FOCUS_MAX_AGE_MS = 15 * 1000;
+  var MIN_PASSWORD_CHARACTERS = 14;
+  var MAX_PASSWORD_BYTES = 72;
   var TIME_ZONE = 'Europe/Vilnius';
   var EXPIRY_TICK_MS = 30 * 1000;
   var DEFAULT_START_HOUR = 8;
@@ -139,6 +146,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       'data-customer-id',
       'data-invoice-id',
       'data-campaign-id',
+      'data-user-edit',
+      'data-user-create-header',
       'data-calendar-event',
       'data-admin-slot-open',
       'data-admin-nav-toggle'
@@ -898,6 +907,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         'services',
         'slots',
         'staffList',
+        'staffUsers',
         'events',
         'notes',
         'customers',
@@ -910,6 +920,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
       state.maintenancePreview = null;
       state.confirmationSettings = null;
+      state.staffUsersLoadedAt = 0;
+      state.staffUsersLoadState = 'idle';
+      state.staffUsersError = '';
+      state.staffUsersAccessDenied = false;
       state.loadedViews = Object.create(null);
     }
   }
@@ -1052,6 +1066,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     ].includes(String(code || ''));
   }
 
+  function isTemporaryPasswordCode(code) {
+    return String(code || '') === 'temporary_password_change_required';
+  }
+
   function actionNeedsIdempotency(action) {
     return ['createAndSendInvoice', 'resendInvoice', 'sendMarketingCampaign'].includes(action);
   }
@@ -1084,6 +1102,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       customers: 'customers',
       invoices: 'invoices',
       marketing: 'marketing',
+      users: 'auth',
       account: 'auth'
     }[page || state.page] || 'all';
   }
@@ -1132,6 +1151,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
       var data = await response.json().catch(function () { return {}; });
       if (!response.ok) {
+        if (isTemporaryPasswordCode(data.code)) {
+          redirectTo(PATHS.login);
+          throw new Error(data.error || 'Change your temporary password before opening the admin console.');
+        }
         if (response.status === 401 || isSecuritySessionCode(data.code)) {
           await revokeAndClearSession();
           throw new Error('Sign in again to verify your account.');
@@ -1184,6 +1207,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var data = await response.json().catch(function () { return {}; });
     if (!response.ok) {
+      if (isTemporaryPasswordCode(data.code)) {
+        redirectTo(PATHS.login);
+        throw new Error(data.error || 'Change your temporary password before continuing.');
+      }
       if (response.status === 401 || isSecuritySessionCode(data.code)) {
         await revokeAndClearSession();
         redirectTo(PATHS.login);
@@ -1468,12 +1495,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (params.get('booking')) return { type: 'booking', id: params.get('booking') };
     if (params.get('customer')) return { type: 'customer', id: params.get('customer') };
     if (params.get('campaign')) return { type: 'campaign', id: params.get('campaign') };
+    if (params.get('staff')) return { type: 'staff', id: params.get('staff') };
     return null;
   }
 
   function modalUrl(route) {
     var url = new URL(window.location.href);
-    ['customer', 'booking', 'invoice', 'campaign', 'confirmationSchedule'].forEach(function (key) {
+    ['customer', 'booking', 'invoice', 'campaign', 'confirmationSchedule', 'staff'].forEach(function (key) {
       url.searchParams.delete(key);
     });
     if (route && route.type && route.id) {
@@ -1564,6 +1592,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         syncSelectedModalState(null);
         closeModal({ restoreFocus: true });
       }
+      return;
+    }
+
+    if (route.type === 'staff') {
+      if (
+        state.page === 'users' &&
+        staffHasRole(state.staff, 'owner') &&
+        pageController &&
+        typeof pageController.renderModal === 'function' &&
+        pageController.renderModal(route, { state: state })
+      ) {
+        return;
+      }
+      history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
+      syncSelectedModalState(null);
+      closeModal({ restoreFocus: true });
     }
   }
 
@@ -2035,6 +2079,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setUserLabel() {
     var target = $('[data-admin-user]');
+    syncOwnerNavigation(state.staff, state.page);
     if (target && state.staff) {
       var roleSummary = staffRoleSummary(state.staff);
       target.textContent = state.staff.display_name + (roleSummary ? ' - ' + roleSummary : '');
@@ -4954,25 +4999,28 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     refresh({ background: Boolean(loaded), preserveScroll: true, view: view }).catch(reportNavigationRefreshError);
   }
 
-  function setupLoginEvents(initialMessage) {
+  function setupLoginEvents(initialMessage, initialTemporaryPasswordUser) {
     var passwordForm = $('[data-admin-login-form]');
     if (!passwordForm) return;
 
     var title = $('#admin-login-title');
     var sessionStatus = $('[data-admin-login-session]');
+    var temporaryPasswordStep = $('[data-admin-temp-password]');
     var enrollStep = $('[data-admin-mfa-enroll]');
     var challengeStep = $('[data-admin-mfa-challenge]');
     var recoveryStep = $('[data-admin-mfa-recovery]');
     var codesStep = $('[data-admin-mfa-codes]');
+    var temporaryPasswordForm = $('[data-admin-temp-password-form]');
     var enrollForm = $('[data-admin-mfa-enroll-form]');
     var challengeForm = $('[data-admin-mfa-challenge-form]');
     var recoveryForm = $('[data-admin-mfa-recovery-form]');
     var activeFactor = null;
     var activeChallenge = null;
+    var activeUser = initialTemporaryPasswordUser || null;
     var recoveryCodes = [];
 
     function loginSteps() {
-      return [passwordForm, enrollStep, challengeStep, recoveryStep, codesStep];
+      return [passwordForm, temporaryPasswordStep, enrollStep, challengeStep, recoveryStep, codesStep];
     }
 
     function showLoginStep(step, heading) {
@@ -4995,14 +5043,95 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       target.textContent = message || '';
       if (!target.id) target.id = 'admin-login-status-' + Math.random().toString(36).slice(2);
       if (input) {
+        var descriptionId = String(input.dataset.adminDescriptionId || '').trim();
         if (message) {
           input.setAttribute('aria-invalid', 'true');
-          input.setAttribute('aria-describedby', target.id);
+          input.setAttribute(
+            'aria-describedby',
+            (descriptionId ? descriptionId + ' ' : '') + target.id
+          );
         } else {
           input.removeAttribute('aria-invalid');
-          input.removeAttribute('aria-describedby');
+          if (descriptionId) {
+            input.setAttribute('aria-describedby', descriptionId);
+          } else {
+            input.removeAttribute('aria-describedby');
+          }
         }
       }
+    }
+
+    function setStatuses(target, message, inputs) {
+      (inputs || []).forEach(function (input) {
+        setStatus(target, message, input);
+      });
+      if (!(inputs || []).length) setStatus(target, message);
+    }
+
+    function passwordValidationMessage(password, confirmation) {
+      if (password !== confirmation) return 'The two passwords do not match.';
+      if (Array.from(password).length < MIN_PASSWORD_CHARACTERS) {
+        return 'Use at least ' + MIN_PASSWORD_CHARACTERS + ' characters.';
+      }
+      if (new TextEncoder().encode(password).length > MAX_PASSWORD_BYTES) {
+        return 'Use no more than ' + MAX_PASSWORD_BYTES + ' UTF-8 bytes.';
+      }
+      if (/[\u0000-\u001f\u007f]/u.test(password) || !/\S/u.test(password)) {
+        return 'Choose a password without control characters.';
+      }
+      var email = String(activeUser && activeUser.email || '');
+      if (email && password.toLocaleLowerCase() === email.toLocaleLowerCase()) {
+        return 'The password cannot be your email address.';
+      }
+      return '';
+    }
+
+    async function requestTemporaryPassword(payload, session) {
+      var response = await fetch(TEMP_PASSWORD_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: SUPABASE_ANON_KEY,
+          Authorization: 'Bearer ' + session.access_token
+        },
+        cache: 'no-store',
+        body: JSON.stringify(payload)
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (!response.ok) {
+        var message = body.error || (
+          payload.action === 'status'
+            ? 'The account security state could not be checked.'
+            : 'The temporary password could not be changed.'
+        );
+        if (body.code === 'password_unchanged') {
+          message = 'Choose a password different from the temporary password.';
+        }
+        var passwordError = new Error(message);
+        passwordError.code = body.code || '';
+        passwordError.status = response.status;
+        throw passwordError;
+      }
+      return body;
+    }
+
+    async function temporaryPasswordStatus(session) {
+      var result = await requestTemporaryPassword({ action: 'status' }, session);
+      return result && result.must_change_password === true;
+    }
+
+    async function requestTemporaryPasswordChange(password) {
+      return requestTemporaryPassword(
+        { action: 'complete', password: password },
+        state.session
+      );
+    }
+
+    function showTemporaryPasswordStep(user) {
+      activeUser = user;
+      if (temporaryPasswordForm) temporaryPasswordForm.reset();
+      if (sessionStatus) sessionStatus.textContent = '';
+      showLoginStep(temporaryPasswordStep, 'Change temporary password');
     }
 
     function normalizeVerificationCode(value) {
@@ -5042,6 +5171,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     async function beginMfa(session) {
+      activeUser = await auth.getUser(session);
+      var serverRequiresPasswordChange = await temporaryPasswordStatus(session);
+      if (
+        serverRequiresPasswordChange ||
+        auth.requiresTemporaryPasswordChange(activeUser)
+      ) {
+        showTemporaryPasswordStep(activeUser);
+        return;
+      }
       await confirmApprovedStaff(session);
       var factors = await auth.listFactors(session);
 
@@ -5137,7 +5275,92 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       sessionStatus.textContent = initialMessage || '';
       sessionStatus.hidden = !sessionStatus.textContent;
     }
-    showLoginStep(passwordForm, 'Sign in');
+    if (activeUser && auth.requiresTemporaryPasswordChange(activeUser)) {
+      showTemporaryPasswordStep(activeUser);
+    } else {
+      showLoginStep(passwordForm, 'Sign in');
+    }
+
+    if (temporaryPasswordForm) {
+      var newPasswordInput = $('[name="newPassword"]', temporaryPasswordForm);
+      var newPasswordConfirmationInput = $('[name="newPasswordConfirmation"]', temporaryPasswordForm);
+      [newPasswordInput, newPasswordConfirmationInput].forEach(function (input) {
+        if (!input) return;
+        input.addEventListener('input', function () {
+          setStatuses(
+            $('[data-admin-temp-password-status]'),
+            '',
+            [newPasswordInput, newPasswordConfirmationInput]
+          );
+        });
+      });
+
+      temporaryPasswordForm.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        var status = $('[data-admin-temp-password-status]');
+        var password = String(newPasswordInput && newPasswordInput.value || '');
+        var confirmation = String(newPasswordConfirmationInput && newPasswordConfirmationInput.value || '');
+        var validationMessage = passwordValidationMessage(password, confirmation);
+        setStatuses(status, '', [newPasswordInput, newPasswordConfirmationInput]);
+        if (validationMessage) {
+          setStatuses(status, validationMessage, [newPasswordInput, newPasswordConfirmationInput]);
+          focusElement(validationMessage === 'The two passwords do not match.'
+            ? newPasswordConfirmationInput
+            : newPasswordInput);
+          return;
+        }
+
+        setFormBusy(temporaryPasswordForm, true, 'Changing password...');
+        if (temporaryPasswordSignOut) temporaryPasswordSignOut.disabled = true;
+        try {
+          var result = await requestTemporaryPasswordChange(password);
+          if (newPasswordInput) newPasswordInput.value = '';
+          if (newPasswordConfirmationInput) newPasswordConfirmationInput.value = '';
+
+          var reauthenticationEmail = String(activeUser && activeUser.email || '');
+          storeSession(null);
+          activeUser = null;
+          if (passwordForm) {
+            passwordForm.reset();
+            var reauthenticationEmailInput = $('[name="email"]', passwordForm);
+            if (reauthenticationEmailInput) reauthenticationEmailInput.value = reauthenticationEmail;
+          }
+          if (sessionStatus) {
+            sessionStatus.textContent = result && result.requires_reauthentication === true
+              ? 'Password changed. Sign in with your new password to continue to MFA.'
+              : 'Password changed. Sign in again to continue to MFA.';
+          }
+          showLoginStep(passwordForm, 'Sign in');
+          focusElement($('[name="password"]', passwordForm));
+        } catch (error) {
+          if (newPasswordInput) newPasswordInput.value = '';
+          if (newPasswordConfirmationInput) newPasswordConfirmationInput.value = '';
+          if (error && Number(error.status) === 401) {
+            await revokeAndClearSession();
+            activeUser = null;
+            if (passwordForm) passwordForm.reset();
+            if (sessionStatus) {
+              sessionStatus.textContent = 'Your session expired. Sign in again to change the temporary password.';
+            }
+            showLoginStep(passwordForm, 'Sign in');
+            return;
+          }
+          setStatuses(
+            status,
+            error instanceof Error ? error.message : 'The temporary password could not be changed.',
+            [newPasswordInput, newPasswordConfirmationInput]
+          );
+          focusElement(newPasswordInput);
+        } finally {
+          if (document.body.contains(temporaryPasswordForm)) {
+            setFormBusy(temporaryPasswordForm, false);
+          }
+          if (temporaryPasswordSignOut && document.body.contains(temporaryPasswordSignOut)) {
+            temporaryPasswordSignOut.disabled = false;
+          }
+        }
+      });
+    }
 
     bindCodeInput($('[name="verificationCode"]', enrollForm), normalizeVerificationCode);
     bindCodeInput($('[name="verificationCode"]', challengeForm), normalizeVerificationCode);
@@ -5175,6 +5398,25 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         if (document.body.contains(passwordForm)) setFormBusy(passwordForm, false);
       }
     });
+
+    var temporaryPasswordSignOut = $('[data-admin-temp-password-sign-out]');
+    if (temporaryPasswordSignOut) {
+      temporaryPasswordSignOut.addEventListener('click', async function () {
+        setButtonBusy(temporaryPasswordSignOut, true, 'Signing out...');
+        try {
+          await revokeAndClearSession();
+          activeUser = null;
+          if (temporaryPasswordForm) temporaryPasswordForm.reset();
+          if (passwordForm) passwordForm.reset();
+          if (sessionStatus) sessionStatus.textContent = '';
+          showLoginStep(passwordForm, 'Sign in');
+        } finally {
+          if (document.body.contains(temporaryPasswordSignOut)) {
+            setButtonBusy(temporaryPasswordSignOut, false);
+          }
+        }
+      });
+    }
 
     if (enrollForm) {
       enrollForm.addEventListener('submit', async function (event) {
@@ -5320,6 +5562,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         redirectTo(PATHS.dashboard);
       });
     }
+
+    window.addEventListener('pagehide', function () {
+      var newPasswordInput = $('[name="newPassword"]', temporaryPasswordForm);
+      var newPasswordConfirmationInput = $('[name="newPasswordConfirmation"]', temporaryPasswordForm);
+      if (newPasswordInput) newPasswordInput.value = '';
+      if (newPasswordConfirmationInput) newPasswordConfirmationInput.value = '';
+    }, { once: true });
   }
 
   function setupShellEvents() {
@@ -5737,12 +5986,27 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     replaceCurrentHistoryState();
 
     state.session = await getActiveSession();
+    var authenticatedUser = null;
+    if (state.session) {
+      try {
+        authenticatedUser = await auth.getUser(state.session);
+      } catch (error) {
+        await revokeAndClearSession(state.session);
+      }
+    }
 
     if (state.page === 'login') {
       if (state.session) {
+        if (auth.requiresTemporaryPasswordChange(authenticatedUser)) {
+          setupLoginEvents('', authenticatedUser);
+          if (pageController && typeof pageController.afterInit === 'function') {
+            pageController.afterInit({ state: state });
+          }
+          return;
+        }
         if (auth.assuranceLevel(state.session) === 'aal2') {
           try {
-            var factors = await auth.listFactors(state.session);
+            var factors = auth.factorsFromUser(authenticatedUser);
             if (factors.totp.length) {
               await loadDashboard('auth', { force: true });
               redirectTo(PATHS.dashboard);
@@ -5760,6 +6024,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (pageController && typeof pageController.afterInit === 'function') {
         pageController.afterInit({ state: state });
       }
+      return;
+    }
+
+    if (state.session && auth.requiresTemporaryPasswordChange(authenticatedUser)) {
+      redirectTo(PATHS.login);
       return;
     }
 
@@ -5805,6 +6074,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
     }
   }
+
+  Object.assign(modals, {
+    closeRoute: closeModalRoute,
+    confirm: openConfirmDialog,
+    isDirty: modalIsDirty,
+    markClean: markModalClean,
+    navigate: navigateToModal,
+    open: openModal,
+    renderCurrent: renderModalFromCurrentUrl
+  });
+  Object.assign(toast, { show: showToast });
 
   return init();
 }

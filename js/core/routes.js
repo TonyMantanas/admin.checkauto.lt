@@ -14,6 +14,7 @@ export const PATHS = {
   customers: adminPath('/customers/'),
   invoices: adminPath('/invoices/'),
   marketing: adminPath('/marketing/'),
+  users: adminPath('/users/'),
   account: adminPath('/account/'),
   resetPassword: adminPath('/reset-password/'),
   login: adminPath('/login/')
@@ -26,6 +27,7 @@ export const PAGE_TITLES = {
   customers: 'Customers',
   invoices: 'Invoices',
   marketing: 'Marketing',
+  users: 'Users',
   account: 'Account settings',
   resetPassword: 'Reset password',
   login: 'Sign in'
@@ -38,6 +40,7 @@ const PAGE_BY_PATH = {
   '/customers': 'customers',
   '/invoices': 'invoices',
   '/marketing': 'marketing',
+  '/users': 'users',
   '/account': 'account',
   '/login': 'login'
 };

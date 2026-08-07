@@ -72,6 +72,14 @@ function factorsFromUser(user) {
   };
 }
 
+function requiresTemporaryPasswordChange(user) {
+  return Boolean(
+    user &&
+    user.app_metadata &&
+    user.app_metadata.must_change_password === true
+  );
+}
+
 async function signInWithPassword(email, password) {
   const session = await request('/token?grant_type=password', {
     method: 'POST',
@@ -185,6 +193,7 @@ export const auth = {
   listFactors,
   normalizeSession,
   removeFactor,
+  requiresTemporaryPasswordChange,
   sessionId,
   signInWithPassword,
   signOut,

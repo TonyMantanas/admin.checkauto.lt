@@ -1,16 +1,16 @@
-import { api } from './core/api.js?v=20260727-3';
-import { auth } from './core/auth.js?v=20260802-4';
+import { api } from './core/api.js?v=20260804-1';
+import { auth } from './core/auth.js?v=20260804-1';
 import { calendar } from './core/calendar.js?v=20260727-3';
 import { controls } from './core/controls.js?v=20260727-3';
 import { drawers } from './core/drawers.js?v=20260727-3';
 import { formatters } from './core/formatting.js?v=20260727-3';
-import { modals } from './core/modals.js?v=20260727-3';
+import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
-import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260730-3';
-import { initAdminRuntime } from './core/runtime.js?v=20260802-3';
-import { renderShell } from './core/shell.js?v=20260802-1';
-import { state } from './core/state.js?v=20260802-1';
-import { toast } from './core/toast.js?v=20260727-3';
+import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260804-1';
+import { initAdminRuntime } from './core/runtime.js?v=20260804-1';
+import { renderShell } from './core/shell.js?v=20260804-1';
+import { state } from './core/state.js?v=20260804-1';
+import { toast } from './core/toast.js?v=20260804-1';
 import { validators } from './core/validation.js?v=20260727-3';
 
 const pageControllers = {
@@ -20,8 +20,9 @@ const pageControllers = {
   customers: () => import('./pages/customers.js?v=20260802-2'),
   invoices: () => import('./pages/invoices.js?v=20260802-2'),
   marketing: () => import('./pages/marketing.js?v=20260802-2'),
+  users: () => import('./pages/users.js?v=20260804-1'),
   account: () => import('./pages/account.js?v=20260802-3'),
-  login: () => import('./pages/login.js?v=20260802-1')
+  login: () => import('./pages/login.js?v=20260804-1')
 };
 
 function createContext(page, runtimeState = state) {

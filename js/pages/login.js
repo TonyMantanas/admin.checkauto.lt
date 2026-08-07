@@ -14,6 +14,47 @@ export function renderStaticPage(root) {
           <button class="admin-button admin-button-primary" type="submit">Sign in</button>
         </form>
 
+        <section class="admin-mfa-step" data-admin-temp-password hidden aria-labelledby="admin-temp-password-title">
+          <h2 id="admin-temp-password-title">Change temporary password</h2>
+          <p>Replace the temporary password before setting up or verifying your authenticator.</p>
+          <form data-admin-temp-password-form novalidate>
+            <label>
+              New password
+              <input
+                name="newPassword"
+                type="password"
+                autocomplete="new-password"
+                autocapitalize="none"
+                spellcheck="false"
+                data-admin-description-id="admin-temp-password-requirements"
+                aria-describedby="admin-temp-password-requirements"
+                required
+              >
+            </label>
+            <label>
+              Confirm new password
+              <input
+                name="newPasswordConfirmation"
+                type="password"
+                autocomplete="new-password"
+                autocapitalize="none"
+                spellcheck="false"
+                data-admin-description-id="admin-temp-password-requirements"
+                aria-describedby="admin-temp-password-requirements"
+                required
+              >
+            </label>
+            <p class="admin-password-guidance" id="admin-temp-password-requirements">
+              Use at least 14 characters. A passphrase or password-manager-generated password works well.
+            </p>
+            <p class="admin-status" data-admin-temp-password-status role="status" aria-live="polite"></p>
+            <div class="admin-mfa-actions">
+              <button class="admin-button admin-button-ghost" type="button" data-admin-temp-password-sign-out>Sign out</button>
+              <button class="admin-button admin-button-primary" type="submit">Change password and continue</button>
+            </div>
+          </form>
+        </section>
+
         <section class="admin-mfa-step" data-admin-mfa-enroll hidden aria-labelledby="admin-mfa-enroll-title">
           <h2 id="admin-mfa-enroll-title">Secure your account</h2>
           <p>Scan this code with Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</p>
