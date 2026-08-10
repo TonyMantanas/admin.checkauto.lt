@@ -5969,20 +5969,31 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         redirectTo(PATHS.dashboard);
         return false;
       }
-      showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
       clearPageLoadError();
       setUserLabel();
       setActiveNav();
       renderPage();
+      if (
+        !state.hasRendered &&
+        pageController &&
+        typeof pageController.beforeInitialReveal === 'function'
+      ) {
+        await pageController.beforeInitialReveal({ state: state });
+        if (
+          activityId !== refreshActivityId ||
+          adminViewForPage(state.page) !== requestedView
+        ) return false;
+      }
       restoreSlotEditorDraft(slotEditorDraft);
       if (!preserveDirtyModal) {
         renderModalFromCurrentUrl();
       } else if (opts.background) {
         showToast('Live data updated. Unsaved detail changes were kept.', 'info');
       }
+      setSyncState('Synced', 'synced');
+      showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
       startRealtime();
       state.hasRendered = true;
-      setSyncState('Synced', 'synced');
       return true;
     } catch (error) {
       if (isAbortError(error) || activityId !== refreshActivityId) return false;
@@ -6089,9 +6100,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     startExpiryTicker();
     setPageBusy(true, 'Loading admin data');
     setSyncState('Loading', 'loading');
-    if (!PAGE_ACCESS_RIGHTS[state.page]) {
-      showConsole({ preserveScroll: true });
-    }
 
     try {
       await refresh();
@@ -6101,9 +6109,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         redirectTo(PATHS.login);
         return;
       }
-      showConsole({ preserveScroll: true });
       setUserLabel();
       setActiveNav();
+      showConsole({ preserveScroll: true });
       if (viewIsLoaded(adminViewForPage(state.page))) {
         showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
       }

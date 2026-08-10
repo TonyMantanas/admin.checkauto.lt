@@ -890,6 +890,10 @@ export function beforeRender({ state }) {
   maybeLoadUsers(state);
 }
 
+export async function beforeInitialReveal() {
+  if (listPromise) await listPromise;
+}
+
 export function afterEvents({ state }) {
   const root = target('[data-page-root]');
   if (!root || root.dataset.usersBound === 'true') return;
