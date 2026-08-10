@@ -275,12 +275,12 @@ function setButtonBusy(button, busy) {
   if (!button) return;
   if (busy) {
     button.dataset.idleLabel = button.textContent;
-    button.textContent = 'Sending…';
+    button.textContent = 'Requesting…';
     button.classList.add('is-loading');
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
   } else {
-    button.textContent = button.dataset.idleLabel || 'Send reset link';
+    button.textContent = button.dataset.idleLabel || 'Receive reset link';
     button.classList.remove('is-loading');
     button.disabled = false;
     button.removeAttribute('aria-busy');
@@ -391,7 +391,7 @@ async function signOutOtherSessions(state) {
 
 async function requestPasswordReset(state, button) {
   if (!state.session || !state.session.access_token || !state.staff || !state.staff.auth_email) {
-    setStatus('Refresh the page and sign in again before requesting a reset.', 'error');
+    setStatus('Refresh the page and sign in again before requesting your reset link.', 'error');
     return;
   }
 
@@ -426,13 +426,13 @@ async function requestPasswordReset(state, button) {
     const body = await response.json().catch(() => ({}));
     if (requestController !== controller || controller.signal.aborted) return;
     if (!response.ok) {
-      const error = new Error(body.error || 'The reset email could not be sent.');
+      const error = new Error(body.error || 'Your reset link could not be requested.');
       error.name = body.code || 'PasswordResetError';
       throw error;
     }
 
     setStatus(
-      'Reset link sent. Open the newest link in this browser within 15 minutes.',
+      'You’ll receive a reset link by email. Open the newest link in this browser within 15 minutes.',
       'success'
     );
   } catch (error) {
@@ -443,7 +443,7 @@ async function requestPasswordReset(state, button) {
         ? 'Request status unknown. If an email arrives, use the newest link in this browser.'
         : error instanceof Error
           ? error.message
-          : 'The reset email could not be sent.',
+          : 'Your reset link could not be requested.',
       'error'
     );
   } finally {
@@ -497,12 +497,13 @@ export function renderStaticPage(root) {
 
             <section class="admin-account-section admin-account-security" aria-labelledby="account-security-title">
               <h2 id="account-security-title">Password</h2>
+              <p>Request a reset link for your own account. It will be emailed to your sign-in address.</p>
               <button
                 class="admin-button admin-button-secondary"
                 type="button"
                 data-account-password-reset
                 disabled
-              >Send reset link</button>
+              >Receive reset link</button>
               <p
                 class="admin-account-reset-status"
                 data-account-reset-status

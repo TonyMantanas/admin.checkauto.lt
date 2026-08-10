@@ -23,6 +23,15 @@ export function renderStaticPage(root) {
           </div>
           <div class="admin-page-actions admin-availability-actions">
             <button
+              class="admin-button admin-button-primary admin-availability-day-button"
+              type="button"
+              data-admin-day-schedule-open
+              aria-label="Create day schedule"
+              aria-haspopup="dialog"
+              title="Create day schedule"
+              disabled
+            >${ICONS.add}<span>Create day</span></button>
+            <button
               class="admin-button admin-button-secondary admin-icon-button"
               type="button"
               data-confirmation-schedule-open
@@ -32,7 +41,7 @@ export function renderStaticPage(root) {
               hidden
             >${ICONS.booking}</button>
             <button
-              class="admin-button admin-button-primary admin-availability-add-button"
+              class="admin-button admin-button-secondary admin-availability-add-button"
               type="button"
               data-admin-slot-open
               aria-label="Add availability slot"

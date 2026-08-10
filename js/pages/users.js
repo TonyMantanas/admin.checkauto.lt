@@ -127,12 +127,13 @@ function roleChips(roles) {
   )).join('');
 }
 
-function roleChoices(selectedRoles) {
+function roleChoices(selectedRoles, disabled = false) {
   return ROLE_OPTIONS.map((option) => {
     const checked = selectedRoles.includes(option.value) ? ' checked' : '';
+    const disabledAttribute = disabled ? ' disabled' : '';
     return `
       <label class="admin-user-role-choice">
-        <input type="checkbox" name="roles" value="${option.value}"${checked}>
+        <input type="checkbox" name="roles" value="${option.value}"${checked}${disabledAttribute}>
         <span>
           <strong>${escapeHtml(option.label)}</strong>
           <small>${escapeHtml(option.description)}</small>
@@ -198,7 +199,7 @@ function userRow(user, state) {
   const status = user.isActive ? 'active' : 'cancelled';
   const statusText = user.isActive ? 'Active' : 'Disabled';
   return `
-    <article class="admin-user-row" data-user-id="${escapeHtml(user.id)}">
+    <article class="admin-user-row" role="listitem" data-user-id="${escapeHtml(user.id)}">
       <div class="admin-user-primary">
         <strong>${escapeHtml(user.displayName || 'Unnamed user')}</strong>
         <span>${escapeHtml(user.email || 'No sign-in email')}</span>
@@ -209,19 +210,21 @@ function userRow(user, state) {
         ${user.mustChangePassword
           ? '<span class="admin-status-pill" data-status="warning">Password change required</span>'
           : ''}
+        ${isCurrentUser
+          ? '<span class="admin-status-pill" aria-label="Current user">You</span>'
+          : ''}
       </div>
       <div class="admin-user-activity">
         <span>${activity ? `Last sign-in ${escapeHtml(activity)}` : 'Never signed in'}</span>
-        ${isCurrentUser ? '<strong>Current user</strong>' : ''}
       </div>
-      ${isCurrentUser
-        ? '<span class="admin-user-self-label">Current account</span>'
-        : `<button
-            class="admin-button admin-button-secondary"
-            type="button"
-            data-user-edit="${escapeHtml(user.id)}"
-            aria-label="Edit ${escapeHtml(user.displayName || user.email || 'user')}"
-          >Edit</button>`}
+      <button
+        class="admin-button admin-button-secondary"
+        type="button"
+        data-user-edit="${escapeHtml(user.id)}"
+        aria-label="${isCurrentUser
+          ? 'View current user account'
+          : `Edit ${escapeHtml(user.displayName || user.email || 'user')}`}"
+      >${isCurrentUser ? 'View' : 'Edit'}</button>
     </article>
   `;
 }
@@ -441,11 +444,11 @@ async function runMutation(state, payload) {
   }
 }
 
-function modalHeader(title, subtitle, closeLabel) {
+function modalHeader(title, subtitle, closeLabel, badge = '') {
   return `
     <header class="admin-modal-header">
       <div>
-        <h2>${escapeHtml(title)}</h2>
+        <h2>${escapeHtml(title)}${badge ? ` <span class="admin-status-pill">${escapeHtml(badge)}</span>` : ''}</h2>
         ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
       </div>
       <button
@@ -515,15 +518,17 @@ function createUserModalHtml() {
 
 function editUserModalHtml(user, state) {
   const isCurrentUser = user.id === String(state.staff && state.staff.id || '');
+  const readOnlyAttribute = isCurrentUser ? ' readonly' : '';
+  const disabledAttribute = isCurrentUser ? ' disabled' : '';
   return `
-    ${modalHeader(user.displayName || 'Edit user', user.email, 'Close edit user')}
+    ${modalHeader(user.displayName || 'Edit user', user.email, 'Close edit user', isCurrentUser ? 'You' : '')}
     <form class="admin-action-form admin-user-form" data-user-edit-form data-user-id="${escapeHtml(user.id)}" novalidate>
       <section class="admin-user-modal-section" aria-labelledby="user-profile-title">
         <h3 id="user-profile-title">Profile</h3>
         <div class="admin-user-form-grid">
           <label>
             Name
-            <input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required autofocus>
+            <input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required${readOnlyAttribute}${isCurrentUser ? '' : ' autofocus'}>
           </label>
           <div class="admin-user-readonly-field">
             <span>Sign-in email</span>
@@ -531,25 +536,27 @@ function editUserModalHtml(user, state) {
           </div>
           <label>
             Phone <span class="admin-field-optional">Optional</span>
-            <input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40">
+            <input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40"${readOnlyAttribute}>
           </label>
           <label>
             Calendar email <span class="admin-field-optional">Optional</span>
-            <input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254">
+            <input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254"${readOnlyAttribute}>
           </label>
         </div>
       </section>
 
       <fieldset class="admin-user-role-fieldset admin-user-modal-section">
         <legend>Roles</legend>
-        <p>Choose one or more roles. At least one active Owner must remain.</p>
-        <div class="admin-user-role-choices">${roleChoices(user.roles)}</div>
+        <p>${isCurrentUser
+          ? 'Your roles are shown here and can be changed by another Owner.'
+          : 'Choose one or more roles. At least one active Owner must remain.'}</p>
+        <div class="admin-user-role-choices">${roleChoices(user.roles, isCurrentUser)}</div>
       </fieldset>
 
       <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
       <div class="admin-action-buttons admin-modal-actions">
-        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>
-        <button class="admin-button admin-button-primary" type="submit">Save changes</button>
+        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>${isCurrentUser ? 'Close' : 'Cancel'}</button>
+        <button class="admin-button admin-button-primary" type="submit"${disabledAttribute}>Save changes</button>
       </div>
     </form>
 
@@ -557,7 +564,9 @@ function editUserModalHtml(user, state) {
       <div class="admin-user-section-heading">
         <div>
           <h3 id="user-password-title">Temporary password</h3>
-          <p>Set a new temporary password and require a change at the user’s next sign-in.</p>
+          <p>${isCurrentUser
+            ? 'Your own password is managed from the Account page.'
+            : 'Set a new temporary password and require a change at the user’s next sign-in.'}</p>
         </div>
         ${user.mustChangePassword
           ? '<span class="admin-status-pill" data-status="warning">Change required</span>'
@@ -567,16 +576,16 @@ function editUserModalHtml(user, state) {
         <div class="admin-user-form-grid">
           <label>
             Temporary password
-            <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required>
+            <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
           </label>
           <label>
             Confirm password
-            <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required>
+            <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
           </label>
         </div>
         <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
         <div class="admin-action-buttons">
-          <button class="admin-button admin-button-secondary" type="submit">Set temporary password</button>
+          <button class="admin-button admin-button-secondary" type="submit"${disabledAttribute}>Set temporary password</button>
         </div>
       </form>
     </section>
@@ -618,19 +627,6 @@ function missingUserModalHtml() {
     ${modalHeader('User not found', '', 'Close user')}
     <div class="admin-empty-state admin-empty-state-compact" role="alert">
       <p>This user may have been removed or is no longer available.</p>
-      <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
-    </div>
-  `;
-}
-
-function currentUserModalHtml(user) {
-  return `
-    ${modalHeader(user.displayName || 'Current account', user.email, 'Close current account')}
-    <div class="admin-empty-state admin-empty-state-compact" role="status">
-      <div>
-        <h3>Current account</h3>
-        <p>Your own profile, roles, access, and temporary password cannot be changed from user management.</p>
-      </div>
       <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
     </div>
   `;
@@ -833,18 +829,19 @@ function bindModalEvents(root, state, user) {
     return;
   }
 
+  const isCurrentUser = Boolean(user && user.id === String(state.staff && state.staff.id || ''));
   const editForm = target('[data-user-edit-form]', root);
-  if (editForm && user) {
+  if (editForm && user && !isCurrentUser) {
     editForm.addEventListener('submit', (event) => handleEditSubmit(event, state, user));
   }
   const passwordForm = target('[data-user-temp-password-form]', root);
-  if (passwordForm && user) {
+  if (passwordForm && user && !isCurrentUser) {
     passwordForm.addEventListener('submit', (event) => (
       handleTemporaryPasswordSubmit(event, state, user)
     ));
   }
   const activeButton = target('[data-user-set-active]', root);
-  if (activeButton && user) {
+  if (activeButton && user && !isCurrentUser) {
     activeButton.addEventListener('click', () => (
       handleSetActive(activeButton, state, user, activeButton.dataset.userSetActive === 'true')
     ));
@@ -938,11 +935,6 @@ export function renderModal(route, { state }) {
   const user = userById(state, route.id);
   if (!user) {
     modals.open(missingUserModalHtml(), 'sm');
-    return true;
-  }
-
-  if (user.id === String(state.staff && state.staff.id || '')) {
-    modals.open(currentUserModalHtml(user), 'sm');
     return true;
   }
 
