@@ -2379,6 +2379,26 @@ a.admin-dashboard-operation:focus-visible {
   transform: translate(-50%, calc(-100% - 0.5rem));
 }
 
+.admin-dashboard-chart-tooltip.is-start {
+  transform: translate(0, calc(-100% - 0.5rem));
+}
+
+.admin-dashboard-chart-tooltip.is-end {
+  transform: translate(-100%, calc(-100% - 0.5rem));
+}
+
+.admin-dashboard-chart-tooltip.is-below {
+  transform: translate(-50%, 0.5rem);
+}
+
+.admin-dashboard-chart-tooltip.is-start.is-below {
+  transform: translate(0, 0.5rem);
+}
+
+.admin-dashboard-chart-tooltip.is-end.is-below {
+  transform: translate(-100%, 0.5rem);
+}
+
 .admin-dashboard-data-details {
   margin: 0 var(--admin-space-4) var(--admin-space-4);
   border-block-start: 1px solid var(--admin-border);

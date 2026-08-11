@@ -990,6 +990,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!data || typeof data !== 'object') return;
     if (data.staff) state.staff = data.staff;
     if (Array.isArray(data.accountSessions)) state.accountSessions = data.accountSessions;
+    if (Array.isArray(data.customers)) {
+      Object.keys(customerActivityLoads).forEach(function (customerId) {
+        customerActivityLoads[customerId].controller.abort();
+      });
+      customerActivityLoads = Object.create(null);
+      customerActivityLoadSequence += 1;
+      state.customerActivityCache = Object.create(null);
+    }
     [
       'bookings',
       'services',
@@ -2402,17 +2410,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<span class="admin-dashboard-kpi-comparison">Previous-period comparison unavailable</span>';
     }
     if (previous === 0) {
-      return '<span class="admin-dashboard-kpi-comparison">' +
-        (current === 0 ? 'Same as ' + escapeHtml(previousLabel) : 'No ' + escapeHtml(previousLabel) + ' activity') +
-      '</span>';
+      return '<span class="admin-dashboard-kpi-comparison">No activity in the ' + escapeHtml(previousLabel) + '</span>';
     }
     var percent = Math.round(((current - previous) / previous) * 100);
     var improved = lowerIsBetter ? percent < 0 : percent > 0;
     var tone = percent === 0 ? 'neutral' : (improved ? 'positive' : 'negative');
     return '<span class="admin-dashboard-kpi-comparison" data-tone="' + tone + '">' +
       (percent === 0
-        ? 'Same as ' + escapeHtml(previousLabel)
-        : Math.abs(percent) + '% ' + (percent > 0 ? 'more' : 'fewer') + ' than ' + escapeHtml(previousLabel)) +
+        ? 'No change from the ' + escapeHtml(previousLabel)
+        : Math.abs(percent) + '% ' + (percent > 0 ? 'more' : 'fewer') + ' than the ' + escapeHtml(previousLabel)) +
     '</span>';
   }
 
@@ -2441,12 +2447,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var current = dashboardMoneyEntries(currentValue);
     var previous = dashboardMoneyEntries(previousValue);
     if (current.length === 1 && previous.length === 1 && current[0].currency === previous[0].currency) {
-      return dashboardComparison(current[0].amount_cents, previous[0].amount_cents, 'previous month', false);
+      return dashboardComparison(current[0].amount_cents, previous[0].amount_cents, 'same period last month', false);
     }
     if (!previous.length) {
-      return '<span class="admin-dashboard-kpi-comparison">Previous month unavailable</span>';
+      return '<span class="admin-dashboard-kpi-comparison">Same period last month unavailable</span>';
     }
-    return '<span class="admin-dashboard-kpi-comparison">Previous month: ' + previous.map(function (entry) {
+    return '<span class="admin-dashboard-kpi-comparison">Same period last month: ' + previous.map(function (entry) {
       return escapeHtml(formatMoney(entry.amount_cents, entry.currency));
     }).join(' / ') + '</span>';
   }
@@ -2505,28 +2511,33 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     var primaryItems = [
-      countItem('Bookings this month', kpis.bookings_month, 'previous month', PATHS.bookings + '?filter=all', false),
-      countItem('Completed this month', kpis.completed_month, 'previous month', PATHS.bookings + '?filter=completed', false),
-      countItem('Cancelled or rejected', kpis.cancelled_rejected_month, 'previous month', PATHS.bookings + '?filter=all', true)
+      countItem('Bookings this month', kpis.bookings_month, 'same period last month', null, false),
+      countItem('Completed this month', kpis.completed_month, 'same period last month', null, false),
+      countItem('Cancelled or rejected', kpis.cancelled_rejected_month, 'same period last month', null, true)
     ];
 
     var secondaryItems = [
-      countItem('Bookings received today', kpis.bookings_today, 'yesterday', null, false),
-      countItem('Bookings received this week', kpis.bookings_week, 'previous week', PATHS.bookings + '?filter=all', false)
+      countItem('Bookings received today', kpis.bookings_today, 'same time yesterday', null, false),
+      countItem('Bookings received this week', kpis.bookings_week, 'same period last week', null, false)
     ];
 
     if (analytics.can_view_financials === true) {
-      var currentRevenue = dashboardMoneyEntries(kpis.revenue_month && kpis.revenue_month.current);
-      var previousRevenue = dashboardMoneyEntries(kpis.revenue_month && kpis.revenue_month.previous);
+      var revenueMetric = kpis.revenue_month && typeof kpis.revenue_month === 'object'
+        ? kpis.revenue_month
+        : null;
+      var hasCurrentRevenuePeriod = revenueMetric && Object.prototype.hasOwnProperty.call(revenueMetric, 'current');
+      var hasPreviousRevenuePeriod = revenueMetric && Object.prototype.hasOwnProperty.call(revenueMetric, 'previous');
+      var currentRevenue = dashboardMoneyEntries(revenueMetric && revenueMetric.current);
+      var previousRevenue = dashboardMoneyEntries(revenueMetric && revenueMetric.previous);
       var averageCompletedValue = dashboardMoneyEntries(kpis.average_completed_value_month);
-      if (!currentRevenue.length) currentRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 0));
-      if (!previousRevenue.length) previousRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 1));
+      if (!hasCurrentRevenuePeriod) currentRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 0));
+      if (!hasPreviousRevenuePeriod) previousRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 1));
       primaryItems.splice(2, 0, {
         label: 'Paid revenue this month',
         value: currentRevenue.length ? dashboardMoneyMarkup(currentRevenue) : '<span class="admin-dashboard-no-value">No paid invoices</span>',
         unavailable: false,
         comparison: currentRevenue.length ? dashboardMoneyComparison(currentRevenue, previousRevenue) : '<span class="admin-dashboard-kpi-comparison">No paid-invoice revenue this month</span>',
-        href: PATHS.invoices
+        href: null
       });
       secondaryItems.push({
         label: 'Average completed value',
@@ -2621,6 +2632,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    var scheduledCount = dashboardNumber(today.scheduled_count);
+    if (scheduledCount === null && Array.isArray(today.bookings)) scheduledCount = today.bookings.length;
     var bookingsMarkup;
     if (!Array.isArray(today.bookings)) {
       bookingsMarkup = dashboardEmptyState("Today's inspection schedule is not available.");
@@ -2631,12 +2644,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       bookingsMarkup = '<div class="admin-dashboard-operations-list">' + visibleBookings.map(function (booking) {
         return dashboardBookingMarkup(booking, false);
       }).join('') + '</div>' +
-        '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=today">View today\'s bookings' + (today.bookings.length > visibleBookings.length ? ' (' + today.bookings.length + ')' : '') + '</a>';
+        '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=today">View today\'s bookings' + (scheduledCount > visibleBookings.length ? ' (' + dashboardCount(scheduledCount) + ')' : '') + '</a>';
     }
 
     root.innerHTML =
       '<div class="admin-dashboard-today-facts" aria-label="Today at a glance">' +
-        '<div><strong>' + escapeHtml(Array.isArray(today.bookings) ? dashboardCount(today.bookings.length) : 'Not available') + '</strong><span>Inspections scheduled</span></div>' +
+        '<div><strong>' + escapeHtml(dashboardCount(scheduledCount)) + '</strong><span>Inspections scheduled</span></div>' +
         '<a href="' + PATHS.availability + '"><strong>' + escapeHtml(dashboardCount(today.available_slots_remaining)) + '</strong><span>Bookable times left</span></a>' +
       '</div>' +
       (today.next_booking ? '<div class="admin-dashboard-next"><h3>Next inspection</h3>' + dashboardBookingMarkup(today.next_booking, true) + '</div>' : '') +
@@ -3049,12 +3062,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var tooltip = plot && $('[data-dashboard-chart-tooltip]', plot);
       if (!tooltip) return;
       var show = function () {
+        var x = Number(point.dataset.chartX);
+        var y = Number(point.dataset.chartY);
         tooltip.textContent = point.dataset.chartTooltip || '';
         tooltip.style.setProperty('--chart-x', point.dataset.chartX + '%');
         tooltip.style.setProperty('--chart-y', point.dataset.chartY + '%');
+        tooltip.classList.toggle('is-start', Number.isFinite(x) && x < 14);
+        tooltip.classList.toggle('is-end', Number.isFinite(x) && x > 86);
+        tooltip.classList.toggle('is-below', Number.isFinite(y) && y < 22);
         tooltip.hidden = false;
       };
-      var hide = function () { tooltip.hidden = true; };
+      var hide = function () {
+        tooltip.hidden = true;
+        tooltip.classList.remove('is-start', 'is-end', 'is-below');
+      };
       point.addEventListener('pointerenter', show);
       point.addEventListener('pointerleave', hide);
       point.addEventListener('focus', show);
@@ -3299,7 +3320,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var today = todayYmd();
       bookings = bookings.filter(function (booking) {
         var start = bookingScheduleStart(booking);
-        return start && ['pending', 'confirmed'].includes(booking.status) && formatDate(start) === today;
+        var pendingIsActive = booking.status !== 'pending' || (
+          booking.pending_expires_at && new Date(booking.pending_expires_at).getTime() >= Date.now()
+        );
+        return start &&
+          ['pending', 'confirmed', 'completed'].includes(booking.status) &&
+          pendingIsActive &&
+          formatDate(start) === today;
       });
     } else if (state.filter === 'completed') {
       bookings = bookings.filter(function (booking) { return booking.status === 'completed'; });
@@ -3756,7 +3783,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function marketingLabel(status) {
     return {
-      opted_in: 'Marketing allowed',
+      opted_in: 'Opted in',
       withdrawn: 'Consent withdrawn',
       suppressed: 'Marketing blocked',
       not_asked: 'No marketing consent'
@@ -4163,9 +4190,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<details class="admin-privacy-record-details">' +
             '<summary>View consent and retention dates</summary>' +
             '<div class="admin-detail-list">' +
-              detailRow('Consent recorded', customer.marketing_consent_at ? formatDateTime(customer.marketing_consent_at) : '') +
-              detailRow('Consent source', customer.marketing_consent_source) +
-              detailRow('Consent version', customer.marketing_consent_text_version) +
+              detailRow('Terms accepted', customer.terms_accepted_at ? formatDateTime(customer.terms_accepted_at) : 'Not recorded') +
+              detailRow('Terms version', customer.terms_text_version) +
+              detailRow('Privacy accepted', customer.privacy_accepted_at ? formatDateTime(customer.privacy_accepted_at) : 'Not recorded') +
+              detailRow('Privacy version', customer.privacy_text_version) +
+              detailRow('Marketing consent recorded', customer.marketing_consent_at ? formatDateTime(customer.marketing_consent_at) : 'Not recorded') +
+              detailRow('Marketing consent source', customer.marketing_consent_source) +
+              detailRow('Marketing consent version', customer.marketing_consent_text_version) +
               detailRow('Re-permission due', customer.marketing_repermission_due_at ? formatDateTime(customer.marketing_repermission_due_at) : '') +
               detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
               detailRow('Erasure completed', customer.erasure_completed_at ? formatDateTime(customer.erasure_completed_at) : 'Not completed') +
@@ -4244,14 +4275,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         }
       });
     }
-    modal.addEventListener('click', function (event) {
+    if (activityDisclosure) activityDisclosure.addEventListener('click', function (event) {
       if (!event.target || typeof event.target.closest !== 'function') return;
       var retry = event.target.closest('[data-customer-activity-retry]');
-      if (retry && modal.contains(retry) && activityDisclosure && activityDisclosure.open) {
+      var activityPanel = event.target.closest('[data-customer-activity-panel]');
+      if (retry && activityDisclosure.open && activityPanel && activityPanel.dataset.customerId === customer.id) {
         loadCustomerActivity(customer.id, { force: true }).catch(function () {});
         return;
       }
-      var activityPanel = event.target.closest('[data-customer-activity-panel]');
       if (!activityPanel || activityPanel.dataset.customerId !== customer.id) return;
       var bookingButton = event.target.closest('[data-open-booking]');
       if (bookingButton && bookingById(bookingButton.dataset.openBooking)) {
