@@ -30,41 +30,35 @@ export function renderStaticPage(root) {
     <header class="admin-dashboard-heading">
       <div>
         <h1>Dashboard</h1>
-        <p data-dashboard-generated aria-live="polite">Loading the latest business data...</p>
       </div>
+      <p data-dashboard-generated aria-live="polite">Loading the latest business data...</p>
     </header>
 
     <div class="admin-dashboard-load-error" data-dashboard-status hidden></div>
 
     <div class="admin-dashboard-content" data-dashboard-content>
-      <section class="admin-dashboard-command-grid" aria-label="Current operations">
-        <section class="admin-panel admin-dashboard-attention-panel" aria-labelledby="dashboard-attention-title">
-          <div class="admin-panel-header admin-panel-header-compact admin-dashboard-section-header">
-            <div>
-              <span>Action queue</span>
-              <h2 id="dashboard-attention-title">Needs attention</h2>
-            </div>
-          </div>
-          <div data-dashboard-attention>${dashboardListSkeletons(2)}</div>
-        </section>
-
-        <section class="admin-panel admin-dashboard-today" aria-labelledby="dashboard-today-title">
-          <div class="admin-panel-header admin-panel-header-compact admin-dashboard-section-header">
-            <div>
-              <span>Today</span>
-              <h2 id="dashboard-today-title">Daily operations</h2>
-            </div>
-          </div>
+      <section class="admin-dashboard-operations-board" aria-label="Today's operations">
+        <section class="admin-dashboard-today" aria-labelledby="dashboard-today-title">
+          <header class="admin-dashboard-board-heading">
+            <h2 id="dashboard-today-title">Today</h2>
+            <p>Schedule, staffing, and bookable time.</p>
+          </header>
           <div data-dashboard-today>${dashboardListSkeletons(4)}</div>
         </section>
+
+        <aside class="admin-dashboard-action-rail" aria-labelledby="dashboard-attention-title">
+          <header class="admin-dashboard-board-heading">
+            <h2 id="dashboard-attention-title" data-dashboard-attention-title>Needs action</h2>
+            <p data-dashboard-attention-summary>Bookings that need review or assignment.</p>
+          </header>
+          <div data-dashboard-attention>${dashboardListSkeletons(2)}</div>
+        </aside>
       </section>
 
-      <section class="admin-dashboard-overview" aria-labelledby="dashboard-overview-title">
-        <div class="admin-dashboard-overview-heading">
-          <div>
-            <h2 id="dashboard-overview-title">Business overview</h2>
-            <p>The measures that best describe this month's performance.</p>
-          </div>
+      <section class="admin-dashboard-metrics-band" aria-labelledby="dashboard-overview-title">
+        <div class="admin-dashboard-metrics-heading">
+          <h2 id="dashboard-overview-title">Month to date</h2>
+          <p>Compared with the same elapsed period last month.</p>
         </div>
         <div class="admin-dashboard-kpis" data-dashboard-kpis aria-label="Business key performance indicators">
           ${dashboardKpiSkeletons()}
@@ -75,59 +69,59 @@ export function renderStaticPage(root) {
         </details>
       </section>
 
-      <section class="admin-panel admin-dashboard-trend" aria-labelledby="dashboard-trend-title">
-        <div class="admin-panel-header admin-dashboard-chart-header">
-          <div>
-            <span class="admin-dashboard-section-kicker">Demand and delivery</span>
-            <h2 id="dashboard-trend-title">Bookings and completed inspections</h2>
-            <p data-dashboard-trend-summary>Loading booking history...</p>
-          </div>
+      <section class="admin-dashboard-performance-board admin-dashboard-trend" aria-labelledby="dashboard-trend-title">
+        <header class="admin-dashboard-trend-heading">
+          <h2 id="dashboard-trend-title">Bookings and completed inspections</h2>
           <div class="admin-segmented" data-dashboard-trend-range role="group" aria-label="Booking trend period">
             <button type="button" data-trend-days="7" aria-pressed="false" disabled>7 days</button>
             <button type="button" data-trend-days="30" aria-pressed="true" class="is-active" disabled>30 days</button>
             <button type="button" data-trend-days="90" aria-pressed="false" disabled>3 months</button>
             <button type="button" data-trend-days="365" aria-pressed="false" disabled>12 months</button>
           </div>
-        </div>
-        <div data-dashboard-trend-chart aria-hidden="true">
-          <div class="admin-dashboard-chart-loading">
-            ${skeletons.block('admin-dashboard-skeleton-chart')}
+        </header>
+        <div class="admin-dashboard-performance-body">
+          <div class="admin-dashboard-chart-column">
+            <p class="admin-dashboard-trend-summary" data-dashboard-trend-summary aria-live="polite">Loading booking history...</p>
+            <div data-dashboard-trend-chart aria-hidden="true">
+              <div class="admin-dashboard-chart-loading">
+                ${skeletons.block('admin-dashboard-skeleton-chart')}
+              </div>
+            </div>
           </div>
+          <aside class="admin-dashboard-period-readout" aria-label="Selected period totals">
+            <div data-dashboard-period-readout>
+              <h3>Selected period</h3>
+              <p>Loading period totals...</p>
+            </div>
+          </aside>
         </div>
       </section>
 
       <section class="admin-dashboard-secondary-grid">
-        <section class="admin-panel admin-dashboard-revenue" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
-          <div class="admin-panel-header admin-panel-header-compact admin-dashboard-section-header">
-            <div>
-              <span>Financials</span>
-              <h2 id="dashboard-revenue-title">Paid revenue</h2>
-              <p>Paid, non-void invoices only.</p>
-            </div>
-          </div>
+        <section class="admin-dashboard-support-section admin-dashboard-revenue" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
+          <header class="admin-dashboard-support-heading">
+            <h2 id="dashboard-revenue-title">Paid revenue</h2>
+            <p>Paid, non-void invoices only.</p>
+          </header>
           <div data-dashboard-revenue></div>
         </section>
 
-        <section class="admin-panel admin-dashboard-staff" aria-labelledby="dashboard-staff-title">
-          <div class="admin-panel-header admin-panel-header-compact admin-dashboard-section-header">
-            <div>
-              <span>Last 30 days</span>
-              <h2 id="dashboard-staff-title">Inspector output</h2>
-            </div>
-          </div>
+        <section class="admin-dashboard-support-section admin-dashboard-staff" aria-labelledby="dashboard-staff-title">
+          <header class="admin-dashboard-support-heading">
+            <h2 id="dashboard-staff-title">Inspector output</h2>
+            <p data-dashboard-staff-period>Completed inspections during the last 30 days.</p>
+          </header>
           <div data-dashboard-staff>${dashboardListSkeletons(4)}</div>
         </section>
-
-        <section class="admin-panel admin-dashboard-activity" aria-labelledby="dashboard-activity-title">
-          <div class="admin-panel-header admin-panel-header-compact admin-dashboard-section-header">
-            <div>
-              <span>Latest changes</span>
-              <h2 id="dashboard-activity-title">Recent activity</h2>
-            </div>
-          </div>
-          <div data-dashboard-activity>${dashboardListSkeletons(5)}</div>
-        </section>
       </section>
+
+      <details class="admin-dashboard-activity-disclosure admin-dashboard-activity">
+        <summary id="dashboard-activity-title">
+          <span>Recent activity</span>
+          <small data-dashboard-activity-count>Latest booking and invoice changes</small>
+        </summary>
+        <div role="region" aria-labelledby="dashboard-activity-title" data-dashboard-activity>${dashboardListSkeletons(5)}</div>
+      </details>
     </div>
   `;
 }
