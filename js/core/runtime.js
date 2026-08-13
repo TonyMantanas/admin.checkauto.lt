@@ -2403,7 +2403,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<div class="admin-empty-state admin-empty-state-compact" role="status"><p>' + escapeHtml(message) + '</p></div>';
   }
 
-  function dashboardComparison(currentValue, previousValue, previousLabel, lowerIsBetter, neutralTone) {
+  function dashboardComparison(currentValue, previousValue, previousLabel, direction) {
     var current = dashboardNumber(currentValue);
     var previous = dashboardNumber(previousValue);
     if (current === null || previous === null || previous < 0) {
@@ -2415,8 +2415,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         : 'No activity in the comparable prior period') + '</span>';
     }
     var percent = Math.round(((current - previous) / previous) * 100);
-    var improved = lowerIsBetter ? percent < 0 : percent > 0;
-    var tone = neutralTone || percent === 0 ? 'neutral' : (improved ? 'positive' : 'negative');
+    var tone = percent === 0 || direction === 'neutral'
+      ? 'neutral'
+      : ((direction === 'lower' ? percent < 0 : percent > 0) ? 'positive' : 'negative');
     return '<span class="admin-dashboard-kpi-comparison" data-tone="' + tone + '">' +
       (percent === 0
         ? 'No change vs ' + escapeHtml(previousLabel)
@@ -2449,7 +2450,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var current = dashboardMoneyEntries(currentValue);
     var previous = dashboardMoneyEntries(previousValue);
     if (current.length === 1 && previous.length === 1 && current[0].currency === previous[0].currency) {
-      return dashboardComparison(current[0].amount_cents, previous[0].amount_cents, 'same period last month', false);
+      return dashboardComparison(current[0].amount_cents, previous[0].amount_cents, 'same period last month', 'higher');
     }
     if (!previous.length) {
       return '<span class="admin-dashboard-kpi-comparison">Same period last month unavailable</span>';
@@ -2469,13 +2470,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     '</' + tag + '>';
   }
 
-  function dashboardSecondaryMetricMarkup(item) {
-    return '<div>' +
-      '<dt>' + escapeHtml(item.label) + '</dt>' +
-      '<dd><strong' + (item.unavailable ? ' class="admin-dashboard-value-unavailable"' : '') + '>' + item.value + '</strong>' + (item.comparison || '') + '</dd>' +
-    '</div>';
-  }
-
   function dashboardRevenuePeriodFromTrend(analytics, offset) {
     var rows = Array.isArray(analytics && analytics.revenue_trend) ? analytics.revenue_trend : [];
     var months = rows.map(function (row) { return String(row && row.month || '').slice(0, 7); })
@@ -2491,37 +2485,29 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderDashboardKpis(analytics) {
     var root = $('[data-dashboard-kpis]');
-    var secondaryRoot = $('[data-dashboard-secondary-kpis]');
-    var moreMetrics = $('[data-dashboard-more-metrics]');
     if (!root) return;
     var kpis = analytics && analytics.kpis && typeof analytics.kpis === 'object' ? analytics.kpis : null;
     if (!kpis) {
       root.innerHTML = dashboardEmptyState('Business metrics are not available.');
-      if (moreMetrics) moreMetrics.hidden = true;
+      root.style.removeProperty('--admin-dashboard-kpi-count');
       return;
     }
 
-    function countItem(label, metric, previousLabel, href, lowerIsBetter, neutralComparison) {
+    function countItem(label, metric, href, direction) {
       var current = metric && dashboardNumber(metric.current);
       return {
         label: label,
         period: 'Month to date',
         value: escapeHtml(dashboardCount(current)),
         unavailable: current === null,
-        comparison: dashboardComparison(metric && metric.current, metric && metric.previous, previousLabel, lowerIsBetter, neutralComparison),
+        comparison: dashboardComparison(metric && metric.current, metric && metric.previous, 'same period last month', direction),
         href: href
       };
     }
 
     var primaryItems = [
-      countItem('New bookings', kpis.bookings_month, 'same period last month', null, false),
-      countItem('Completed inspections', kpis.completed_month, 'same period last month', null, false),
-      countItem('Cancelled or rejected', kpis.cancelled_rejected_month, 'same period last month', null, true, true)
-    ];
-
-    var secondaryItems = [
-      countItem('Bookings received today', kpis.bookings_today, 'same time yesterday', null, false),
-      countItem('Bookings received this week', kpis.bookings_week, 'same period last week', null, false)
+      countItem('Bookings received', kpis.bookings_month, PATHS.bookings, 'neutral'),
+      countItem('Inspections completed', kpis.completed_month, PATHS.bookings + '?filter=completed', 'higher')
     ];
 
     if (analytics.can_view_financials === true) {
@@ -2532,28 +2518,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var hasPreviousRevenuePeriod = revenueMetric && Object.prototype.hasOwnProperty.call(revenueMetric, 'previous');
       var currentRevenue = dashboardMoneyEntries(revenueMetric && revenueMetric.current);
       var previousRevenue = dashboardMoneyEntries(revenueMetric && revenueMetric.previous);
-      var averageCompletedValue = dashboardMoneyEntries(kpis.average_completed_value_month);
       if (!hasCurrentRevenuePeriod) currentRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 0));
       if (!hasPreviousRevenuePeriod) previousRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 1));
-      primaryItems.splice(2, 0, {
-        label: 'Paid revenue',
-        period: 'Paid, non-void invoices',
-        value: currentRevenue.length ? dashboardMoneyMarkup(currentRevenue) : '<span class="admin-dashboard-no-value">No paid invoices</span>',
+      primaryItems.push({
+        label: 'Payments received',
+        period: 'Gross paid invoice total',
+        value: currentRevenue.length ? dashboardMoneyMarkup(currentRevenue) : '<span class="admin-dashboard-no-value">No payments</span>',
         unavailable: false,
-        comparison: currentRevenue.length ? dashboardMoneyComparison(currentRevenue, previousRevenue) : '<span class="admin-dashboard-kpi-comparison">No paid-invoice revenue this month</span>',
-        href: null
-      });
-      secondaryItems.push({
-        label: 'Average completed value',
-        value: averageCompletedValue.length ? dashboardMoneyMarkup(averageCompletedValue) : '<span class="admin-dashboard-no-value">No completed paid inspections</span>',
-        unavailable: false,
-        comparison: averageCompletedValue.length ? '<span class="admin-dashboard-kpi-comparison">This month</span>' : ''
+        comparison: currentRevenue.length
+          ? dashboardMoneyComparison(currentRevenue, previousRevenue)
+          : (previousRevenue.length
+            ? '<span class="admin-dashboard-kpi-comparison" data-tone="neutral">Down from ' + previousRevenue.map(function (entry) { return escapeHtml(formatMoney(entry.amount_cents, entry.currency)); }).join(' / ') + '</span>'
+            : '<span class="admin-dashboard-kpi-comparison">No payments in either period</span>'),
+        href: PATHS.invoices
       });
     }
 
+    root.style.setProperty('--admin-dashboard-kpi-count', String(primaryItems.length));
     root.innerHTML = primaryItems.map(dashboardKpiMarkup).join('');
-    if (secondaryRoot) secondaryRoot.innerHTML = secondaryItems.map(dashboardSecondaryMetricMarkup).join('');
-    if (moreMetrics) moreMetrics.hidden = !secondaryItems.length;
   }
 
   function dashboardBookingTime(booking, includeDate) {
@@ -2622,11 +2604,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var canManage = staffHasAccess(state.staff, 'operations.manage', ['owner', 'admin', 'inspector']);
     var title = $('[data-dashboard-attention-title]');
     var summary = $('[data-dashboard-attention-summary]');
+    var panel = root.closest('.admin-dashboard-action-rail');
     if (title) title.textContent = canManage ? 'Needs action' : 'Booking watchlist';
 
     if (attention && Array.isArray(attention.items)) {
       var total = dashboardNumber(attention.total_unique_count);
-      var items = attention.items;
+      var items = attention.items.slice(0, 3);
+      if (panel) panel.dataset.state = total > 0 ? 'attention' : 'clear';
       if (summary) summary.textContent = total > 0
         ? dashboardCountWithNoun(total, 'booking needs', 'bookings need') + (canManage ? ' action' : ' attention')
         : 'No booking exceptions';
@@ -2648,7 +2632,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           ? '<a href="' + PATHS.bookings + '?booking=' + encodeURIComponent(item.id) + '">' + body + '</a>'
           : '<div>' + body + '</div>') + '</li>';
       }).join('') + '</ol>' +
-        (attention.has_more
+        (attention.has_more || attention.items.length > items.length
           ? '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=all">View all booking exceptions</a>'
           : '');
       return;
@@ -2657,11 +2641,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var pending = dashboardNumber(legacyToday && legacyToday.pending_approvals);
     var unassigned = dashboardNumber(legacyToday && legacyToday.unassigned);
     if (pending === null || unassigned === null) {
+      if (panel) panel.dataset.state = 'unknown';
       if (summary) summary.textContent = 'Unavailable';
       root.innerHTML = dashboardEmptyState('The action queue is not available.');
       return;
     }
     var legacyTotal = pending + unassigned;
+    if (panel) panel.dataset.state = legacyTotal > 0 ? 'attention' : 'clear';
     if (summary) summary.textContent = legacyTotal ? dashboardCountWithNoun(legacyTotal, 'exception', 'exceptions') : 'No booking exceptions';
     if (!legacyTotal) {
       root.innerHTML = '<div class="admin-dashboard-clear-state" role="status"><strong>Queue clear</strong><span>No pending approvals or unassigned active bookings.</span></div>';
@@ -2712,47 +2698,52 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
     var bookableTimes = dashboardNumber(capacity && capacity.bookable_time_count);
     if (bookableTimes === null) bookableTimes = dashboardNumber(legacyToday && legacyToday.available_slots_remaining);
-    var bookableSlots = dashboardNumber(capacity && capacity.bookable_slot_count);
     var totalTodayCount = progress
       ? Math.max(0, accepted || 0) + Math.max(0, pendingToday || 0)
       : Math.max(0, legacyScheduled || 0);
-    var completionPercent = accepted > 0 && completed !== null
-      ? Math.max(0, Math.min(100, (completed / accepted) * 100))
-      : 0;
-    var nextBookingId = legacyToday && legacyToday.next_booking && legacyToday.next_booking.id;
-    var bookingsMarkup;
-    if (!Array.isArray(bookings)) {
-      bookingsMarkup = dashboardEmptyState("Today's inspection schedule is not available.");
-    } else if (!bookings.length) {
-      bookingsMarkup = '<div class="admin-dashboard-day-empty" role="status"><strong>No inspections today</strong><span>' +
-        (bookableTimes > 0 ? dashboardCountWithNoun(bookableTimes, 'time is', 'times are') + ' still open for customers.' : 'No customer-bookable times remain today.') +
-      '</span></div>';
-    } else {
-      var visibleBookings = bookings.slice(0, 6);
-      bookingsMarkup = '<div class="admin-dashboard-operations-list">' + visibleBookings.map(function (booking) {
-        return dashboardBookingMarkup(booking, booking.id === nextBookingId);
-      }).join('') + '</div>' +
-        '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=today">Open today\'s bookings' +
-          (totalTodayCount > visibleBookings.length ? ' (' + dashboardCount(totalTodayCount) + ')' : '') +
-        '</a>';
-    }
-
-    var capacityDetail = bookableSlots !== null && bookableTimes !== null && bookableSlots !== bookableTimes
-      ? '<small>' + escapeHtml(dashboardCountWithNoun(bookableSlots, 'inspector slot', 'inspector slots')) + '</small>'
+    var capacityWindow = analytics && analytics.capacity_window && typeof analytics.capacity_window === 'object'
+      ? analytics.capacity_window
+      : null;
+    var windowDays = dashboardNumber(capacityWindow && capacityWindow.window_days);
+    var upcomingBookableTimes = dashboardNumber(capacityWindow && capacityWindow.bookable_time_count);
+    var upcomingBookableSlots = dashboardNumber(capacityWindow && capacityWindow.bookable_slot_count);
+    var capacityCount = upcomingBookableTimes !== null ? upcomingBookableTimes : bookableTimes;
+    var capacityLabel = upcomingBookableTimes !== null && windowDays
+      ? 'Open next ' + dashboardCount(windowDays) + ' days'
+      : 'Open later today';
+    var capacityDetail = upcomingBookableSlots !== null && capacityCount !== null && upcomingBookableSlots !== capacityCount
+      ? '<small>' + escapeHtml(dashboardCountWithNoun(upcomingBookableSlots, 'inspector slot', 'inspector slots')) + '</small>'
       : '';
+    var nextBookableStart = capacityWindow && capacityWindow.next_bookable_start_at;
+    var capacityContext = nextBookableStart && Number.isFinite(new Date(nextBookableStart).getTime())
+      ? 'Next ' + formatDateTime(nextBookableStart)
+      : (capacityCount === 0 ? 'No customer-bookable times in this window' : 'Customer-bookable times');
+    var nextBooking = (Array.isArray(bookings) ? bookings : []).find(function (booking) {
+      return booking.status === 'confirmed' && booking.start_at && new Date(booking.start_at) >= new Date();
+    }) || null;
+    var scheduleMarkup = nextBooking
+      ? '<div class="admin-dashboard-next-booking"><p>Next inspection</p>' + dashboardBookingMarkup(nextBooking, true) + '</div>'
+      : '<div class="admin-dashboard-day-empty" role="status"><strong>' + (accepted > 0 ? 'No more inspections today' : 'No inspections today') + '</strong><span>' + capacityContext + '</span></div>';
+    var progressMarkup = accepted > 0
+      ? '<div class="admin-dashboard-day-progress">' +
+          '<span><strong>' + escapeHtml(dashboardCount(completed)) + ' of ' + escapeHtml(dashboardCount(accepted)) + '</strong><small>accepted inspections completed</small></span>' +
+          '<span class="admin-dashboard-day-progress-track" role="progressbar" aria-label="Today\'s accepted inspections completed" aria-valuemin="0" aria-valuemax="' + escapeHtml(String(Math.max(1, accepted))) + '" aria-valuenow="' + escapeHtml(String(Math.max(0, completed || 0))) + '"><span style="--admin-dashboard-progress:' + Math.max(0, Math.min(100, (completed / accepted) * 100)).toFixed(2) + '%"></span></span>' +
+        '</div>'
+      : '<div class="admin-dashboard-day-progress admin-dashboard-day-progress-quiet"><span><strong>No scheduled workload</strong><small>No accepted inspections today</small></span></div>';
+
     root.innerHTML =
       '<div class="admin-dashboard-day-summary">' +
-        '<div class="admin-dashboard-day-progress">' +
-          '<span><strong>' + escapeHtml(dashboardCount(completed)) + ' of ' + escapeHtml(dashboardCount(accepted)) + '</strong><small>accepted inspections completed</small></span>' +
-          '<span class="admin-dashboard-day-progress-track" role="progressbar" aria-label="Today\'s accepted inspections completed" aria-valuemin="0" aria-valuemax="' + escapeHtml(String(Math.max(0, accepted || 0))) + '" aria-valuenow="' + escapeHtml(String(Math.max(0, completed || 0))) + '"><span style="--admin-dashboard-progress:' + completionPercent.toFixed(2) + '%"></span></span>' +
-        '</div>' +
+        progressMarkup +
         '<dl class="admin-dashboard-day-facts">' +
           '<div><dt>Still to complete</dt><dd>' + escapeHtml(dashboardCount(remaining)) + '</dd></div>' +
-          '<div><dt>Awaiting review</dt><dd>' + escapeHtml(dashboardCount(pendingToday)) + '</dd></div>' +
-          '<a href="' + PATHS.availability + '"><dt>Bookable times</dt><dd>' + escapeHtml(dashboardCount(bookableTimes)) + '</dd>' + capacityDetail + '</a>' +
+          '<a href="' + PATHS.availability + '"><dt>' + escapeHtml(capacityLabel) + '</dt><dd>' + escapeHtml(dashboardCount(capacityCount)) + '</dd>' + capacityDetail + '<small>' + escapeHtml(capacityContext) + '</small></a>' +
         '</dl>' +
       '</div>' +
-      '<div class="admin-dashboard-day-list"><h3>Today\'s schedule</h3>' + bookingsMarkup + '</div>';
+      '<div class="admin-dashboard-day-list">' + scheduleMarkup +
+        '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=today">Open today\'s bookings' +
+          (totalTodayCount > 0 ? ' (' + dashboardCount(totalTodayCount) + ')' : '') +
+        '</a>' +
+      '</div>';
   }
 
   function dashboardTrendRows(value) {
@@ -2838,17 +2829,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var series = options.series || [];
     if (!points.length || !series.length) return dashboardEmptyState(options.emptyMessage || 'No chart data is available.');
     var width = 760;
-    var height = 260;
-    var left = 54;
+    var height = 230;
+    var left = 50;
     var right = 18;
     var top = 18;
     var bottom = 42;
     var plotWidth = width - left - right;
     var plotHeight = height - top - bottom;
-    var maximum = Math.max.apply(null, points.reduce(function (values, point) {
-      series.forEach(function (item) { values.push(Math.max(0, Number(point[item.key]) || 0)); });
-      return values;
-    }, [0]));
+    var maximum = dashboardNumber(options.maximum);
+    if (maximum === null) {
+      maximum = Math.max.apply(null, points.reduce(function (values, point) {
+        series.forEach(function (item) { values.push(Math.max(0, Number(point[item.key]) || 0)); });
+        return values;
+      }, [0]));
+    }
     var chartMaximum = dashboardNiceMaximum(maximum, options.countChart === true);
     var xFor = function (index) {
       return points.length === 1 ? left + plotWidth / 2 : left + (index / (points.length - 1)) * plotWidth;
@@ -2862,7 +2856,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<g class="admin-dashboard-chart-grid"><line x1="' + left + '" x2="' + (width - right) + '" y1="' + y + '" y2="' + y + '"></line>' +
         '<text x="' + (left - 9) + '" y="' + (y + 4) + '" text-anchor="end">' + escapeHtml(options.axisLabel(value)) + '</text></g>';
     }).join('');
-    var labelStep = Math.max(1, Math.ceil((points.length - 1) / 6));
+    var labelStep = Math.max(1, Math.ceil((points.length - 1) / 5));
     var xLabels = points.map(function (point, index) {
       if (index !== 0 && index !== points.length - 1 && index % labelStep !== 0) return '';
       return '<text class="admin-dashboard-chart-x-label" x="' + xFor(index) + '" y="' + (height - 14) + '" text-anchor="middle">' + escapeHtml(point.shortLabel) + '</text>';
@@ -2894,11 +2888,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<circle class="admin-dashboard-chart-hit" cx="' + x + '" cy="' + y + '" r="11"></circle>' +
       '</g>';
     }).join('');
-    var legend = '<div class="admin-dashboard-chart-legend" aria-hidden="true">' + series.map(function (item) {
+    var legend = options.showLegend === false ? '' : '<div class="admin-dashboard-chart-legend" aria-hidden="true">' + series.map(function (item) {
       return '<span class="' + escapeHtml(item.className) + '"><i></i>' + escapeHtml(item.label) + '</span>';
     }).join('') + '</div>';
 
-    return '<div class="admin-dashboard-chart-block">' + legend +
+    return '<div class="admin-dashboard-chart-block' + (options.compact ? ' is-compact' : '') + '">' + legend +
       '<div class="admin-dashboard-chart-plot">' +
         '<svg viewBox="0 0 ' + width + ' ' + height + '" role="img" aria-labelledby="' + escapeHtml(options.id) + '-title ' + escapeHtml(options.id) + '-description" preserveAspectRatio="xMidYMid meet">' +
           '<title id="' + escapeHtml(options.id) + '-title">' + escapeHtml(options.title) + '</title>' +
@@ -2950,26 +2944,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var totals = dashboardTrendTotals(rows);
     var previousRows = dashboardPreviousTrendWindow(allRows, days);
     var previousTotals = previousRows.length === days ? dashboardTrendTotals(previousRows) : null;
-    var lost = totals.cancelled + totals.rejected;
     var rangeLabel = days === 7 ? '7-day' : (days === 30 ? '30-day' : (days === 90 ? '90-day' : '12-month'));
     var demandComparison = previousTotals
-      ? dashboardComparison(totals.total, previousTotals.total, 'previous ' + rangeLabel.toLowerCase() + ' period', false)
+      ? dashboardComparison(totals.total, previousTotals.total, 'previous ' + rangeLabel.toLowerCase() + ' period', 'neutral')
       : '<span class="admin-dashboard-kpi-comparison">Prior period unavailable</span>';
     var deliveryComparison = previousTotals
-      ? dashboardComparison(totals.completed, previousTotals.completed, 'previous ' + rangeLabel.toLowerCase() + ' period', false)
+      ? dashboardComparison(totals.completed, previousTotals.completed, 'previous ' + rangeLabel.toLowerCase() + ' period', 'higher')
       : '<span class="admin-dashboard-kpi-comparison">Prior period unavailable</span>';
     root.innerHTML =
-      '<div class="admin-dashboard-readout-heading"><h3>' + escapeHtml(rangeLabel) + ' readout</h3><span>Event totals</span></div>' +
-      '<dl class="admin-dashboard-readout-values">' +
-        '<div><dt>Bookings received</dt><dd>' + escapeHtml(dashboardCount(totals.total)) + '</dd></div>' +
-        '<div><dt>Inspections completed</dt><dd>' + escapeHtml(dashboardCount(totals.completed)) + '</dd></div>' +
-        '<div><dt>Cancelled or rejected</dt><dd>' + escapeHtml(dashboardCount(lost)) + '</dd></div>' +
-      '</dl>' +
+      '<div class="admin-dashboard-readout-heading"><h3>' + escapeHtml(rangeLabel) + ' comparison</h3><span>' + escapeHtml(compactCalendarDate(rows[0].date, { year: true })) + ' – ' + escapeHtml(compactCalendarDate(rows[rows.length - 1].date, { year: true })) + '</span></div>' +
       '<div class="admin-dashboard-readout-comparisons">' +
-        '<p><span>Demand</span>' + demandComparison + '</p>' +
-        '<p><span>Delivery</span>' + deliveryComparison + '</p>' +
-      '</div>' +
-      '<p class="admin-dashboard-readout-note">Received and completed are separate event totals, not a conversion rate.</p>';
+        '<p><span>Demand · ' + escapeHtml(dashboardCount(totals.total)) + ' received</span>' + demandComparison + '</p>' +
+        '<p><span>Delivery · ' + escapeHtml(dashboardCount(totals.completed)) + ' completed</span>' + deliveryComparison + '</p>' +
+      '</div>';
   }
 
   function renderDashboardTrend(analytics) {
@@ -2989,25 +2976,49 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
     var totals = dashboardTrendTotals(rows);
-    var summaryText = dashboardCountWithNoun(totals.total, 'booking received', 'bookings received') + ' and ' + dashboardCountWithNoun(totals.completed, 'inspection completed', 'inspections completed') + ' in the last ' + days + ' days.';
+    var summaryText = dashboardCountWithNoun(totals.total, 'booking received', 'bookings received') + ' and ' + dashboardCountWithNoun(totals.completed, 'inspection completed', 'inspections completed') + ' in the last ' + days + ' days.' +
+      (days === 365 ? ' The latest monthly point is month to date.' : '');
     if (summary) summary.textContent = summaryText;
     root.removeAttribute('aria-hidden');
-    root.innerHTML = dashboardChartMarkup({
-      id: 'dashboard-booking-trend',
-      title: 'Bookings received and inspections completed',
-      description: summaryText,
-      points: points,
-      countChart: true,
-      axisLabel: function (value) { return dashboardCount(value); },
-      emptyMessage: 'No booking history is available for the selected period.',
-      series: [
-        { key: 'total', label: 'Bookings received', className: 'is-total', area: true },
-        { key: 'completed', label: 'Inspections completed', className: 'is-completed' }
-      ],
-      tooltip: function (point) {
-        return point.label + ': ' + dashboardCountWithNoun(point.total, 'booking received', 'bookings received') + ', ' + dashboardCountWithNoun(point.completed, 'inspection completed', 'inspections completed') + ', ' + dashboardCount(point.cancelled) + ' cancelled, ' + dashboardCount(point.rejected) + ' rejected';
-      }
-    }) + dashboardTrendTable(points);
+    var hasReceived = points.some(function (point) { return point.total > 0; });
+    var hasCompleted = points.some(function (point) { return point.completed > 0; });
+    var sharedMaximum = Math.max.apply(null, points.reduce(function (values, point) {
+      values.push(Math.max(0, point.total), Math.max(0, point.completed));
+      return values;
+    }, [0]));
+    var chartMarkup = '<div class="admin-dashboard-small-multiples">' +
+      '<section aria-labelledby="dashboard-demand-chart-title"><header><h3 id="dashboard-demand-chart-title">Bookings received</h3><strong>' + escapeHtml(dashboardCount(totals.total)) + '</strong></header>' +
+        (hasReceived ? dashboardChartMarkup({
+          id: 'dashboard-demand-trend',
+          title: 'Bookings received',
+          description: dashboardCountWithNoun(totals.total, 'booking received', 'bookings received') + ' during the selected period.',
+          points: points,
+          maximum: sharedMaximum,
+          countChart: true,
+          compact: true,
+          showLegend: false,
+          axisLabel: function (value) { return dashboardCount(value); },
+          series: [{ key: 'total', label: 'Bookings received', className: 'is-total', area: true }],
+          tooltip: function (point) { return point.label + ': ' + dashboardCountWithNoun(point.total, 'booking received', 'bookings received'); }
+        }) : dashboardEmptyState('No bookings were received in this period.')) +
+      '</section>' +
+      '<section aria-labelledby="dashboard-delivery-chart-title"><header><h3 id="dashboard-delivery-chart-title">Inspections completed</h3><strong>' + escapeHtml(dashboardCount(totals.completed)) + '</strong></header>' +
+        (hasCompleted ? dashboardChartMarkup({
+          id: 'dashboard-delivery-trend',
+          title: 'Inspections completed',
+          description: dashboardCountWithNoun(totals.completed, 'inspection completed', 'inspections completed') + ' during the selected period.',
+          points: points,
+          maximum: sharedMaximum,
+          countChart: true,
+          compact: true,
+          showLegend: false,
+          axisLabel: function (value) { return dashboardCount(value); },
+          series: [{ key: 'completed', label: 'Inspections completed', className: 'is-completed', area: true }],
+          tooltip: function (point) { return point.label + ': ' + dashboardCountWithNoun(point.completed, 'inspection completed', 'inspections completed'); }
+        }) : dashboardEmptyState('No inspections were completed in this period.')) +
+      '</section>' +
+    '</div>';
+    root.innerHTML = chartMarkup + dashboardTrendTable(points);
     bindDashboardChartTooltips(root);
   }
 
@@ -3053,10 +3064,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function dashboardRevenueTable(points, currency) {
-    return '<details class="admin-dashboard-data-details"><summary>View paid-invoice revenue data</summary>' +
-      '<div class="admin-dashboard-table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Paid-invoice revenue</th></tr></thead><tbody>' +
-      points.map(function (point) {
-        return '<tr><th scope="row">' + escapeHtml(point.label) + '</th><td>' + escapeHtml(formatMoney(point.amount_cents, currency)) + '</td></tr>';
+    return '<details class="admin-dashboard-data-details"><summary>View payment data</summary>' +
+      '<div class="admin-dashboard-table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Paid invoice total</th></tr></thead><tbody>' +
+      points.map(function (point, index) {
+        var label = point.label + (index === points.length - 1 ? ' (month to date)' : '');
+        return '<tr><th scope="row">' + escapeHtml(label) + '</th><td>' + escapeHtml(formatMoney(point.amount_cents, currency)) + '</td></tr>';
       }).join('') +
       '</tbody></table></div></details>';
   }
@@ -3072,11 +3084,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (layout) layout.classList.add('has-no-financials');
       return;
     }
-    panel.hidden = false;
     if (layout) layout.classList.remove('has-no-financials');
     var rows = dashboardRevenueRows(analytics.revenue_trend);
     if (!rows.length) {
-      root.innerHTML = dashboardEmptyState('No paid, non-void invoices are recorded for this period.');
+      panel.hidden = true;
+      root.innerHTML = '';
       return;
     }
     var grouped = Object.create(null);
@@ -3084,22 +3096,35 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (!grouped[row.currency]) grouped[row.currency] = [];
       grouped[row.currency].push(row);
     });
-    root.innerHTML = Object.keys(grouped).sort().map(function (currency, index) {
+    var meaningfulCurrencies = Object.keys(grouped).sort().filter(function (currency) {
+      return grouped[currency].slice(0, -1).filter(function (point) { return point.amount_cents > 0; }).length >= 3;
+    });
+    if (!meaningfulCurrencies.length) {
+      panel.hidden = true;
+      root.innerHTML = '';
+      return;
+    }
+    panel.hidden = false;
+    root.innerHTML = meaningfulCurrencies.map(function (currency, index) {
       var points = grouped[currency];
-      var total = points.reduce(function (sum, point) { return sum + point.amount_cents; }, 0);
-      var summary = formatMoney(total, currency) + ' in paid-invoice revenue over the last ' + dashboardCount(points.length) + ' months.';
-      return '<section class="admin-dashboard-revenue-series" aria-labelledby="dashboard-revenue-series-' + index + '">' +
-        '<div class="admin-dashboard-revenue-series-heading"><h3 id="dashboard-revenue-series-' + index + '">Paid-invoice revenue in ' + escapeHtml(dashboardCurrencySymbol(currency)) + '</h3><p>' + escapeHtml(summary) + '</p></div>' +
-        dashboardChartMarkup({
+      var currentPoint = points[points.length - 1];
+      var previousPoint = points[points.length - 2] || null;
+      var fullMonthPoints = points.slice(0, -1);
+      var summary = formatMoney(currentPoint.amount_cents, currency) + ' received month to date' +
+        (previousPoint ? '; ' + formatMoney(previousPoint.amount_cents, currency) + ' in the previous full month.' : '.');
+      var trendMarkup = dashboardChartMarkup({
           id: 'dashboard-revenue-' + index,
-          title: 'Paid-invoice revenue trend in ' + dashboardCurrencySymbol(currency),
-          description: summary,
-          points: points,
+          title: 'Paid invoice totals in ' + dashboardCurrencySymbol(currency) + ' for full months',
+          description: 'Full-month payment totals before the current partial month. ' + summary,
+          points: fullMonthPoints,
           countChart: false,
           axisLabel: function (value) { return dashboardCompactMoney(value, currency); },
-          series: [{ key: 'amount_cents', label: 'Paid invoices', className: 'is-revenue' }],
+          series: [{ key: 'amount_cents', label: 'Payments received', className: 'is-revenue' }],
           tooltip: function (point) { return point.label + ': ' + formatMoney(point.amount_cents, currency); }
-        }) + dashboardRevenueTable(points, currency) +
+        }) + dashboardRevenueTable(points, currency);
+      return '<section class="admin-dashboard-revenue-series" aria-labelledby="dashboard-revenue-series-' + index + '">' +
+        '<div class="admin-dashboard-revenue-series-heading"><h3 id="dashboard-revenue-series-' + index + '">Paid invoice totals in ' + escapeHtml(dashboardCurrencySymbol(currency)) + '</h3><p>' + escapeHtml(summary) + '</p></div>' +
+        trendMarkup +
       '</section>';
     }).join('');
     bindDashboardChartTooltips(root);
@@ -3108,19 +3133,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderDashboardStaff(analytics) {
     var root = $('[data-dashboard-staff]');
     var periodRoot = $('[data-dashboard-staff-period]');
+    var panel = $('[data-dashboard-staff-panel]');
     if (!root) return;
     if (!analytics || !Array.isArray(analytics.staff_performance)) {
-      root.innerHTML = dashboardEmptyState('Inspector performance data is not available.');
+      if (panel) panel.hidden = true;
+      root.innerHTML = dashboardEmptyState('Inspector workload data is not available.');
       return;
     }
     if (!analytics.staff_performance.length) {
+      if (panel) panel.hidden = true;
       root.innerHTML = dashboardEmptyState('No completed inspections are recorded for this period.');
       return;
     }
-    var performancePeriodDays = [7, 30, 90, 365].includes(Number(state.dashboardTrendDays))
-      ? Number(state.dashboardTrendDays)
-      : 30;
-    if (periodRoot) periodRoot.textContent = 'Same ' + dashboardCount(performancePeriodDays) + '-day period';
+    var performancePeriodDays = 30;
+    if (periodRoot) periodRoot.textContent = 'Completed inspections during the last 30 days.';
     var staffRows = analytics.staff_performance.filter(function (row) {
       return dashboardNumber(row && row.period_days) === performancePeriodDays &&
         (dashboardNumber(row && row.completed_count) || 0) > 0;
@@ -3128,10 +3154,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return (dashboardNumber(b.completed_count) || 0) - (dashboardNumber(a.completed_count) || 0) || String(a.display_name || '').localeCompare(String(b.display_name || ''));
     });
     if (!staffRows.length) {
+      if (panel) panel.hidden = true;
       root.innerHTML = dashboardEmptyState('No completed inspections are recorded for this period.');
       return;
     }
     var totalCompleted = staffRows.reduce(function (sum, row) { return sum + Math.max(0, dashboardNumber(row.completed_count) || 0); }, 0);
+    if (staffRows.length < 2 || totalCompleted < 5) {
+      if (panel) panel.hidden = true;
+      root.innerHTML = '';
+      return;
+    }
     var maximumCompleted = Math.max.apply(null, staffRows.map(function (row) {
       return Math.max(0, dashboardNumber(row.completed_count) || 0);
     }));
@@ -3140,89 +3172,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return dashboardNumber(row && row.period_days) === performancePeriodDays;
     });
     var unattributedCount = Math.max(0, dashboardNumber(unattributed && unattributed.completed_count) || 0);
-    var financials = analytics.can_view_financials === true;
     root.innerHTML =
-      '<p class="admin-dashboard-section-summary">Completed inspections attributed to the assigned inspector.</p>' +
       '<ol class="admin-dashboard-performance-list">' + staffRows.slice(0, 5).map(function (row) {
         var completed = Math.max(0, dashboardNumber(row.completed_count) || 0);
-        var share = totalCompleted > 0 ? Math.round((completed / totalCompleted) * 100) : 0;
         var scale = maximumCompleted > 0 ? Math.round((completed / maximumCompleted) * 100) : 0;
-        var revenue = financials && dashboardMoneyEntries(row.revenue).length
-          ? '<span class="admin-dashboard-performance-revenue">Paid revenue ' + dashboardMoneyMarkup(row.revenue) + '</span>'
-          : '';
         return '<li>' +
           '<div class="admin-dashboard-performance-heading"><strong>' + escapeHtml(row.display_name || 'Staff member') + '</strong><span><strong>' + escapeHtml(dashboardCount(completed)) + '</strong> inspections</span></div>' +
           '<div class="admin-dashboard-performance-track" aria-hidden="true"><span style="--admin-dashboard-scale:' + scale + '%"></span></div>' +
-          '<div class="admin-dashboard-performance-meta"><span>' + share + '% of completed inspections</span>' + revenue + '</div>' +
         '</li>';
       }).join('') +
       '</ol>' +
       (unattributedCount > 0
         ? '<p class="admin-dashboard-data-note">' + escapeHtml(dashboardCountWithNoun(unattributedCount, 'completed inspection has', 'completed inspections have')) + ' no reliable inspector assignment and are excluded.</p>'
         : '');
-  }
-
-  function dashboardActivityLabel(eventType) {
-    var labels = {
-      customer_created: 'Customer created',
-      booking_created: 'Booking received',
-      booking_received: 'Booking received',
-      booking_requested: 'Booking received',
-      booking_updated: 'Booking updated',
-      booking_approved: 'Booking approved',
-      booking_confirmed: 'Booking approved',
-      booking_time_changed: 'Booking time changed',
-      booking_cancelled: 'Booking cancelled',
-      booking_rejected: 'Booking rejected',
-      inspection_assigned: 'Inspection assigned',
-      inspection_completed: 'Inspection completed',
-      booking_completed: 'Inspection completed',
-      invoice_created: 'Invoice created',
-      invoice_draft_created: 'Invoice created',
-      invoice_issued: 'Invoice issued',
-      invoice_paid: 'Invoice paid',
-      consent_changed: 'Consent changed',
-      marketing_consent_changed: 'Marketing consent changed'
-    };
-    var key = String(eventType || '').trim().toLowerCase();
-    if (labels[key]) return labels[key];
-    if (!key) return 'Activity recorded';
-    return key.replace(/_/g, ' ').replace(/^./, function (character) { return character.toUpperCase(); });
-  }
-
-  function dashboardActivityTone(eventType) {
-    var key = String(eventType || '').toLowerCase();
-    if (key.includes('completed') || key.includes('approved') || key.includes('confirmed')) return 'positive';
-    if (key.includes('cancelled') || key.includes('rejected')) return 'negative';
-    if (key.includes('invoice')) return 'financial';
-    return 'neutral';
-  }
-
-  function renderDashboardActivity(analytics) {
-    var root = $('[data-dashboard-activity]');
-    var countRoot = $('[data-dashboard-activity-count]');
-    if (!root) return;
-    if (!analytics || !Array.isArray(analytics.recent_activity)) {
-      if (countRoot) countRoot.textContent = 'Unavailable';
-      root.innerHTML = dashboardEmptyState('Recent business activity is not available.');
-      return;
-    }
-    if (!analytics.recent_activity.length) {
-      if (countRoot) countRoot.textContent = 'No recent events';
-      root.innerHTML = dashboardEmptyState('No recent business activity is recorded.');
-      return;
-    }
-    if (countRoot) countRoot.textContent = dashboardCountWithNoun(Math.min(analytics.recent_activity.length, 6), 'recent event', 'recent events');
-    root.innerHTML = '<ol class="admin-dashboard-activity-list">' + analytics.recent_activity.slice(0, 6).map(function (event) {
-      var label = dashboardActivityLabel(event.event_type);
-      var reference = event.reference ? '<strong>' + escapeHtml(event.reference) + '</strong>' : '';
-      var actor = event.actor_name ? '<span>by ' + escapeHtml(event.actor_name) + '</span>' : '';
-      var time = event.created_at && Number.isFinite(new Date(event.created_at).getTime()) ? formatDateTime(event.created_at) : 'Time unavailable';
-      var body = '<span class="admin-dashboard-activity-main"><span>' + escapeHtml(label) + '</span>' + reference + actor + '</span><time datetime="' + escapeHtml(event.created_at || '') + '">' + escapeHtml(time) + '</time>';
-      return '<li data-tone="' + escapeHtml(dashboardActivityTone(event.event_type)) + '">' +
-        (event.booking_id ? '<a href="' + PATHS.bookings + '?booking=' + encodeURIComponent(event.booking_id) + '">' + body + '</a>' : '<div>' + body + '</div>') +
-      '</li>';
-    }).join('') + '</ol>';
+    if (panel) panel.hidden = false;
   }
 
   function bindDashboardChartTooltips(root) {
@@ -3313,9 +3276,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     renderDashboardKpis(analytics);
     renderDashboardToday(analytics);
     renderDashboardTrend(analytics);
-    renderDashboardRevenue(analytics);
     renderDashboardStaff(analytics);
-    renderDashboardActivity(analytics);
+    renderDashboardRevenue(analytics);
   }
 
   function renderDashboardPage() {
@@ -7626,7 +7588,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var controls = $('[data-dashboard-trend-range]');
     if (!controls) return;
     controls.setAttribute('role', 'group');
-    if (!controls.getAttribute('aria-label')) controls.setAttribute('aria-label', 'Booking trend period');
+    if (!controls.getAttribute('aria-label')) controls.setAttribute('aria-label', 'Demand and delivery period');
     $all('[data-trend-days]', controls).forEach(function (button) {
       var days = Number(button.dataset.trendDays);
       button.disabled = false;
@@ -7638,7 +7600,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           setPressed(item, item === button);
         });
         renderDashboardTrend(state.dashboardAnalytics || {});
-        renderDashboardStaff(state.dashboardAnalytics || {});
       });
     });
   }
@@ -7915,7 +7876,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (isAbortError(error) || activityId !== refreshActivityId) return false;
       if (adminViewForPage(state.page) === requestedView) {
         setSyncState('Sync failed', 'error');
-        if (!hadLoadedView) renderPageLoadError();
+        if (!hadLoadedView) {
+          if (state.page === 'dashboard') renderDashboardUnavailable();
+          else renderPageLoadError();
+        }
       }
       throw error;
     } finally {
