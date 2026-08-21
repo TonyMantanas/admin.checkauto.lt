@@ -7,14 +7,14 @@ import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
 import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260821-1';
-import { initAdminRuntime } from './core/runtime.js?v=20260821-5';
+import { initAdminRuntime } from './core/runtime.js?v=20260821-7';
 import { renderShell } from './core/shell.js?v=20260821-1';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
 import { validators } from './core/validation.js?v=20260727-3';
 
 const pageControllers = {
-  dashboard: () => import('./pages/dashboard.js?v=20260821-2'),
+  dashboard: () => import('./pages/dashboard.js?v=20260821-3'),
   bookings: () => import('./pages/bookings.js?v=20260821-2'),
   availability: () => import('./pages/availability.js?v=20260821-3'),
   customers: () => import('./pages/customers.js?v=20260821-1'),

@@ -7940,6 +7940,176 @@ button.admin-mini-item::after {
   border-block-start: 1px solid var(--admin-border);
 }
 
+.admin-dashboard-workload-chart {
+  min-width: 0;
+  padding: var(--admin-space-4);
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 0.72fr) minmax(0, 1.28fr);
+  align-items: center;
+  gap: var(--admin-space-4);
+}
+
+.admin-dashboard-workload-figure {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: var(--admin-space-2);
+  text-align: center;
+}
+
+.admin-dashboard-workload-pie,
+.admin-dashboard-skeleton-pie {
+  width: min(100%, 10.5rem);
+  aspect-ratio: 1;
+}
+
+.admin-dashboard-workload-pie {
+  display: block;
+  overflow: visible;
+}
+
+.admin-dashboard-workload-slice {
+  stroke: var(--admin-surface);
+  stroke-width: 1.25;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.admin-dashboard-workload-figure figcaption {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.admin-dashboard-workload-figure figcaption strong {
+  color: var(--admin-text);
+  font-size: 1.25rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.admin-dashboard-workload-figure figcaption span {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-dashboard-workload-legend {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  align-content: center;
+  list-style: none;
+}
+
+.admin-dashboard-workload-legend li {
+  min-width: 0;
+  padding: 0.55rem 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.admin-dashboard-workload-legend li + li {
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-dashboard-workload-legend li > span:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.admin-dashboard-workload-legend li > span:nth-child(2) strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-dashboard-workload-legend small {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-dashboard-workload-legend li > strong {
+  color: var(--admin-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-dashboard-workload-swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  display: block;
+  border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
+  border-radius: 0.2rem;
+}
+
+.admin-dashboard-workload-slice.is-slice-1,
+.admin-dashboard-workload-swatch.is-slice-1 {
+  fill: var(--admin-accent);
+  background: var(--admin-accent);
+}
+
+.admin-dashboard-workload-slice.is-slice-2,
+.admin-dashboard-workload-swatch.is-slice-2 {
+  fill: var(--admin-success);
+  background: var(--admin-success);
+}
+
+.admin-dashboard-workload-slice.is-slice-3,
+.admin-dashboard-workload-swatch.is-slice-3 {
+  fill: #7f56d9;
+  background: #7f56d9;
+}
+
+.admin-dashboard-workload-slice.is-slice-4,
+.admin-dashboard-workload-swatch.is-slice-4 {
+  fill: var(--admin-warning);
+  background: var(--admin-warning);
+}
+
+.admin-dashboard-workload-slice.is-slice-5,
+.admin-dashboard-workload-swatch.is-slice-5 {
+  fill: #0e9384;
+  background: #0e9384;
+}
+
+.admin-dashboard-workload-slice.is-slice-6,
+.admin-dashboard-workload-swatch.is-slice-6 {
+  fill: var(--admin-danger);
+  background: var(--admin-danger);
+}
+
+.admin-dashboard-skeleton-pie {
+  border-radius: 50%;
+}
+
+.admin-dashboard-workload-skeleton-legend {
+  min-width: 0;
+  display: grid;
+}
+
+.admin-dashboard-workload-skeleton-legend > span {
+  min-width: 0;
+  padding: 0.6rem 0;
+  display: grid;
+  grid-template-columns: 0.75rem minmax(0, 1fr) 2.5rem;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.admin-dashboard-workload-skeleton-legend > span + span {
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-dashboard-workload-skeleton-legend .admin-skeleton-pill {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+
 .admin-dashboard-performance-heading,
 .admin-dashboard-performance-meta {
   min-width: 0;
@@ -8707,6 +8877,17 @@ details.admin-dashboard-staff[open] > summary::after {
 }
 
 @media (max-width: 30rem) {
+  .admin-dashboard-workload-chart {
+    padding: var(--admin-space-3);
+    grid-template-columns: minmax(6.5rem, 0.55fr) minmax(0, 1.45fr);
+    gap: var(--admin-space-3);
+  }
+
+  .admin-dashboard-workload-pie,
+  .admin-dashboard-skeleton-pie {
+    width: min(100%, 7.5rem);
+  }
+
   .admin-dashboard-kpis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -9058,6 +9239,16 @@ details.admin-dashboard-staff[open] > summary::after {
 
   .admin-dashboard-performance-track > span {
     background: CanvasText;
+  }
+
+  .admin-dashboard-workload-slice {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+
+  .admin-dashboard-workload-swatch {
+    border: 1px solid CanvasText;
+    background: Canvas;
   }
 }
 

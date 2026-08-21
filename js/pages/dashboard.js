@@ -25,6 +25,26 @@ function dashboardListSkeletons(count) {
   `).join('');
 }
 
+function dashboardWorkloadSkeleton() {
+  return `
+    <div class="admin-dashboard-workload-chart admin-dashboard-workload-skeleton" aria-hidden="true">
+      <div class="admin-dashboard-workload-figure">
+        ${skeletons.block('admin-dashboard-skeleton-pie')}
+        ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
+      </div>
+      <div class="admin-dashboard-workload-skeleton-legend">
+        ${Array.from({ length: 4 }, (_, index) => `
+          <span style="--admin-skeleton-delay: ${index * 60}ms">
+            ${skeletons.block('admin-skeleton-pill')}
+            ${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}
+            ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
+          </span>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
 export function renderStaticPage(root) {
   root.innerHTML = `
     <header class="admin-dashboard-heading">
@@ -121,7 +141,7 @@ export function renderStaticPage(root) {
               <p data-dashboard-staff-period>Completed inspections during the last 30 days.</p>
             </span>
           </summary>
-          <div data-dashboard-staff>${dashboardListSkeletons(4)}</div>
+          <div data-dashboard-staff>${dashboardWorkloadSkeleton()}</div>
         </details>
       </section>
     </div>

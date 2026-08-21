@@ -7,6 +7,7 @@ import { syncStaffNavigation } from './shell.js?v=20260821-1';
 import { skeletons } from './skeletons.js?v=20260821-2';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
+import { createWorkloadChartModel } from './workload-chart.js?v=20260821-2';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -3345,24 +3346,36 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root.innerHTML = '';
       return;
     }
-    var maximumCompleted = Math.max.apply(null, staffRows.map(function (row) {
-      return Math.max(0, dashboardNumber(row.completed_count) || 0);
-    }));
     var unattributedRows = Array.isArray(analytics.unattributed_completed) ? analytics.unattributed_completed : [];
     var unattributed = unattributedRows.find(function (row) {
       return dashboardNumber(row && row.period_days) === performancePeriodDays;
     });
     var unattributedCount = Math.max(0, dashboardNumber(unattributed && unattributed.completed_count) || 0);
+    var chart = createWorkloadChartModel(staffRows, 6);
+    var chartTitleId = 'dashboard-workload-chart-title';
+    var chartDescriptionId = 'dashboard-workload-chart-description';
     root.innerHTML =
-      '<ol class="admin-dashboard-performance-list">' + staffRows.slice(0, 5).map(function (row) {
-        var completed = Math.max(0, dashboardNumber(row.completed_count) || 0);
-        var scale = maximumCompleted > 0 ? Math.round((completed / maximumCompleted) * 100) : 0;
-        return '<li>' +
-          '<div class="admin-dashboard-performance-heading"><strong>' + escapeHtml(row.display_name || 'Staff member') + '</strong><span><strong>' + escapeHtml(dashboardCount(completed)) + '</strong> inspections</span></div>' +
-          '<div class="admin-dashboard-performance-track" aria-hidden="true"><span style="--admin-dashboard-scale:' + scale + '%"></span></div>' +
-        '</li>';
-      }).join('') +
-      '</ol>' +
+      '<div class="admin-dashboard-workload-chart">' +
+        '<figure class="admin-dashboard-workload-figure">' +
+          '<svg class="admin-dashboard-workload-pie" viewBox="0 0 100 100" role="img" aria-labelledby="' + chartTitleId + ' ' + chartDescriptionId + '">' +
+            '<title id="' + chartTitleId + '">Inspector workload share</title>' +
+            '<desc id="' + chartDescriptionId + '">' + escapeHtml(dashboardCountWithNoun(chart.total, 'completed inspection split between inspectors', 'completed inspections split between inspectors')) + ' during the last 30 days.</desc>' +
+            chart.segments.map(function (segment) {
+              return '<path class="admin-dashboard-workload-slice is-slice-' + ((segment.index % 6) + 1) + '" d="' + segment.path + '"><title>' + escapeHtml(segment.label + ': ' + dashboardCount(segment.count) + ' inspections, ' + segment.percentage + '%') + '</title></path>';
+            }).join('') +
+          '</svg>' +
+          '<figcaption><strong>' + escapeHtml(dashboardCount(chart.total)) + '</strong><span>completed inspections</span></figcaption>' +
+        '</figure>' +
+        '<ol class="admin-dashboard-workload-legend" aria-label="Inspector workload breakdown">' +
+          chart.segments.map(function (segment) {
+            return '<li>' +
+              '<span class="admin-dashboard-workload-swatch is-slice-' + ((segment.index % 6) + 1) + '" aria-hidden="true"></span>' +
+              '<span><strong>' + escapeHtml(segment.label) + '</strong><small>' + segment.percentage + '% of completed</small></span>' +
+              '<strong>' + escapeHtml(dashboardCount(segment.count)) + '</strong>' +
+            '</li>';
+          }).join('') +
+        '</ol>' +
+      '</div>' +
       (unattributedCount > 0
         ? '<p class="admin-dashboard-data-note">' + escapeHtml(dashboardCountWithNoun(unattributedCount, 'completed inspection has', 'completed inspections have')) + ' no reliable inspector assignment and are excluded.</p>'
         : '');
