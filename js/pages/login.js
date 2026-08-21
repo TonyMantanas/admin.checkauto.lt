@@ -17,8 +17,8 @@ export function renderStaticPage(root) {
           </div>
         </div>
         <form data-admin-login-form hidden novalidate>
-          <label>Email<input name="email" type="email" autocomplete="email" required></label>
-          <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+          <label><span class="admin-field-label">Email <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="email" type="email" autocomplete="email" required></label>
+          <label><span class="admin-field-label">Password <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="password" type="password" autocomplete="current-password" required></label>
           <p class="admin-status" data-admin-login-status role="status" aria-live="polite"></p>
           <button class="admin-button admin-button-primary" type="submit">Sign in</button>
         </form>
@@ -28,7 +28,7 @@ export function renderStaticPage(root) {
           <p>Replace the temporary password before setting up or verifying your authenticator.</p>
           <form data-admin-temp-password-form novalidate>
             <label>
-              New password
+              <span class="admin-field-label">New password <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="newPassword"
                 type="password"
@@ -41,7 +41,7 @@ export function renderStaticPage(root) {
               >
             </label>
             <label>
-              Confirm new password
+              <span class="admin-field-label">Confirm new password <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="newPasswordConfirmation"
                 type="password"
@@ -78,7 +78,7 @@ export function renderStaticPage(root) {
           </details>
           <form data-admin-mfa-enroll-form novalidate>
             <label>
-              6-digit verification code
+              <span class="admin-field-label">6-digit verification code <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="verificationCode"
                 type="text"
@@ -99,7 +99,7 @@ export function renderStaticPage(root) {
           <p>Enter the current 6-digit code from your authenticator app.</p>
           <form data-admin-mfa-challenge-form novalidate>
             <label>
-              Verification code
+              <span class="admin-field-label">Verification code <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="verificationCode"
                 type="text"
@@ -127,7 +127,7 @@ export function renderStaticPage(root) {
           <p>Enter one unused recovery code. You’ll then sign in again and set up a new authenticator.</p>
           <form data-admin-mfa-recovery-form novalidate>
             <label>
-              Recovery code
+              <span class="admin-field-label">Recovery code <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="recoveryCode"
                 type="text"

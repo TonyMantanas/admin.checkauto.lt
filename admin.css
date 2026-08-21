@@ -1045,6 +1045,8 @@ fieldset {
 .admin-day-schedule-form input,
 .admin-action-form input,
 .admin-action-form textarea,
+.admin-organization-form input,
+.admin-organization-form textarea,
 .admin-date-jump input,
 .admin-search input,
 .admin-select-wrap select {
@@ -1058,10 +1060,24 @@ fieldset {
   line-height: 1.2;
 }
 
-.admin-action-form textarea {
+.admin-action-form textarea,
+.admin-organization-form textarea {
   min-height: 8.5rem;
   resize: vertical;
   line-height: 1.45;
+}
+
+.admin-field-label {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.2rem;
+}
+
+.admin-required-marker {
+  color: var(--admin-danger);
+  font-weight: 800;
+  line-height: 1;
 }
 
 .admin-page :is(input, textarea, select)::placeholder {
@@ -3586,11 +3602,6 @@ button.admin-mini-item::after {
   gap: var(--admin-space-3);
 }
 
-.admin-field-optional {
-  color: var(--admin-text-tertiary);
-  font-weight: 550;
-}
-
 .admin-user-role-fieldset,
 .admin-user-password-fields,
 .admin-user-modal-section {
@@ -4022,40 +4033,53 @@ button.admin-mini-item::after {
 
 .admin-organization-workbench,
 .admin-organization-sections,
+.admin-organization-section,
 .admin-organization-form,
 .admin-organization-form fieldset {
   min-width: 0;
   display: grid;
 }
 
-.admin-organization-workbench {
-  gap: var(--admin-space-4);
+.admin-organization-workspace-header {
+  grid-template-columns: minmax(0, 1fr);
 }
 
-.admin-organization-page-header {
-  align-items: end;
+.admin-organization-workspace-header .admin-page-title {
+  min-width: 0;
 }
 
-.admin-organization-page-header .admin-page-title p,
-.admin-organization-panel > .admin-panel-header p {
+.admin-organization-workspace-header .admin-page-title p,
+.admin-organization-section-header p {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
 }
 
 .admin-organization-sections {
-  grid-template-columns: minmax(0, 1.04fr) minmax(24rem, 0.96fr);
-  align-items: start;
-  gap: var(--admin-space-4);
+  grid-template-columns: minmax(0, 1.12fr) minmax(22rem, 0.88fr);
+  align-items: stretch;
 }
 
-.admin-organization-panel {
-  min-width: 0;
+.admin-organization-section + .admin-organization-section {
+  border-inline-start: 1px solid var(--admin-border);
+}
+
+.admin-organization-section-header {
+  min-height: 3.7rem;
+  padding: var(--admin-space-3) var(--admin-space-4);
+  display: flex;
+  align-items: center;
+  border-block-end: 1px solid var(--admin-border);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-organization-section-header h2 {
+  font-size: var(--admin-text-md);
 }
 
 .admin-organization-form,
 .admin-confirmation-schedule-page-form {
-  padding: var(--admin-space-5);
-  gap: var(--admin-space-5);
+  padding: var(--admin-space-4);
+  gap: var(--admin-space-4);
 }
 
 .admin-organization-form fieldset {
@@ -4073,7 +4097,7 @@ button.admin-mini-item::after {
   min-width: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--admin-space-4);
+  gap: var(--admin-space-3);
 }
 
 .admin-organization-form label {
@@ -4085,17 +4109,73 @@ button.admin-mini-item::after {
   font-weight: 700;
 }
 
-.admin-organization-form :is(input, textarea) {
-  width: 100%;
+.admin-organization-form textarea {
+  min-height: 4.75rem;
 }
 
 .admin-organization-form .admin-field-wide {
   grid-column: 1 / -1;
 }
 
-@media (max-width: 76rem) {
+.admin-organization-form > .admin-action-buttons,
+.admin-confirmation-schedule-page-form > .admin-action-buttons {
+  padding-block-start: var(--admin-space-3);
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-confirmation-schedule-page-form {
+  align-content: start;
+}
+
+.admin-confirmation-schedule-page-form .admin-confirmation-settings {
+  grid-template-columns: minmax(10rem, 1fr) minmax(11rem, 1fr);
+  gap: var(--admin-space-3);
+}
+
+.admin-confirmation-schedule-page-form .admin-confirmation-day {
+  grid-template-columns: minmax(7.5rem, 1fr) minmax(6.5rem, 0.6fr) minmax(6.5rem, 0.6fr);
+  gap: var(--admin-space-2);
+}
+
+@media (min-width: 68.8125rem) {
+  .admin-organization-shell {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .admin-organization-sections {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .admin-organization-section {
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .admin-organization-section > :is(
+    [data-organization-invoice-loading],
+    [data-organization-schedule-loading],
+    .admin-organization-form,
+    .admin-confirmation-schedule-page-form
+  ) {
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media (max-width: 68.75rem) {
   .admin-organization-sections {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-organization-section + .admin-organization-section {
+    border-block-start: 1px solid var(--admin-border);
+    border-inline-start: 0;
   }
 }
 
@@ -4110,6 +4190,10 @@ button.admin-mini-item::after {
   .admin-organization-form .admin-field-wide,
   .admin-skeleton-field-wide {
     grid-column: auto;
+  }
+
+  .admin-confirmation-schedule-page-form .admin-confirmation-settings {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .admin-skeleton-confirmation-day {
@@ -6942,6 +7026,8 @@ button.admin-mini-item::after {
   .admin-slot-form input,
   .admin-action-form input,
   .admin-action-form textarea,
+  .admin-organization-form input,
+  .admin-organization-form textarea,
   .admin-user-readonly-field strong,
   .admin-date-jump input,
   .admin-search input,

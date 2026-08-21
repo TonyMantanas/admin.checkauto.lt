@@ -3958,11 +3958,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var dueToggle = $('input[name="hasDueDate"]', optionalDueDate);
       var dueInput = $('input[name="dueDate"]', optionalDueDate);
       var dueField = $('[data-due-date-field]', optionalDueDate);
+      var dueRequiredMarker = $('[data-due-date-required]', optionalDueDate);
       var syncDueDate = function () {
         if (!dueInput || !dueToggle) return;
         dueInput.disabled = !dueToggle.checked;
         dueInput.required = dueToggle.checked;
         if (dueField) dueField.classList.toggle('is-disabled', !dueToggle.checked);
+        if (dueRequiredMarker) dueRequiredMarker.hidden = !dueToggle.checked;
       };
       if (dueToggle) dueToggle.addEventListener('change', syncDueDate);
       syncDueDate();
@@ -4033,10 +4035,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<form class="admin-action-form admin-privacy-form" data-admin-action-form data-action="setCustomerLegalHold">' +
       hiddenInput('customerId', customer.id) +
       '<div class="admin-action-grid">' +
-        '<label>Hold until date<input name="holdUntilDate" type="text" inputmode="numeric" required value="' + escapeHtml(holdDefaultDate) + '" placeholder="2026-12-31"></label>' +
-        '<label>Hold until time<input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
+        '<label><span class="admin-field-label">Hold until date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="holdUntilDate" type="text" inputmode="numeric" required value="' + escapeHtml(holdDefaultDate) + '" placeholder="2026-12-31"></label>' +
+        '<label><span class="admin-field-label">Hold until time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
       '</div>' +
-      '<label>Reason<textarea name="legalHoldReason" maxlength="500" required placeholder="Required legal or dispute reason"></textarea></label>' +
+      '<label><span class="admin-field-label">Reason <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="legalHoldReason" maxlength="500" required placeholder="Legal or dispute reason"></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Start legal hold</button></div>' +
     '</form>';
@@ -4081,18 +4083,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       hiddenInput('bookingId', booking.id) +
       setupMessage +
       '<div class="admin-action-grid">' +
-        '<label>Amount<input name="amount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
+        '<label><span class="admin-field-label">Amount <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="amount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
         '<div class="admin-optional-date-field" data-optional-due-date>' +
           '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Include a due date</span></label>' +
-          '<label data-due-date-field>Due date<input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
+          '<label data-due-date-field><span class="admin-field-label">Due date <span class="admin-required-marker" data-due-date-required aria-hidden="true">*</span></span><input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
         '</div>' +
       '</div>' +
       '<div class="admin-action-grid">' +
         '<label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
-        '<label data-vat-rate-field hidden>VAT rate %<input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label>' +
+        '<label data-vat-rate-field hidden><span class="admin-field-label">VAT rate % <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label>' +
       '</div>' +
       '<label>Service description<input name="serviceDescription" type="text" maxlength="300" value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
-      '<label>Customer billing details (optional)<textarea name="billingDetails" rows="3" maxlength="1000" placeholder="Billing address, company code, VAT code..."></textarea></label>' +
+      '<label>Customer billing details<textarea name="billingDetails" rows="3" maxlength="1000" placeholder="Billing address, company code, VAT code..."></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit"' + (setupBlocked ? ' disabled title="Complete invoice settings on the Organization page first."' : '') + '>Create and send invoice</button></div>' +
     '</form>';
@@ -4101,10 +4103,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderMarkBookingPaidForm(booking) {
     return '<form class="admin-action-form" data-admin-action-form data-action="markBookingPaid">' +
       hiddenInput('bookingId', booking.id) +
-      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
+      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
       '<div class="admin-action-grid">' +
         '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('cash') + '</select></span></label>' +
-        '<label>Payment note<input name="paymentNote" type="text" maxlength="500" placeholder="Optional"></label>' +
+        '<label>Payment note<input name="paymentNote" type="text" maxlength="500"></label>' +
       '</div>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Mark paid without invoice</button></div>' +
@@ -4169,8 +4171,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             hiddenInput('date', dateInputValue(booking.requested_start_at)) +
             hiddenInput('startTime', timeInputValue(booking.requested_start_at)) +
             hiddenInput('endTime', timeInputValue(booking.requested_end_at)) +
-            '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm requested time</button></div>' +
           '</form>' +
@@ -4179,12 +4181,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
             hiddenInput('bookingId', booking.id) +
             '<div class="admin-action-grid">' +
-              '<label>Date<input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label>Start<input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label>End<input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
+              '<label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label><span class="admin-field-label">Start <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label><span class="admin-field-label">End <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
             '</div>' +
-            '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
           '</form>' +
@@ -4193,7 +4195,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
             hiddenInput('bookingId', booking.id) +
             '<label>Customer-visible reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Reject booking</button></div>' +
           '</form>' +
@@ -4212,7 +4214,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
             hiddenInput('bookingId', booking.id) +
             '<label>Customer-visible cancellation reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Confirm cancellation</button></div>' +
           '</form>' +
@@ -5401,10 +5403,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderMarkInvoicePaidForm(invoice) {
     return '<form class="admin-action-form" data-admin-action-form data-action="markInvoicePaid">' +
       hiddenInput('invoiceId', invoice.id) +
-      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml((Number(invoice.amount_cents || 0) / 100).toFixed(2)) + '" placeholder="100.00"></label>' +
+      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml((Number(invoice.amount_cents || 0) / 100).toFixed(2)) + '" placeholder="100.00"></label>' +
       '<div class="admin-action-grid">' +
         '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('bank_transfer') + '</select></span></label>' +
-        '<label>Payment note<input name="paymentNote" type="text" maxlength="500" placeholder="Optional"></label>' +
+        '<label>Payment note<input name="paymentNote" type="text" maxlength="500"></label>' +
       '</div>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Mark invoice paid</button></div>' +
@@ -5415,7 +5417,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var amount = Number(invoice.paid_amount_cents || invoice.amount_cents || 0) / 100;
     return '<form class="admin-action-form admin-inline-edit-form" data-admin-action-form data-action="updateInvoicePaidAmount">' +
       hiddenInput('invoiceId', invoice.id) +
-      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount.toFixed(2)) + '" placeholder="100.00"></label>' +
+      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount.toFixed(2)) + '" placeholder="100.00"></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Update paid amount</button></div>' +
     '</form>';
@@ -5426,7 +5428,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var isPaymentOnly = invoice.invoice_status === 'payment';
     return '<form class="admin-action-form" data-admin-action-form data-action="voidInvoice">' +
       hiddenInput('invoiceId', invoice.id) +
-      '<label>Void reason<textarea name="voidReason" maxlength="700" required placeholder="Required reason"></textarea></label>' +
+      '<label><span class="admin-field-label">Void reason <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="voidReason" maxlength="700" required placeholder="Why this record is being voided"></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</button></div>' +
     '</form>';
@@ -6483,7 +6485,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<form class="admin-confirmation-schedule-form" data-confirmation-schedule-form novalidate>' +
         '<div class="admin-confirmation-settings">' +
           '<label>' +
-            '<span>Time to confirm</span>' +
+            '<span class="admin-field-label">Time to confirm <span class="admin-required-marker" aria-hidden="true">*</span></span>' +
             '<span class="admin-select-wrap">' +
               '<select name="confirmationDurationMinutes" data-confirmation-duration required>' +
                 '<option value="15">15 minutes</option>' +
@@ -6514,11 +6516,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
                 '<span>' + label + '</span>' +
               '</label>' +
               '<label>' +
-                '<span>From</span>' +
+                '<span class="admin-field-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
                 '<input type="time" name="confirmationDay' + isoWeekday + 'Start" step="900" data-confirmation-day-start>' +
               '</label>' +
               '<label>' +
-                '<span>Until</span>' +
+                '<span class="admin-field-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
                 '<input type="time" name="confirmationDay' + isoWeekday + 'End" step="900" data-confirmation-day-end>' +
               '</label>' +
             '</div>';
@@ -6569,11 +6571,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var toggle = $('[data-confirmation-day-enabled]', row);
     var start = $('[data-confirmation-day-start]', row);
     var end = $('[data-confirmation-day-end]', row);
+    var requiredMarkers = $all('[data-confirmation-time-required]', row);
     var enabled = Boolean(toggle && toggle.checked);
     var editable = row.dataset.confirmationEditable === 'true';
+    var required = editable && enabled;
     row.classList.toggle('is-disabled', !enabled);
-    if (start) start.disabled = !editable || !enabled;
-    if (end) end.disabled = !editable || !enabled;
+    if (start) {
+      start.disabled = !required;
+      start.required = required;
+    }
+    if (end) {
+      end.disabled = !required;
+      end.required = required;
+    }
+    requiredMarkers.forEach(function (marker) {
+      marker.hidden = !required;
+    });
   }
 
   function renderConfirmationSchedule() {
@@ -6803,12 +6816,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       dayScheduleResultHtml(dayScheduleLastResult) +
       '<form class="admin-day-schedule-form" data-admin-day-schedule-form novalidate>' +
         '<div class="admin-day-schedule-core-fields">' +
-          '<label>Date<input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
+          '<label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
           '<div class="admin-day-schedule-time-grid">' +
-            '<label><span>Start time</span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
-            '<label><span>End time</span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
+            '<label><span class="admin-field-label">Start time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
+            '<label><span class="admin-field-label">End time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
           '</div>' +
-          '<label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
+          '<label><span class="admin-field-label">Inspector <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
           (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
         '</div>' +
         '<details class="admin-disclosure admin-day-schedule-advanced">' +

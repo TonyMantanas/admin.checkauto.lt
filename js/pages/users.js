@@ -468,19 +468,19 @@ function createUserModalHtml() {
     <form class="admin-action-form admin-user-form" data-user-create-form novalidate>
       <div class="admin-user-form-grid">
         <label>
-          Name
+          <span class="admin-field-label">Name <span class="admin-required-marker" aria-hidden="true">*</span></span>
           <input type="text" name="displayName" autocomplete="name" maxlength="120" required autofocus>
         </label>
         <label>
-          Sign-in email
+          <span class="admin-field-label">Sign-in email <span class="admin-required-marker" aria-hidden="true">*</span></span>
           <input type="email" name="email" autocomplete="off" inputmode="email" maxlength="254" required>
         </label>
         <label>
-          Phone <span class="admin-field-optional">Optional</span>
+          Phone
           <input type="tel" name="phone" autocomplete="tel" maxlength="40">
         </label>
         <label>
-          Calendar email <span class="admin-field-optional">Optional</span>
+          Calendar email
           <input type="email" name="calendarEmail" autocomplete="off" inputmode="email" maxlength="254">
         </label>
       </div>
@@ -496,11 +496,11 @@ function createUserModalHtml() {
         <p>The user must change this password immediately when they first sign in, before MFA setup.</p>
         <div class="admin-user-form-grid">
           <label>
-            Temporary password
+            <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required>
           </label>
           <label>
-            Confirm password
+            <span class="admin-field-label">Confirm password <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required>
           </label>
         </div>
@@ -527,7 +527,7 @@ function editUserModalHtml(user, state) {
         <h3 id="user-profile-title">Profile</h3>
         <div class="admin-user-form-grid">
           <label>
-            Name
+            <span class="admin-field-label">Name <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required${readOnlyAttribute}${isCurrentUser ? '' : ' autofocus'}>
           </label>
           <div class="admin-user-readonly-field">
@@ -535,11 +535,11 @@ function editUserModalHtml(user, state) {
             <strong>${escapeHtml(user.email)}</strong>
           </div>
           <label>
-            Phone <span class="admin-field-optional">Optional</span>
+            Phone
             <input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40"${readOnlyAttribute}>
           </label>
           <label>
-            Calendar email <span class="admin-field-optional">Optional</span>
+            Calendar email
             <input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254"${readOnlyAttribute}>
           </label>
         </div>
@@ -575,11 +575,11 @@ function editUserModalHtml(user, state) {
       <form class="admin-action-form admin-user-temp-form" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
         <div class="admin-user-form-grid">
           <label>
-            Temporary password
+            <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
           </label>
           <label>
-            Confirm password
+            <span class="admin-field-label">Confirm password <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
           </label>
         </div>

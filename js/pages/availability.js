@@ -94,11 +94,11 @@ export function renderStaticPage(root) {
         <form class="admin-slot-form" data-admin-slot-form novalidate>
           <input type="hidden" name="slotId" data-admin-slot-id>
           <input type="hidden" name="serviceCode" value="all" data-admin-slot-service>
-          <label>Date<input name="date" type="date" required data-admin-slot-date></label>
+          <label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required data-admin-slot-date></label>
           <fieldset class="admin-time-range">
             <legend>Time</legend>
-            <label><span>Start</span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
-            <label><span>End</span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
+            <label><span class="admin-field-label">Start <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
+            <label><span class="admin-field-label">End <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
           </fieldset>
           <label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
           <fieldset class="admin-repeat">
