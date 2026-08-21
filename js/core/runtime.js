@@ -4,7 +4,7 @@ import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
 import { syncStaffNavigation } from './shell.js?v=20260821-1';
-import { skeletons } from './skeletons.js?v=20260802-1';
+import { skeletons } from './skeletons.js?v=20260821-2';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
 
@@ -312,6 +312,47 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? '<button class="admin-button admin-button-secondary" type="button" ' + actionAttribute + '>' + escapeHtml(actionLabel) + '</button>'
         : '') +
     '</div>';
+  }
+
+  function emailPreviewFrame(title, dataAttribute) {
+    return '<div class="admin-email-preview admin-email-preview-modal is-loading" data-admin-email-preview>' +
+      skeletons.preview() +
+      '<iframe title="' + escapeHtml(title) + '" sandbox="" ' + dataAttribute + ' hidden></iframe>' +
+    '</div>';
+  }
+
+  function setEmailPreviewDocument(frame, html) {
+    if (!frame) return;
+    var shell = frame.closest('[data-admin-email-preview]');
+    frame.addEventListener('load', function () {
+      frame.hidden = false;
+      if (shell) {
+        shell.classList.remove('is-loading');
+        var previewSkeleton = $('[data-admin-preview-skeleton]', shell);
+        if (previewSkeleton) previewSkeleton.remove();
+      }
+    }, { once: true });
+    frame.srcdoc = html || '';
+  }
+
+  function renderInvoicePdfWindowSkeleton(pdfWindow) {
+    if (!pdfWindow || !pdfWindow.document) return;
+    try {
+      pdfWindow.document.open();
+      pdfWindow.document.write(
+        '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<title>Invoice PDF</title><style>' +
+        ':root{color-scheme:light;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f6f8}' +
+        '*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:clamp(16px,4vw,40px);display:grid;place-items:start center;background:#f5f6f8}' +
+        '.paper{width:min(100%,760px);min-height:920px;padding:clamp(28px,7vw,72px);display:grid;align-content:start;gap:24px;border:1px solid #d9dee7;border-radius:8px;background:#fff;box-shadow:0 16px 44px rgb(16 24 40 / 10%)}' +
+        '.row{display:grid;gap:10px}.split{grid-template-columns:1.15fr .85fr;gap:32px}.line,.block{display:block;border-radius:5px;background:#e5e8ed;animation:pulse 1.9s ease-in-out infinite}.line{height:12px}.short{width:30%}.medium{width:55%}.wide{width:82%}.title{width:44%;height:26px}.block{height:190px;margin-top:20px}' +
+        '@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}@media(max-width:560px){.paper{min-height:780px}.split{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){.line,.block{animation:none;opacity:.7}}' +
+        '</style></head><body><main class="paper" role="status" aria-label="Loading invoice PDF"><div class="row"><span class="line title"></span><span class="line medium"></span></div><div class="split"><div class="row"><span class="line short"></span><span class="line wide"></span><span class="line medium"></span></div><div class="row"><span class="line short"></span><span class="line wide"></span><span class="line medium"></span></div></div><span class="block"></span><div class="row"><span class="line wide"></span><span class="line wide"></span><span class="line medium"></span></div></main></body></html>'
+      );
+      pdfWindow.document.close();
+    } catch (error) {
+      // The signed PDF navigation can still continue if the temporary document is unavailable.
+    }
   }
 
   function setPageBusy(busy, label) {
@@ -1246,6 +1287,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return Boolean(state.loadedViews && state.loadedViews[view]);
   }
 
+  function pageDataIsPopulated(page) {
+    var targetPage = page || state.page;
+    if (!viewIsLoaded(adminViewForPage(targetPage))) return false;
+    if (targetPage === 'bookings') return Boolean(state.bookingQuerySignature);
+    if (targetPage === 'invoices') return Boolean(state.invoiceQuerySignature);
+    return true;
+  }
+
   function cancelDashboardLoad(view) {
     if (!activeDashboardLoad || (view && activeDashboardLoad.view !== view)) return;
     activeDashboardLoad.controller.abort();
@@ -2021,7 +2070,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<div><h2>Send marketing email</h2></div>' +
           '</div>' +
           '<p data-confirm-message>Send this email to ' + audienceCount + ' customer' + (audienceCount === 1 ? '' : 's') + ' with active marketing consent?</p>' +
-          '<div class="admin-email-preview admin-email-preview-modal"><iframe title="Marketing send preview" sandbox="" data-confirm-marketing-preview></iframe></div>' +
+          emailPreviewFrame('Marketing send preview', 'data-confirm-marketing-preview') +
           '<div class="admin-action-buttons admin-modal-actions">' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
             '<button class="admin-button admin-button-primary" type="button" data-confirm-yes>Send campaign</button>' +
@@ -2041,15 +2090,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
       var frame = $('[data-confirm-marketing-preview]', root);
       if (frame) {
-        frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#667085;padding:24px;">Loading preview...</body>';
         adminAction({
           action: 'previewMarketingEmail',
           marketingSubject: subject,
           marketingBody: body
         }).then(function (response) {
-          frame.srcdoc = response.result && response.result.html ? response.result.html : '';
+          setEmailPreviewDocument(frame, response.result && response.result.html ? response.result.html : '');
         }).catch(function (error) {
-          frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#b42318;padding:24px;">' + escapeHtml(error instanceof Error ? error.message : 'Preview unavailable.') + '</body>';
+          setEmailPreviewDocument(frame, '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#b42318;padding:24px;">' + escapeHtml(error instanceof Error ? error.message : 'Preview unavailable.') + '</body>');
         });
       }
 
@@ -3648,6 +3696,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     history.replaceState(modalHistoryState(route, route ? 1 : 0), '', url.pathname + url.search);
   }
 
+  function renderBookingQuerySkeleton(list) {
+    var targetList = list || $('[data-admin-booking-list]');
+    if (targetList) {
+      targetList.setAttribute('aria-busy', 'true');
+      targetList.innerHTML = skeletons.list('bookings', 8);
+    }
+    var count = $('[data-admin-booking-count]');
+    if (count) count.innerHTML = skeletons.block('admin-skeleton-line admin-skeleton-count');
+  }
+
   async function loadBookingQuery(options) {
     var opts = options || {};
     var append = opts.append === true;
@@ -3659,8 +3717,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     state.bookingQueryLoading = true;
     var list = $('[data-admin-booking-list]');
     if (!append && list && !opts.silent) {
-      list.setAttribute('aria-busy', 'true');
-      list.innerHTML = skeletons.list('bookings', 8);
+      renderBookingQuerySkeleton(list);
     }
 
     try {
@@ -3701,6 +3758,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.bookingQueryLoading = false;
       if (list && (!append || !state.bookings.length)) {
         list.innerHTML = '<div class="admin-empty-state" role="alert"><div><h2>Bookings could not be loaded</h2><p>' + escapeHtml(error instanceof Error ? error.message : 'Try again.') + '</p></div><button class="admin-button admin-button-secondary" type="button" data-booking-query-retry>Try again</button></div>';
+        var count = $('[data-admin-booking-count]');
+        if (count) count.textContent = 'Unavailable';
       } else if (append) {
         showToast(error instanceof Error ? error.message : 'Older bookings could not be loaded.', 'error');
       }
@@ -4447,7 +4506,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function customerActivitySummaryMeta(cache, eventCount) {
-    if (cache.status === 'loading') return 'Loading…';
+    if (cache.status === 'loading') return '';
     if (cache.status === 'loading_more') return eventCount + ' loaded';
     if (cache.status === 'error') return 'Unavailable';
     if (cache.status === 'loaded') {
@@ -4478,7 +4537,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     );
     panel.scrollTop = previousScrollTop;
     var summaryMeta = $('[data-customer-activity-summary]', panel.closest('[data-customer-activity-disclosure]'));
-    if (summaryMeta) summaryMeta.textContent = customerActivitySummaryMeta(cache, events.length);
+    if (summaryMeta) {
+      summaryMeta.innerHTML = cache.status === 'loading'
+        ? skeletons.block('admin-skeleton-line admin-skeleton-count')
+        : escapeHtml(customerActivitySummaryMeta(cache, events.length));
+    }
   }
 
   async function loadCustomerActivity(customerId, options) {
@@ -4745,7 +4808,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</details>' +
       '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure data-disclosure-key="customer-activity">' +
         '<summary id="admin-customer-activity-title"><span>Customer activity</span><span class="admin-customer-disclosure-meta" data-customer-activity-summary>' +
-          escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length)) +
+          (activityCache.status === 'loading'
+            ? skeletons.block('admin-skeleton-line admin-skeleton-count')
+            : escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length))) +
         '</span></summary>' +
         '<div role="region" aria-labelledby="admin-customer-activity-title" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
           (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
@@ -5185,6 +5250,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return /^\d+(\.\d{1,2})?$/.test(normalized) ? normalized : '';
   }
 
+  function renderInvoiceQuerySkeleton(list) {
+    var targetList = list || $('[data-invoice-list]');
+    if (targetList) {
+      targetList.setAttribute('aria-busy', 'true');
+      targetList.innerHTML = skeletons.list('invoices', 8);
+    }
+    var count = $('[data-invoice-count]');
+    if (count) count.innerHTML = skeletons.block('admin-skeleton-line admin-skeleton-count');
+  }
+
   async function loadInvoiceQuery(options) {
     var opts = options || {};
     var append = opts.append === true;
@@ -5196,8 +5271,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     state.invoiceQueryLoading = true;
     var list = $('[data-invoice-list]');
     if (!append && list && !opts.silent) {
-      list.setAttribute('aria-busy', 'true');
-      list.innerHTML = skeletons.list('invoices', 8);
+      renderInvoiceQuerySkeleton(list);
     }
     try {
       if (!(await ensureActiveSession())) throw new Error('Sign in again before loading invoices.');
@@ -5237,6 +5311,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.invoiceQueryLoading = false;
       if (!append || !state.invoices.length) {
         if (list) list.innerHTML = '<div class="admin-empty-state" role="alert"><div><h2>Invoice records could not be loaded</h2><p>' + escapeHtml(error instanceof Error ? error.message : 'Try again.') + '</p></div><button class="admin-button admin-button-secondary" type="button" data-invoice-query-retry>Try again</button></div>';
+        var count = $('[data-invoice-count]');
+        if (count) count.textContent = 'Unavailable';
       } else {
         showToast(error instanceof Error ? error.message : 'Older invoice records could not be loaded.', 'error');
       }
@@ -5499,7 +5575,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         var pdfWindow = window.open('about:blank', '_blank');
         if (pdfWindow) {
           pdfWindow.opener = null;
-          pdfWindow.document.title = 'Loading invoice PDF...';
+          renderInvoicePdfWindowSkeleton(pdfWindow);
         }
 
         try {
@@ -5567,7 +5643,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</details>' +
         '<section class="admin-detail-section admin-field-wide">' +
           '<h3>Email preview</h3>' +
-          '<div class="admin-email-preview admin-email-preview-modal"><iframe title="Campaign email preview" sandbox="" data-campaign-preview></iframe></div>' +
+          emailPreviewFrame('Campaign email preview', 'data-campaign-preview') +
         '</section>' +
       '</div>',
       'lg'
@@ -5575,15 +5651,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var frame = $('[data-campaign-preview]', modal);
     if (frame) {
-      frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#667085;padding:24px;">Loading preview...</body>';
       adminAction({
         action: 'previewMarketingEmail',
         marketingSubject: campaign.subject,
         marketingBody: campaign.body_text || ''
       }).then(function (response) {
-        frame.srcdoc = response.result && response.result.html ? response.result.html : '';
+        setEmailPreviewDocument(frame, response.result && response.result.html ? response.result.html : '');
       }).catch(function (error) {
-        frame.srcdoc = '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#b42318;padding:24px;">' + escapeHtml(error instanceof Error ? error.message : 'Preview unavailable.') + '</body>';
+        setEmailPreviewDocument(frame, '<!doctype html><meta charset="utf-8"><body style="font-family:sans-serif;color:#b42318;padding:24px;">' + escapeHtml(error instanceof Error ? error.message : 'Preview unavailable.') + '</body>');
       });
     }
   }
@@ -5616,10 +5691,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     var form = $('[data-marketing-form]');
-    if (form && form.dataset.loadingView === 'true') {
-      delete form.dataset.loadingView;
-      setFormBusy(form, false);
-    }
+    var submit = form && $('[type="submit"]', form);
+    if (submit) submit.disabled = false;
     if (form && !form.dataset.bound) {
       form.dataset.bound = 'true';
       form.addEventListener('submit', handleActionSubmit);
@@ -6290,7 +6363,21 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     syncOrganizationSettingsSubmit();
   }
 
+  function setOrganizationLoading(loading) {
+    var invoiceLoading = $('[data-organization-invoice-loading]');
+    var invoiceContent = $('[data-organization-invoice-content]');
+    var scheduleLoading = $('[data-organization-schedule-loading]');
+    var scheduleContent = $('[data-organization-schedule-content]');
+    if (invoiceLoading) invoiceLoading.hidden = !loading;
+    if (invoiceContent) invoiceContent.hidden = loading;
+    if (scheduleLoading) scheduleLoading.hidden = !loading;
+    if (scheduleContent) scheduleContent.hidden = loading;
+  }
+
   function renderOrganizationPage() {
+    var loaded = viewIsLoaded('organization');
+    setOrganizationLoading(!loaded);
+    if (!loaded) return;
     renderOrganizationSettings();
     renderConfirmationSchedule();
   }
@@ -6909,7 +6996,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderAvailabilityPage() {
     var openButton = $('[data-admin-slot-open]');
     var dayScheduleButton = $('[data-admin-day-schedule-open]');
-    var slotForm = $('[data-admin-slot-form]');
     var canManageAvailability = staffHasAccess(
       state.staff,
       'operations.manage',
@@ -6917,10 +7003,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     );
     if (openButton) openButton.disabled = !canManageAvailability;
     if (dayScheduleButton) dayScheduleButton.disabled = !canManageAvailability;
-    if (slotForm && slotForm.dataset.loadingView === 'true') {
-      delete slotForm.dataset.loadingView;
-      setFormBusy(slotForm, false);
-    }
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
@@ -7375,10 +7457,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       form.dataset.bound = 'true';
       form.addEventListener('submit', handleActionSubmit);
     }
-    if (!viewIsLoaded('marketing')) {
-      form.dataset.loadingView = 'true';
-      setFormBusy(form, true, 'Loading...');
-    }
+    var submit = $('[type="submit"]', form);
+    if (submit) submit.disabled = !viewIsLoaded('marketing');
   }
 
   function saveCurrentScrollPosition() {
@@ -7521,7 +7601,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     setupCurrentPageEvents();
     showConsole({ preserveScroll: true });
 
-    if (viewIsLoaded(nextView)) {
+    if (pageDataIsPopulated(page)) {
       renderPage();
       renderModalFromCurrentUrl();
       state.hasRendered = true;
@@ -7664,6 +7744,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var title = $('#admin-login-title');
     var sessionStatus = $('[data-admin-login-session]');
+    var loginLoading = $('[data-admin-login-loading]');
     var temporaryPasswordStep = $('[data-admin-temp-password]');
     var enrollStep = $('[data-admin-mfa-enroll]');
     var challengeStep = $('[data-admin-mfa-challenge]');
@@ -7934,6 +8015,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       sessionStatus.textContent = initialMessage || '';
       sessionStatus.hidden = !sessionStatus.textContent;
     }
+    if (loginLoading) loginLoading.hidden = true;
     if (activeUser && auth.requiresTemporaryPasswordChange(activeUser)) {
       showTemporaryPasswordStep(activeUser);
     } else {
@@ -8389,13 +8471,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function commitBookingFilters(options) {
-    var opts = options || {};
     state.bookingQuerySignature = '';
     state.bookingQueryHasMore = false;
     state.bookingQueryOffset = 0;
     replaceBookingFilterUrl();
     syncBookingFilterControls();
-    return loadBookingQuery({ force: true, silent: Boolean(opts.silent) });
+    return loadBookingQuery({ force: true });
   }
 
   function resetBookingFilters() {
@@ -8415,6 +8496,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (search) search.addEventListener('input', function () {
       state.bookingSearch = search.value.trim().slice(0, 200);
+      state.bookingQuerySignature = '';
+      renderBookingQuerySkeleton();
       window.clearTimeout(bookingSearchTimer);
       replaceBookingFilterUrl();
       bookingSearchTimer = window.setTimeout(function () {
@@ -8505,13 +8588,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function commitInvoiceFilters(options) {
-    var opts = options || {};
     state.invoiceQuerySignature = '';
     state.invoiceQueryHasMore = false;
     state.invoiceQueryOffset = 0;
     replaceInvoiceFilterUrl();
     syncInvoiceFilterControls();
-    return loadInvoiceQuery({ force: true, silent: Boolean(opts.silent) });
+    return loadInvoiceQuery({ force: true });
   }
 
   function resetInvoiceFilters() {
@@ -8533,6 +8615,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     setupFilterMenu($('[data-invoice-filter-menu]'));
     if (search) search.addEventListener('input', function () {
       state.invoiceSearch = search.value.trim().slice(0, 200);
+      state.invoiceQuerySignature = '';
+      renderInvoiceQuerySkeleton();
       window.clearTimeout(invoiceSearchTimer);
       replaceInvoiceFilterUrl();
       invoiceSearchTimer = window.setTimeout(function () {
@@ -8626,8 +8710,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!scheduleReady) {
       if (openButton) openButton.disabled = true;
       if (dayScheduleButton) dayScheduleButton.disabled = true;
-      form.dataset.loadingView = 'true';
-      setFormBusy(form, true, 'Loading...');
     }
 
     if (openButton) {
@@ -8730,13 +8812,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       clearPageLoadError();
       setUserLabel();
       setActiveNav();
-      renderPage();
+      var bookingQueryWasPopulated = state.page === 'bookings' && Boolean(state.bookingQuerySignature);
+      var invoiceQueryWasPopulated = state.page === 'invoices' && Boolean(state.invoiceQuerySignature);
+      if (state.page !== 'bookings' && state.page !== 'invoices') {
+        renderPage();
+      } else if (bookingQueryWasPopulated || invoiceQueryWasPopulated) {
+        renderPage();
+      }
       if (state.page === 'bookings') {
-        await loadBookingQuery({ force: true, silent: Boolean(state.hasRendered) });
+        await loadBookingQuery({ force: true, silent: bookingQueryWasPopulated });
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       }
       if (state.page === 'invoices') {
-        await loadInvoiceQuery({ force: true, silent: Boolean(state.hasRendered) });
+        await loadInvoiceQuery({ force: true, silent: invoiceQueryWasPopulated });
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       }
       if (

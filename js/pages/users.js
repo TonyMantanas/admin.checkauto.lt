@@ -247,7 +247,7 @@ function renderUsersPage(state) {
 
   if (!state.staff) {
     content.innerHTML = `<div class="admin-user-list" aria-hidden="true">${userListSkeleton()}</div>`;
-    if (count) count.textContent = 'Checking access…';
+    if (count) count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     if (addButton) addButton.hidden = true;
     if (refreshButton) refreshButton.hidden = true;
     return;
@@ -270,7 +270,7 @@ function renderUsersPage(state) {
 
   if (!state.staffUsersLoadedAt) {
     content.innerHTML = `<div class="admin-user-list" aria-hidden="true">${userListSkeleton()}</div>`;
-    if (count) count.textContent = 'Loading…';
+    if (count) count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     return;
   }
 
@@ -613,8 +613,11 @@ function editUserModalHtml(user, state) {
 
 function loadingUserModalHtml() {
   return `
-    ${modalHeader('Loading user', '', 'Close user')}
-    <div class="admin-user-modal-loading" role="status" aria-live="polite">
+    <header class="admin-modal-header" role="status" aria-label="Loading user details">
+      <div><h2><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide" aria-hidden="true"></span></h2></div>
+      <button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close user" title="Close">${ICONS.close}</button>
+    </header>
+    <div class="admin-user-modal-loading" aria-hidden="true">
       <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span>
       <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span>
       <span class="admin-skeleton admin-skeleton-line"></span>
@@ -867,7 +870,7 @@ export function renderStaticPage(root) {
         <header class="admin-panel-header admin-workspace-header admin-users-workspace-header">
           <div class="admin-page-title">
             <h1 id="users-page-title">Users</h1>
-            <p class="admin-count" data-admin-user-count role="status" aria-live="polite">Loading…</p>
+            <p class="admin-count" data-admin-user-count role="status" aria-live="polite"><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></p>
           </div>
           <div class="admin-workspace-controls">
             <button class="admin-button admin-button-secondary" type="button" data-users-refresh hidden>Refresh</button>

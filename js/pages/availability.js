@@ -1,5 +1,5 @@
 import { ICONS } from '../core/icons.js?v=20260802-1';
-import { skeletons } from '../core/skeletons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'availability';
 
@@ -19,7 +19,7 @@ export function renderStaticPage(root) {
               data-admin-calendar-title
               aria-live="polite"
               aria-atomic="true"
-            >Today</p>
+            >${skeletons.block('admin-skeleton-line admin-skeleton-calendar-range')}</p>
           </div>
           <div class="admin-page-actions admin-availability-actions">
             <button

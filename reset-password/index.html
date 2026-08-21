@@ -8,7 +8,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ddhhhieitupjixynjrry.supabase.co; form-action 'self'; upgrade-insecure-requests">
   <script src="../js/frame-guard.js?v=20260730-1"></script>
   <title>Reset password · checkauto.lt</title>
-  <link rel="stylesheet" href="../admin.css?v=20260821-3">
+  <link rel="stylesheet" href="../admin.css?v=20260821-4">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 </head>
 <body class="admin-page admin-login-page admin-reset-page" data-admin-page="reset-password">
@@ -20,12 +20,20 @@
           <div class="admin-brand">check<span>auto</span>.lt</div>
           <h1 id="reset-page-title" data-reset-page-title tabindex="-1">Reset password</h1>
 
-          <p
-            class="admin-login-session"
+          <div
+            class="admin-auth-form-skeleton"
             data-reset-loading
             role="status"
-            aria-live="polite"
-          >Validating the reset link…</p>
+            aria-label="Validating the reset link"
+          >
+            <div aria-hidden="true">
+              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+              <span class="admin-skeleton admin-skeleton-control"></span>
+              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+              <span class="admin-skeleton admin-skeleton-control"></span>
+              <span class="admin-skeleton admin-skeleton-control"></span>
+            </div>
+          </div>
 
           <section class="admin-mfa-step" data-reset-mfa hidden aria-labelledby="reset-page-title">
             <form data-reset-mfa-form novalidate>

@@ -1,4 +1,4 @@
-import { skeletons } from '../core/skeletons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'dashboard';
 
@@ -31,7 +31,7 @@ export function renderStaticPage(root) {
       <div>
         <h1>Dashboard</h1>
       </div>
-      <p data-dashboard-generated aria-live="polite">Loading the latest business data...</p>
+      <p data-dashboard-generated aria-live="polite">${skeletons.block('admin-skeleton-line admin-dashboard-skeleton-generated')}</p>
     </header>
 
     <div class="admin-dashboard-load-error" data-dashboard-status hidden></div>
@@ -86,7 +86,7 @@ export function renderStaticPage(root) {
         </header>
         <div class="admin-dashboard-performance-body">
           <div class="admin-dashboard-chart-column">
-            <p class="admin-dashboard-trend-summary" data-dashboard-trend-summary aria-live="polite">Loading booking history...</p>
+            <p class="admin-dashboard-trend-summary" data-dashboard-trend-summary aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}</p>
             <div data-dashboard-trend-chart aria-hidden="true">
               <div class="admin-dashboard-chart-loading">
                 ${skeletons.block('admin-dashboard-skeleton-chart')}
@@ -96,7 +96,8 @@ export function renderStaticPage(root) {
           <aside class="admin-dashboard-period-readout" aria-label="Selected period comparison">
             <div data-dashboard-period-readout>
               <h3>Selected period</h3>
-              <p>Loading comparison...</p>
+              <p>${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}</p>
+              <p>${skeletons.block('admin-skeleton-line admin-skeleton-line-medium')}</p>
             </div>
           </aside>
         </div>

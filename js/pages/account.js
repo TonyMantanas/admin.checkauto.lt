@@ -222,7 +222,7 @@ function renderAccountSessions(state) {
 
   const isLoaded = Boolean(state.loadedViews && state.loadedViews.auth);
   if (!isLoaded) {
-    count.textContent = 'Loading…';
+    count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     list.setAttribute('aria-busy', 'true');
     if (button) button.disabled = true;
     return;
@@ -306,9 +306,10 @@ function humanizeIdentifier(value) {
     : 'Unknown';
 }
 
-function renderAccount(staff) {
+function renderAccount(staff, state) {
   const resetButton = target('[data-account-password-reset]');
-  if (!staff) {
+  const accountViewLoaded = Boolean(state && state.loadedViews && state.loadedViews.auth);
+  if (!staff || !accountViewLoaded) {
     if (resetButton) resetButton.disabled = true;
     return;
   }
@@ -318,6 +319,11 @@ function renderAccount(staff) {
   const createdAt = formatAccountDate(staff.auth_created_at);
   const lastSignInAt = formatAccountDate(staff.auth_last_sign_in_at);
   const roles = assignedRoles(staff);
+
+  const contactLoading = target('[data-account-contact-loading]');
+  const metadataLoading = target('[data-account-metadata-loading]');
+  if (contactLoading) contactLoading.hidden = true;
+  if (metadataLoading) metadataLoading.hidden = true;
 
   setText('[data-account-name]', String(staff.display_name || ''));
   setText('[data-account-auth-email]', authEmail);
@@ -485,6 +491,10 @@ export function renderStaticPage(root) {
                 <dd></dd>
               </div>
             </dl>
+            <div class="admin-account-details admin-account-detail-skeleton" data-account-contact-loading aria-hidden="true">
+              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span>
+            </div>
           </section>
 
           <div class="admin-account-settings">
@@ -519,7 +529,7 @@ export function renderStaticPage(root) {
           <header class="admin-account-sessions-header">
             <div class="admin-account-sessions-heading">
               <h2 id="account-sessions-title">Active sessions</h2>
-              <span class="admin-account-session-count" data-account-session-count>Loading…</span>
+              <span class="admin-account-session-count" data-account-session-count><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></span>
             </div>
             <button
               class="admin-button admin-button-danger"
@@ -545,6 +555,10 @@ export function renderStaticPage(root) {
           ></p>
         </section>
 
+        <div class="admin-account-metadata admin-account-metadata-skeleton" data-account-metadata-loading aria-hidden="true">
+          <div><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span></div>
+          <div><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span></div>
+        </div>
         <dl class="admin-account-metadata" data-account-metadata aria-label="Account activity" hidden>
           <div data-account-created-row hidden>
             <dt>Account created</dt>
@@ -561,14 +575,14 @@ export function renderStaticPage(root) {
 }
 
 export function beforeRender({ state }) {
-  renderAccount(state.staff);
+  renderAccount(state.staff, state);
   renderAccountSessions(state);
 }
 
 export function afterEvents({ state }) {
   const resetButton = target('[data-account-password-reset]');
   const signOutOthersButton = target('[data-account-sign-out-others]');
-  renderAccount(state.staff);
+  renderAccount(state.staff, state);
   renderAccountSessions(state);
   if (resetButton && resetButton.dataset.bound !== 'true') {
     resetButton.dataset.bound = 'true';

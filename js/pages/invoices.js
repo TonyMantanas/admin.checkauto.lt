@@ -1,4 +1,4 @@
-import { skeletons } from '../core/skeletons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
 import { ICONS } from '../core/icons.js?v=20260802-1';
 
 export const page = 'invoices';

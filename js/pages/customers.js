@@ -1,4 +1,4 @@
-import { skeletons } from '../core/skeletons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'customers';
 

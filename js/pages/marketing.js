@@ -1,5 +1,5 @@
 import { ICONS } from '../core/icons.js?v=20260802-1';
-import { skeletons } from '../core/skeletons.js?v=20260802-1';
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'marketing';
 
@@ -16,7 +16,7 @@ export function renderStaticPage(root) {
           <label>Message<textarea name="marketingBody" maxlength="6000" required placeholder="Write the email message"></textarea></label>
           <div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>
           <div class="admin-action-buttons">
-            <button class="admin-button admin-button-primary" type="submit">${ICONS.send}<span>Send email</span></button>
+            <button class="admin-button admin-button-primary" type="submit" disabled>${ICONS.send}<span>Send email</span></button>
           </div>
         </form>
       </section>

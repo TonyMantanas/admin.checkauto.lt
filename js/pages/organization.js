@@ -1,3 +1,5 @@
+import { skeletons } from '../core/skeletons.js?v=20260821-2';
+
 export const page = 'organization';
 
 const weekdays = [
@@ -28,7 +30,10 @@ export function renderStaticPage(root) {
               <p>These legal and bank details are copied into each new invoice.</p>
             </div>
           </header>
-          <form class="admin-organization-form" data-organization-settings-form novalidate>
+          <div data-organization-invoice-loading>
+            ${skeletons.formFields(11, { wideEvery: 4 })}
+          </div>
+          <form class="admin-organization-form" data-organization-settings-form data-organization-invoice-content novalidate hidden>
             <fieldset>
               <legend>Legal company details</legend>
               <div class="admin-organization-form-grid">
@@ -66,7 +71,10 @@ export function renderStaticPage(root) {
               <p>Set how long a customer request remains open and when review time counts.</p>
             </div>
           </header>
-          <form class="admin-confirmation-schedule-form admin-confirmation-schedule-page-form" data-confirmation-schedule-form novalidate>
+          <div data-organization-schedule-loading>
+            ${skeletons.confirmationSchedule()}
+          </div>
+          <form class="admin-confirmation-schedule-form admin-confirmation-schedule-page-form" data-confirmation-schedule-form data-organization-schedule-content novalidate hidden>
             <div class="admin-confirmation-settings">
               <label>
                 <span>Time to confirm</span>

@@ -6,7 +6,16 @@ export function renderStaticPage(root) {
       <div class="admin-login-panel">
         <div class="admin-brand">check<span>auto</span>.lt</div>
         <h1 id="admin-login-title">Sign in</h1>
-        <p class="admin-login-session" data-admin-login-session role="status" aria-live="polite">Checking session…</p>
+        <p class="admin-login-session" data-admin-login-session role="status" aria-live="polite" hidden></p>
+        <div class="admin-auth-form-skeleton" data-admin-login-loading role="status" aria-label="Checking account session">
+          <div aria-hidden="true">
+            <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+            <span class="admin-skeleton admin-skeleton-control"></span>
+            <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+            <span class="admin-skeleton admin-skeleton-control"></span>
+            <span class="admin-skeleton admin-skeleton-control"></span>
+          </div>
+        </div>
         <form data-admin-login-form hidden novalidate>
           <label>Email<input name="email" type="email" autocomplete="email" required></label>
           <label>Password<input name="password" type="password" autocomplete="current-password" required></label>

@@ -436,6 +436,16 @@ fieldset {
   margin-block-start: var(--admin-space-2);
 }
 
+.admin-shell-skeleton {
+  margin-block-start: var(--admin-space-4);
+  display: grid;
+  gap: var(--admin-space-3);
+}
+
+.admin-shell-skeleton .admin-skeleton-control {
+  margin-block-start: var(--admin-space-2);
+}
+
 .admin-login-page {
   background:
     radial-gradient(circle at 50% -20%, color-mix(in srgb, var(--admin-accent) 10%, transparent), transparent 45%),
@@ -946,6 +956,21 @@ fieldset {
   background: var(--admin-surface);
 }
 
+.admin-auth-form-skeleton {
+  min-width: 0;
+  margin-block-start: var(--admin-space-4);
+}
+
+.admin-auth-form-skeleton > div {
+  display: grid;
+  gap: var(--admin-space-3);
+}
+
+.admin-auth-form-skeleton .admin-skeleton-control:last-child {
+  width: min(100%, 9rem);
+  margin-block-start: var(--admin-space-2);
+}
+
 .admin-segmented button.is-active,
 .admin-segmented button[aria-pressed="true"],
 .admin-segmented button[aria-selected="true"] {
@@ -1397,6 +1422,11 @@ fieldset {
   width: min(100%, 18rem);
 }
 
+.admin-account-detail-skeleton {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--admin-space-2);
+}
+
 .admin-account-reset-status,
 .admin-account-sessions-status {
   min-height: 0;
@@ -1452,6 +1482,12 @@ fieldset {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
   font-variant-numeric: tabular-nums;
+}
+
+.admin-account-metadata-skeleton > div {
+  min-width: 10rem;
+  display: grid;
+  gap: var(--admin-space-1);
 }
 
 .admin-reset-panel {
@@ -1613,6 +1649,81 @@ fieldset {
 
 .admin-skeleton-role .admin-skeleton-line {
   height: 0.65rem;
+}
+
+.admin-skeleton-control {
+  width: 100%;
+  height: var(--admin-control-height);
+  border-radius: var(--admin-control-radius);
+}
+
+.admin-skeleton-control-tall {
+  height: 5.25rem;
+}
+
+.admin-skeleton-square {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 0.25rem;
+}
+
+.admin-skeleton-form-grid {
+  min-width: 0;
+  padding: var(--admin-space-5);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-4);
+}
+
+.admin-skeleton-field {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+}
+
+.admin-skeleton-field-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-skeleton-confirmation {
+  min-width: 0;
+  padding: var(--admin-space-5);
+  display: grid;
+  gap: var(--admin-space-5);
+}
+
+.admin-skeleton-confirmation-settings {
+  display: grid;
+  grid-template-columns: minmax(12rem, 18rem) minmax(12rem, 1fr);
+  align-items: end;
+  gap: var(--admin-space-4);
+}
+
+.admin-skeleton-confirmation-week {
+  display: grid;
+  gap: var(--admin-space-2);
+}
+
+.admin-skeleton-confirmation-day {
+  min-width: 0;
+  min-height: 3.7rem;
+  padding: var(--admin-space-2);
+  display: grid;
+  grid-template-columns: 1rem minmax(7rem, 1fr) minmax(7.5rem, 0.45fr) minmax(7.5rem, 0.45fr);
+  align-items: center;
+  gap: var(--admin-space-3);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-control-radius);
+  background: var(--admin-surface-subtle);
+}
+
+.admin-dashboard-skeleton-generated {
+  width: min(100%, 15rem);
+}
+
+.admin-skeleton-calendar-range {
+  width: min(100%, 8rem);
 }
 
 .admin-calendar-skeleton {
@@ -3990,12 +4101,23 @@ button.admin-mini-item::after {
 
 @media (max-width: 42rem) {
   .admin-organization-form-grid,
+  .admin-skeleton-form-grid,
+  .admin-skeleton-confirmation-settings,
   .admin-day-schedule-time-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .admin-organization-form .admin-field-wide {
+  .admin-organization-form .admin-field-wide,
+  .admin-skeleton-field-wide {
     grid-column: auto;
+  }
+
+  .admin-skeleton-confirmation-day {
+    grid-template-columns: 1rem minmax(0, 1fr);
+  }
+
+  .admin-skeleton-confirmation-day .admin-skeleton-control {
+    grid-column: 1 / -1;
   }
 }
 
@@ -5508,11 +5630,35 @@ button.admin-mini-item::after {
 }
 
 .admin-email-preview {
+  position: relative;
   min-height: 16rem;
   overflow: hidden;
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-control-radius);
   background: var(--admin-surface);
+}
+
+.admin-email-preview.is-loading {
+  min-height: 28rem;
+}
+
+.admin-skeleton-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  padding: clamp(1.25rem, 4vw, 2.25rem);
+  background: var(--admin-surface);
+}
+
+.admin-skeleton-preview > div {
+  display: grid;
+  gap: var(--admin-space-4);
+}
+
+.admin-skeleton-preview-block {
+  width: 100%;
+  height: 9rem;
+  border-radius: var(--admin-control-radius);
 }
 
 .admin-email-preview iframe {
