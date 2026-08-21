@@ -1,4 +1,4 @@
-import { PATHS } from './routes.js?v=20260804-1';
+import { PATHS } from './routes.js?v=20260821-1';
 import { ICONS } from './icons.js?v=20260802-1';
 
 const groups = [
@@ -162,18 +162,26 @@ export function syncStaffNavigation(staff, page) {
 
   const section = document.createElement('section');
   const label = document.createElement('p');
-  const link = document.createElement('a');
+  const organizationLink = document.createElement('a');
+  const usersLink = document.createElement('a');
 
   section.className = 'admin-nav-group';
   label.className = 'admin-nav-group-label';
   label.textContent = 'Organization';
-  link.href = PATHS.users;
-  link.dataset.adminNav = 'users';
-  link.textContent = 'Users';
-  if (page === 'users') {
-    link.className = 'is-active';
-    link.setAttribute('aria-current', 'page');
+  organizationLink.href = PATHS.organization;
+  organizationLink.dataset.adminNav = 'organization';
+  organizationLink.textContent = 'Organization';
+  usersLink.href = PATHS.users;
+  usersLink.dataset.adminNav = 'users';
+  usersLink.textContent = 'Users';
+  if (page === 'organization') {
+    organizationLink.className = 'is-active';
+    organizationLink.setAttribute('aria-current', 'page');
   }
-  section.append(label, link);
+  if (page === 'users') {
+    usersLink.className = 'is-active';
+    usersLink.setAttribute('aria-current', 'page');
+  }
+  section.append(label, organizationLink, usersLink);
   target.replaceChildren(section);
 }

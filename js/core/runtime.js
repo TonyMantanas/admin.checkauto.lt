@@ -1,8 +1,8 @@
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
-import { state } from './state.js?v=20260811-1';
+import { state } from './state.js?v=20260821-1';
 import { auth } from './auth.js?v=20260804-1';
-import { syncStaffNavigation } from './shell.js?v=20260807-1';
+import { syncStaffNavigation } from './shell.js?v=20260821-1';
 import { toast } from './toast.js?v=20260804-1';
 
 /* ==========================================================================
@@ -37,6 +37,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     customers: adminPath('/customers/'),
     invoices: adminPath('/invoices/'),
     marketing: adminPath('/marketing/'),
+    organization: adminPath('/organization/'),
     users: adminPath('/users/'),
     account: adminPath('/account/'),
     login: adminPath('/login/')
@@ -64,11 +65,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     customers: 'sensitive_data.access',
     invoices: 'sensitive_data.access',
     marketing: 'sensitive_data.access',
+    organization: 'staff_users.manage',
     users: 'staff_users.manage'
   };
 
   var els = {};
   var activeDashboardLoad = null;
+  var activeBookingQuery = null;
+  var bookingSearchTimer = null;
+  var activeInvoiceQuery = null;
+  var invoiceSearchTimer = null;
   var customerActivityLoads = Object.create(null);
   var customerActivityLoadSequence = 0;
   var scrollStateTimer = null;
@@ -82,6 +88,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var slotEditorReturnFocus = null;
   var slotEditorReturnFocusSelector = '';
   var slotEditorBaseline = '';
+  var organizationSettingsBaseline = '';
   var dayScheduleLastResult = null;
   var calendarMediaQuery = null;
   var navigationMediaQuery = null;
@@ -153,7 +160,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var accessRight = PAGE_ACCESS_RIGHTS[page];
     if (!accessRight) return true;
     if (!staff) return false;
-    if (page === 'users' && !staffHasRole(staff, 'owner')) return false;
+    if (['users', 'organization'].includes(page) && !staffHasRole(staff, 'owner')) return false;
     return staffHasAccess(
       staff,
       accessRight,
@@ -483,8 +490,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var timer = expiryCountdownState(booking.pending_expires_at, booking.created_at);
     if (!timer) return '';
 
-    var mode = variant === 'compact' ? 'compact' : 'full';
-    var label = expiryCountdownLabel(timer, mode);
+    var mode = ['compact', 'header'].includes(variant) ? variant : 'full';
+    var label = expiryCountdownLabel(timer, mode === 'header' ? 'compact' : mode);
     var exact = formatDateTime(booking.pending_expires_at);
     var attributes =
       ' data-admin-expiry' +
@@ -497,6 +504,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (mode === 'compact') {
       return '<span class="admin-expiry-compact"' + attributes + '>' +
         '<span data-admin-expiry-remaining>' + escapeHtml(label) + '</span>' +
+      '</span>';
+    }
+
+    if (mode === 'header') {
+      return '<span class="admin-expiry-ring"' + attributes + ' style="--admin-expiry-progress:' + timer.progress.toFixed(2) + '%" title="Review deadline: ' + escapeHtml(exact) + '">' +
+        '<span><strong data-admin-expiry-remaining>' + escapeHtml(timer.shortLabel || 'Due') + '</strong><small>left</small></span>' +
       '</span>';
     }
 
@@ -517,8 +530,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     $all('[data-admin-expiry]').forEach(function (countdown) {
       var timer = expiryCountdownState(countdown.dataset.expiresAt, countdown.dataset.createdAt, now);
       if (!timer) return;
-      var variant = countdown.dataset.expiryVariant === 'compact' ? 'compact' : 'full';
-      var label = expiryCountdownLabel(timer, variant);
+      var variant = ['compact', 'header'].includes(countdown.dataset.expiryVariant) ? countdown.dataset.expiryVariant : 'full';
+      var label = expiryCountdownLabel(timer, variant === 'header' ? 'compact' : variant);
       var remaining = $('[data-admin-expiry-remaining]', countdown);
       var progress = $('[data-admin-expiry-bar]', countdown);
       var exact = formatDateTime(countdown.dataset.expiresAt);
@@ -527,6 +540,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       countdown.setAttribute('aria-label', 'Review deadline: ' + label + '. Expires ' + exact + '.');
       if (remaining) remaining.textContent = label;
       if (progress) progress.style.width = timer.progress.toFixed(2) + '%';
+      if (variant === 'header') countdown.style.setProperty('--admin-expiry-progress', timer.progress.toFixed(2) + '%');
 
       var bookingRow = countdown.closest('.admin-booking-item');
       if (bookingRow && bookingRow.dataset.bookingBaseLabel) {
@@ -799,6 +813,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function invoiceStatusLabel(invoice) {
     if (!invoice) return 'No invoice';
     if (invoice.invoice_status === 'void') return 'Void';
+    if (invoice.invoice_status === 'payment') return 'Payment recorded';
     if (invoice.payment_status === 'paid') return 'Paid';
     if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) return 'Overdue';
     return 'Unpaid';
@@ -817,7 +832,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       failed: 'Delivery failed',
       bounced: 'Delivery bounced',
       pending: 'Waiting to send',
-      not_sent: 'Not sent'
+      not_sent: 'Not sent',
+      skipped: 'Not applicable'
     }[status] || (status ? String(status).replace(/_/g, ' ') : 'Not sent');
   }
 
@@ -950,6 +966,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (state.refreshController) state.refreshController.abort();
       state.refreshController = null;
       activeDashboardLoad = null;
+      if (activeBookingQuery) activeBookingQuery.abort();
+      activeBookingQuery = null;
+      window.clearTimeout(bookingSearchTimer);
+      if (activeInvoiceQuery) activeInvoiceQuery.abort();
+      activeInvoiceQuery = null;
+      window.clearTimeout(invoiceSearchTimer);
       Object.keys(customerActivityLoads).forEach(function (customerId) {
         customerActivityLoads[customerId].controller.abort();
       });
@@ -976,6 +998,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
       state.maintenancePreview = null;
       state.confirmationSettings = null;
+      state.organizationSettings = null;
       state.dashboardAnalytics = null;
       state.dashboardTrendDays = 30;
       state.staffUsersLoadedAt = 0;
@@ -990,14 +1013,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!data || typeof data !== 'object') return;
     if (data.staff) state.staff = data.staff;
     if (Array.isArray(data.accountSessions)) state.accountSessions = data.accountSessions;
-    if (Array.isArray(data.customers)) {
-      Object.keys(customerActivityLoads).forEach(function (customerId) {
-        customerActivityLoads[customerId].controller.abort();
-      });
-      customerActivityLoads = Object.create(null);
-      customerActivityLoadSequence += 1;
-      state.customerActivityCache = Object.create(null);
-    }
     [
       'bookings',
       'services',
@@ -1019,6 +1034,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (Object.prototype.hasOwnProperty.call(data, 'confirmationSettings')) {
       state.confirmationSettings = data.confirmationSettings && typeof data.confirmationSettings === 'object'
         ? data.confirmationSettings
+        : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'organizationSettings')) {
+      state.organizationSettings = data.organizationSettings && typeof data.organizationSettings === 'object'
+        ? data.organizationSettings
         : null;
     }
     if (Object.prototype.hasOwnProperty.call(data, 'dashboardAnalytics')) {
@@ -1176,6 +1196,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       customers: 'customers',
       invoices: 'invoices',
       marketing: 'marketing',
+      organization: 'organization',
       users: 'auth',
       account: 'auth'
     }[page || state.page] || 'all';
@@ -1707,6 +1728,54 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     renderModalRoute(route);
   }
 
+  function captureModalViewState() {
+    var route = modalRouteFromUrl();
+    var root = ensureModalRoot();
+    var panel = $('.admin-modal-panel', root);
+    if (!route || root.hidden || !panel) return null;
+    return {
+      routeType: route.type,
+      routeId: route.id,
+      panelScrollTop: panel.scrollTop,
+      activityScrollTop: Number(($('[data-customer-activity-panel]', root) || {}).scrollTop || 0),
+      disclosures: $all('details', panel).map(function (details, index) {
+        return {
+          key: details.dataset.disclosureKey || '',
+          index: index,
+          open: details.open
+        };
+      })
+    };
+  }
+
+  function restoreModalViewState(saved) {
+    if (!saved) return;
+    var route = modalRouteFromUrl();
+    if (!route || route.type !== saved.routeType || route.id !== saved.routeId) return;
+    var root = ensureModalRoot();
+    var panel = $('.admin-modal-panel', root);
+    if (!panel) return;
+    var detailsList = $all('details', panel);
+    saved.disclosures.forEach(function (entry) {
+      var details = entry.key
+        ? $('[data-disclosure-key="' + escapeSelectorValue(entry.key) + '"]', panel)
+        : detailsList[entry.index];
+      if (details) details.open = Boolean(entry.open);
+    });
+    panel.scrollTop = Math.max(0, Number(saved.panelScrollTop || 0));
+    var activityPanel = $('[data-customer-activity-panel]', panel);
+    if (activityPanel) activityPanel.scrollTop = Math.max(0, Number(saved.activityScrollTop || 0));
+    var activityDisclosure = $('[data-customer-activity-disclosure]', panel);
+    if (
+      route.type === 'customer' &&
+      activityDisclosure &&
+      activityDisclosure.open &&
+      customerActivityCacheEntry(route.id).status === 'idle'
+    ) {
+      loadCustomerActivity(route.id).catch(function () {});
+    }
+  }
+
   function applyUrlModalState() {
     syncSelectedModalState(modalRouteFromUrl());
     renderPage();
@@ -2019,6 +2088,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         message: 'Mark this invoice as paid?',
         confirmLabel: 'Mark paid'
       },
+      updateInvoicePaidAmount: {
+        title: 'Update paid amount',
+        message: 'Replace the currently recorded paid amount with this value?',
+        confirmLabel: 'Update amount'
+      },
       resendInvoice: {
         title: 'Resend invoice',
         message: 'Send this invoice PDF to the customer again?',
@@ -2307,17 +2381,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function calendarHours(events) {
-    var min = DEFAULT_START_HOUR;
-    var max = DEFAULT_END_HOUR;
-
-    events.forEach(function (event) {
-      min = Math.min(min, Math.floor(eventMinutes(event.start) / 60));
-      max = Math.max(max, Math.ceil(eventMinutes(event.end) / 60));
-    });
-
-    min = Math.max(0, min);
-    max = Math.min(24, Math.max(min + 1, max));
-    return { start: min, end: max };
+    return { start: 0, end: 24 };
   }
 
   function dayLabel(dateValue) {
@@ -2369,8 +2433,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var expiryLabel = booking.status === 'pending' && expiryTimer
       ? ', review deadline ' + expiryCountdownLabel(expiryTimer, 'compact')
       : '';
-    return '<button class="admin-booking-item admin-data-row' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(rowLabel + expiryLabel) + '" data-booking-base-label="' + escapeHtml(rowLabel) + '" ' +
-      attributeName + '="' + escapeHtml(booking.id) + '">' +
+    return '<article class="admin-booking-row-shell' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '">' +
+      '<button class="admin-booking-item admin-data-row' + (booking.id === state.selectedBookingId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(rowLabel + expiryLabel) + '" data-booking-base-label="' + escapeHtml(rowLabel) + '" ' +
+        attributeName + '="' + escapeHtml(booking.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header">' +
           '<span class="admin-booking-title"><strong>' + escapeHtml(booking.public_reference) + '</strong><span>' + escapeHtml(booking.customer_name) + '</span></span>' +
         '</span>' +
@@ -2378,7 +2443,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<span class="admin-row-service admin-booking-meta">' + escapeHtml(serviceName) + '</span>' +
         '<span class="admin-row-date admin-booking-meta">' + escapeHtml(dateRange) + '</span>' +
         '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(vehicle) + '</span>' +
-      '</button>';
+      '</button>' +
+      (booking.status === 'confirmed'
+        ? '<button class="admin-button admin-button-secondary admin-booking-row-complete" type="button" data-row-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>'
+        : '') +
+    '</article>';
   }
 
   function dashboardNumber(value) {
@@ -2505,9 +2574,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       };
     }
 
+    var dashboardToday = todayYmd();
+    var dashboardMonthStart = dashboardToday.slice(0, 8) + '01';
     var primaryItems = [
-      countItem('Bookings received', kpis.bookings_month, PATHS.bookings, 'neutral'),
-      countItem('Inspections completed', kpis.completed_month, PATHS.bookings + '?filter=completed', 'higher')
+      countItem('Bookings received', kpis.bookings_month, PATHS.bookings + '?dateField=received&from=' + dashboardMonthStart + '&to=' + dashboardToday, 'neutral'),
+      countItem('Inspections completed', kpis.completed_month, PATHS.bookings + '?statuses=completed&dateField=completed&from=' + dashboardMonthStart + '&to=' + dashboardToday, 'higher')
     ];
 
     if (analytics.can_view_financials === true) {
@@ -2522,7 +2593,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (!hasPreviousRevenuePeriod) previousRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 1));
       primaryItems.push({
         label: 'Payments received',
-        period: 'Gross paid invoice total',
+        period: 'Recorded payment total',
         value: currentRevenue.length ? dashboardMoneyMarkup(currentRevenue) : '<span class="admin-dashboard-no-value">No payments</span>',
         unavailable: false,
         comparison: currentRevenue.length
@@ -2530,7 +2601,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           : (previousRevenue.length
             ? '<span class="admin-dashboard-kpi-comparison" data-tone="neutral">Down from ' + previousRevenue.map(function (entry) { return escapeHtml(formatMoney(entry.amount_cents, entry.currency)); }).join(' / ') + '</span>'
             : '<span class="admin-dashboard-kpi-comparison">No payments in either period</span>'),
-        href: PATHS.invoices
+        href: PATHS.invoices + '?paymentStatuses=paid&dateField=paid&from=' + dashboardMonthStart + '&to=' + dashboardToday
       });
     }
 
@@ -2605,35 +2676,56 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var title = $('[data-dashboard-attention-title]');
     var summary = $('[data-dashboard-attention-summary]');
     var panel = root.closest('.admin-dashboard-action-rail');
+    var reminders = analytics && analytics.action_reminders && typeof analytics.action_reminders === 'object'
+      ? analytics.action_reminders
+      : {};
+    var billingItems = Array.isArray(reminders.billing_items) ? reminders.billing_items : [];
+    var billingTotal = dashboardNumber(reminders.billing_total_count) || 0;
     if (title) title.textContent = canManage ? 'Needs action' : 'Booking watchlist';
 
     if (attention && Array.isArray(attention.items)) {
-      var total = dashboardNumber(attention.total_unique_count);
-      var items = attention.items.slice(0, 3);
+      var bookingTotal = dashboardNumber(attention.total_unique_count) || 0;
+      var total = bookingTotal + billingTotal;
+      var items = attention.items.slice(0, 3).map(function (item) {
+        return Object.assign({ reminder_type: 'booking' }, item);
+      }).concat(billingItems.slice(0, 2).map(function (item) {
+        return Object.assign({ reminder_type: 'billing' }, item);
+      }));
       if (panel) panel.dataset.state = total > 0 ? 'attention' : 'clear';
       if (summary) summary.textContent = total > 0
-        ? dashboardCountWithNoun(total, 'booking needs', 'bookings need') + (canManage ? ' action' : ' attention')
+        ? dashboardCountWithNoun(total, 'item needs', 'items need') + (canManage ? ' action' : ' attention')
         : 'No booking exceptions';
       if (!items.length && total === 0) {
-        root.innerHTML = '<div class="admin-dashboard-clear-state" role="status"><strong>Queue clear</strong><span>No booking requests, assignments, or overdue outcomes need attention.</span></div>';
+        root.innerHTML = '<div class="admin-dashboard-clear-state" role="status"><strong>Queue clear</strong><span>No booking decisions, overdue outcomes, or completed-work payments need attention.</span></div>';
         return;
       }
       root.innerHTML = '<ol class="admin-dashboard-attention-list">' + items.map(function (item) {
-        var reason = dashboardAttentionReason(item);
+        var isBillingReminder = item.reminder_type === 'billing';
+        var reason = isBillingReminder
+          ? {
+              label: 'Record invoice or payment',
+              detail: item.completed_at ? 'Completed ' + formatDateTime(item.completed_at) : 'Completed inspection has no payment record'
+            }
+          : dashboardAttentionReason(item);
         var expiry = Array.isArray(item.reason_codes) && item.reason_codes.includes('pending_review')
           ? expiryCountdownHtml(item, 'compact')
           : '';
-        var status = item.status
+        var status = isBillingReminder
+          ? '<span class="admin-status-pill" data-status="warning">Payment needed</span>'
+          : item.status
           ? '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(item.status)) + '">' + escapeHtml(statusLabel(item.status)) + '</span>'
           : '';
         var body = '<span class="admin-dashboard-attention-main"><strong>' + escapeHtml(reason.label) + '</strong><span>' + escapeHtml(item.reference || 'Booking') + ' · ' + escapeHtml(reason.detail) + '</span></span>' +
           '<span class="admin-dashboard-attention-meta">' + expiry + status + '</span>';
+        var itemHref = isBillingReminder
+          ? PATHS.bookings + '?statuses=completed&amp;booking=' + encodeURIComponent(item.id)
+          : PATHS.bookings + '?statuses=' + encodeURIComponent(item.status || '') + '&amp;booking=' + encodeURIComponent(item.id);
         return '<li>' + (item.id
-          ? '<a href="' + PATHS.bookings + '?booking=' + encodeURIComponent(item.id) + '">' + body + '</a>'
+          ? '<a href="' + itemHref + '">' + body + '</a>'
           : '<div>' + body + '</div>') + '</li>';
       }).join('') + '</ol>' +
-        (attention.has_more || attention.items.length > items.length
-          ? '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '?filter=all">View all booking exceptions</a>'
+        (attention.has_more || reminders.billing_has_more || attention.items.length + billingItems.length > items.length
+          ? '<a class="admin-dashboard-panel-link" href="' + PATHS.bookings + '">View all bookings</a>'
           : '');
       return;
     }
@@ -2693,6 +2785,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (remaining === null && Array.isArray(bookings)) {
       remaining = bookings.filter(function (booking) { return booking.status === 'confirmed'; }).length;
     }
+    var actionReminders = analytics && analytics.action_reminders && typeof analytics.action_reminders === 'object'
+      ? analytics.action_reminders
+      : null;
+    var remainingThroughSunday = dashboardNumber(actionReminders && actionReminders.remaining_through_sunday_count);
+    if (remainingThroughSunday !== null) remaining = remainingThroughSunday;
     if (pendingToday === null && Array.isArray(bookings)) {
       pendingToday = bookings.filter(function (booking) { return booking.status === 'pending'; }).length;
     }
@@ -2735,7 +2832,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<div class="admin-dashboard-day-summary">' +
         progressMarkup +
         '<dl class="admin-dashboard-day-facts">' +
-          '<div><dt>Still to complete</dt><dd>' + escapeHtml(dashboardCount(remaining)) + '</dd></div>' +
+          '<div><dt>Still to complete through Sunday</dt><dd>' + escapeHtml(dashboardCount(remaining)) + '</dd></div>' +
           '<a href="' + PATHS.availability + '"><dt>' + escapeHtml(capacityLabel) + '</dt><dd>' + escapeHtml(dashboardCount(capacityCount)) + '</dd>' + capacityDetail + '<small>' + escapeHtml(capacityContext) + '</small></a>' +
         '</dl>' +
       '</div>' +
@@ -3065,7 +3162,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function dashboardRevenueTable(points, currency) {
     return '<details class="admin-dashboard-data-details"><summary>View payment data</summary>' +
-      '<div class="admin-dashboard-table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Paid invoice total</th></tr></thead><tbody>' +
+      '<div class="admin-dashboard-table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Payments received</th></tr></thead><tbody>' +
       points.map(function (point, index) {
         var label = point.label + (index === points.length - 1 ? ' (month to date)' : '');
         return '<tr><th scope="row">' + escapeHtml(label) + '</th><td>' + escapeHtml(formatMoney(point.amount_cents, currency)) + '</td></tr>';
@@ -3114,7 +3211,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         (previousPoint ? '; ' + formatMoney(previousPoint.amount_cents, currency) + ' in the previous full month.' : '.');
       var trendMarkup = dashboardChartMarkup({
           id: 'dashboard-revenue-' + index,
-          title: 'Paid invoice totals in ' + dashboardCurrencySymbol(currency) + ' for full months',
+          title: 'Payments received in ' + dashboardCurrencySymbol(currency) + ' for full months',
           description: 'Full-month payment totals before the current partial month. ' + summary,
           points: fullMonthPoints,
           countChart: false,
@@ -3123,7 +3220,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           tooltip: function (point) { return point.label + ': ' + formatMoney(point.amount_cents, currency); }
         }) + dashboardRevenueTable(points, currency);
       return '<section class="admin-dashboard-revenue-series" aria-labelledby="dashboard-revenue-series-' + index + '">' +
-        '<div class="admin-dashboard-revenue-series-heading"><h3 id="dashboard-revenue-series-' + index + '">Paid invoice totals in ' + escapeHtml(dashboardCurrencySymbol(currency)) + '</h3><p>' + escapeHtml(summary) + '</p></div>' +
+        '<div class="admin-dashboard-revenue-series-heading"><h3 id="dashboard-revenue-series-' + index + '">Payments received in ' + escapeHtml(dashboardCurrencySymbol(currency)) + '</h3><p>' + escapeHtml(summary) + '</p></div>' +
         trendMarkup +
       '</section>';
     }).join('');
@@ -3313,6 +3410,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderCalendar() {
     var calendar = $('[data-admin-calendar]');
     if (!calendar) return;
+    var previousScroller = $('.admin-calendar-scroll', calendar);
+    var previousScrollTop = previousScroller ? previousScroller.scrollTop : null;
+    var previousScrollLeft = previousScroller ? previousScroller.scrollLeft : 0;
     $all('[data-calendar-prev], [data-calendar-today], [data-calendar-next], [data-calendar-view] button, [data-calendar-date]').forEach(function (control) {
       control.disabled = false;
     });
@@ -3356,6 +3456,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
       '</div>' +
       renderCalendarAgenda(range, byDay);
+
+    var calendarScroller = $('.admin-calendar-scroll', calendar);
+    if (calendarScroller && !calendarIsCompact()) {
+      calendarScroller.scrollLeft = previousScrollLeft;
+      if (previousScrollTop !== null) {
+        calendarScroller.scrollTop = previousScrollTop;
+      } else {
+        var workingDayMiddle = ((DEFAULT_START_HOUR + 17) / 2) * HOUR_HEIGHT;
+        calendarScroller.scrollTop = Math.max(0, workingDayMiddle - calendarScroller.clientHeight / 2);
+      }
+    }
 
     $all('[data-calendar-event]').forEach(function (button) {
       button.addEventListener('click', function () {
@@ -3445,40 +3556,138 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return booking.final_start_at || booking.requested_start_at || booking.created_at || '';
   }
 
-  function getFilteredBookings() {
-    var bookings = state.bookings.slice();
-    if (state.filter === 'today') {
-      var today = todayYmd();
-      bookings = bookings.filter(function (booking) {
-        var start = bookingScheduleStart(booking);
-        var pendingIsActive = booking.status !== 'pending' || (
-          booking.pending_expires_at && new Date(booking.pending_expires_at).getTime() >= Date.now()
-        );
-        return start &&
-          ['pending', 'confirmed', 'completed'].includes(booking.status) &&
-          pendingIsActive &&
-          formatDate(start) === today;
-      });
-    } else if (state.filter === 'completed') {
-      bookings = bookings.filter(function (booking) { return booking.status === 'completed'; });
-    } else if (state.filter !== 'all') {
-      bookings = bookings.filter(function (booking) { return booking.status === state.filter; });
+  function bookingFilterSignature() {
+    return JSON.stringify({
+      search: state.bookingSearch,
+      statuses: state.bookingStatuses.slice().sort(),
+      dateField: state.bookingDateField,
+      dateFrom: state.bookingDateFrom,
+      dateTo: state.bookingDateTo,
+      sort: state.bookingSort
+    });
+  }
+
+  function bookingFilterCount() {
+    var count = state.bookingStatuses.length;
+    if (state.bookingDateFrom) count += 1;
+    if (state.bookingDateTo) count += 1;
+    if (state.bookingDateField !== 'received' && (state.bookingDateFrom || state.bookingDateTo)) count += 1;
+    return count;
+  }
+
+  function syncBookingFilterControls() {
+    var search = $('[data-booking-search]');
+    if (search && search.value !== state.bookingSearch) search.value = state.bookingSearch;
+    $all('[data-booking-status]').forEach(function (checkbox) {
+      checkbox.checked = state.bookingStatuses.includes(checkbox.value);
+    });
+    var dateField = $('[data-booking-date-field]');
+    var dateFrom = $('[data-booking-date-from]');
+    var dateTo = $('[data-booking-date-to]');
+    if (dateField) dateField.value = state.bookingDateField;
+    if (dateFrom) dateFrom.value = state.bookingDateFrom;
+    if (dateTo) dateTo.value = state.bookingDateTo;
+    var count = $('[data-booking-filter-count]');
+    var activeCount = bookingFilterCount();
+    if (count) {
+      count.textContent = String(activeCount);
+      count.hidden = activeCount === 0;
     }
-    return bookings.sort(function (a, b) {
-      var priority = { pending: 0, confirmed: 1, cancelled: 2, rejected: 3, expired: 4, completed: 5 };
+    $all('[data-booking-sort]').forEach(function (button) {
+      setPressed(button, button.dataset.bookingSort === state.bookingSort);
+    });
+    refreshCustomControls($('[data-page-root]'));
+  }
+
+  function replaceBookingFilterUrl() {
+    var url = new URL(PATHS.bookings, window.location.href);
+    if (state.bookingSearch) url.searchParams.set('search', state.bookingSearch);
+    if (state.bookingStatuses.length) url.searchParams.set('statuses', state.bookingStatuses.join(','));
+    if (state.bookingDateField !== 'received') url.searchParams.set('dateField', state.bookingDateField);
+    if (state.bookingDateFrom) url.searchParams.set('from', state.bookingDateFrom);
+    if (state.bookingDateTo) url.searchParams.set('to', state.bookingDateTo);
+    if (state.bookingSort !== 'desc') url.searchParams.set('sort', state.bookingSort);
+    var route = modalRouteFromUrl();
+    if (route && route.type === 'booking' && route.id) url.searchParams.set('booking', route.id);
+    history.replaceState(modalHistoryState(route, route ? 1 : 0), '', url.pathname + url.search);
+  }
+
+  async function loadBookingQuery(options) {
+    var opts = options || {};
+    var append = opts.append === true;
+    var signature = bookingFilterSignature();
+    if (!append && !opts.force && state.bookingQuerySignature === signature) return true;
+    if (activeBookingQuery) activeBookingQuery.abort();
+    var controller = new AbortController();
+    activeBookingQuery = controller;
+    state.bookingQueryLoading = true;
+    var list = $('[data-admin-booking-list]');
+    if (!append && list && !opts.silent) {
+      list.setAttribute('aria-busy', 'true');
+      list.innerHTML = '<div class="admin-list-loading" role="status"><span class="admin-button-spinner" aria-hidden="true"></span><strong>Loading bookings…</strong></div>';
+    }
+
+    try {
+      if (!(await ensureActiveSession())) throw new Error('Sign in again before loading bookings.');
+      var offset = append ? state.bookings.length : 0;
+      var query = new URLSearchParams({
+        view: 'bookings_query',
+        sort: state.bookingSort,
+        offset: String(offset),
+        limit: '100'
+      });
+      if (state.bookingSearch) query.set('search', state.bookingSearch);
+      if (state.bookingStatuses.length) query.set('statuses', state.bookingStatuses.join(','));
+      if (state.bookingDateField) query.set('dateField', state.bookingDateField);
+      if (state.bookingDateFrom) query.set('dateFrom', state.bookingDateFrom);
+      if (state.bookingDateTo) query.set('dateTo', state.bookingDateTo);
+      var response = await fetch(ADMIN_ENDPOINT + '?' + query.toString(), {
+        method: 'GET',
+        headers: authHeaders(),
+        cache: 'no-store',
+        signal: controller.signal
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(body.error || 'Bookings could not be loaded.');
+      if (controller.signal.aborted || activeBookingQuery !== controller || state.page !== 'bookings' || bookingFilterSignature() !== signature) return false;
+      var result = body.bookingQuery && typeof body.bookingQuery === 'object' ? body.bookingQuery : {};
+      var rows = Array.isArray(result.rows) ? result.rows : [];
+      state.bookings = append ? state.bookings.concat(rows) : rows;
+      state.bookingQueryTotal = Number(result.total_count) || 0;
+      state.bookingQueryHasMore = Boolean(result.has_more);
+      state.bookingQueryOffset = state.bookings.length;
+      state.bookingQuerySignature = signature;
+      state.bookingQueryLoading = false;
+      renderBookingsPage();
+      return true;
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted) return false;
+      state.bookingQueryLoading = false;
+      if (list && (!append || !state.bookings.length)) {
+        list.innerHTML = '<div class="admin-empty-state" role="alert"><div><h2>Bookings could not be loaded</h2><p>' + escapeHtml(error instanceof Error ? error.message : 'Try again.') + '</p></div><button class="admin-button admin-button-secondary" type="button" data-booking-query-retry>Try again</button></div>';
+      } else if (append) {
+        showToast(error instanceof Error ? error.message : 'Older bookings could not be loaded.', 'error');
+      }
+      return false;
+    } finally {
+      if (activeBookingQuery === controller) activeBookingQuery = null;
+      if (list) list.removeAttribute('aria-busy');
+    }
+  }
+
+  function getFilteredBookings() {
+    return state.bookings.slice().sort(function (a, b) {
       var direction = state.bookingSort === 'desc' ? -1 : 1;
-      var dateCompare = (new Date(bookingScheduleStart(a)).getTime() || 0) - (new Date(bookingScheduleStart(b)).getTime() || 0);
-      return (dateCompare * direction) ||
-        ((priority[a.status] || 9) - (priority[b.status] || 9)) ||
-        (new Date(b.created_at) - new Date(a.created_at));
+      return ((new Date(a.created_at).getTime() || 0) - (new Date(b.created_at).getTime() || 0)) * direction || String(a.id).localeCompare(String(b.id)) * direction;
     });
   }
 
   function renderBookingsPage() {
     els.bookingList = $('[data-admin-booking-list]');
-    $all('[data-filter], [data-booking-sort]').forEach(function (control) {
+    $all('[data-booking-search], [data-booking-status], [data-booking-date-field], [data-booking-date-from], [data-booking-date-to], [data-booking-sort]').forEach(function (control) {
       control.disabled = false;
     });
+    syncBookingFilterControls();
     renderBookings();
   }
 
@@ -3487,7 +3696,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!els.bookingList) return;
     var count = $('[data-admin-booking-count]');
     if (count) {
-      count.textContent = bookings.length + ' booking' + (bookings.length === 1 ? '' : 's');
+      var total = state.bookingQuerySignature ? state.bookingQueryTotal : bookings.length;
+      count.textContent = total + ' booking' + (total === 1 ? '' : 's');
       count.setAttribute('role', 'status');
       count.setAttribute('aria-live', 'polite');
       count.setAttribute('aria-atomic', 'true');
@@ -3495,15 +3705,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (!bookings.length) {
       els.bookingList.innerHTML = emptyState(
-        state.filter === 'all' ? 'No bookings yet.' : 'No bookings match this filter.',
-        state.filter === 'all' ? '' : 'Show all bookings',
+        bookingFilterCount() === 0 && !state.bookingSearch ? 'No bookings yet.' : 'No bookings match these filters.',
+        bookingFilterCount() === 0 && !state.bookingSearch ? '' : 'Reset filters',
         'data-empty-bookings-all'
       );
       var showAll = $('[data-empty-bookings-all]', els.bookingList);
       if (showAll) {
         showAll.addEventListener('click', function () {
-          var allButton = $('[data-filter="all"]');
-          if (allButton) allButton.click();
+          resetBookingFilters();
         });
       }
       return;
@@ -3519,7 +3728,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         navigateToModal('booking', button.dataset.bookingId);
       });
     });
+    $all('[data-row-complete-booking]', els.bookingList).forEach(function (button) {
+      button.addEventListener('click', function () {
+        runAction({ action: 'completeBooking', bookingId: button.dataset.rowCompleteBooking }, 'completeBooking', button);
+      });
+    });
     updateExpiryCountdowns();
+    var pagination = $('[data-booking-pagination]');
+    var loadMore = $('[data-booking-load-more]');
+    if (pagination) pagination.hidden = !state.bookingQueryHasMore;
+    if (loadMore) loadMore.disabled = state.bookingQueryLoading;
   }
 
   function detailRow(label, value) {
@@ -3560,11 +3778,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
           '</div>' +
         '</div>' +
+        expiryCountdownHtml(booking, 'header') +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<section class="admin-detail-section admin-booking-overview">' +
         '<h3>Booking details</h3>' +
-        expiryCountdownHtml(booking, 'full') +
         '<div class="admin-booking-overview-grid">' +
           '<div class="admin-booking-primary-fact">' +
             '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
@@ -3605,6 +3823,61 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
     });
+
+    $all('[data-booking-decision-choice]', modal).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var choice = button.dataset.bookingDecisionChoice;
+        $all('[data-booking-decision-choice]', modal).forEach(function (item) {
+          var selected = item === button;
+          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
+          setPressed(item, selected);
+        });
+        $all('[data-booking-decision-panel]', modal).forEach(function (panel) {
+          panel.hidden = panel.dataset.bookingDecisionPanel !== choice;
+        });
+        var activePanel = $('[data-booking-decision-panel="' + escapeSelectorValue(choice) + '"]', modal);
+        focusElement(activePanel && $('select, input:not([type="hidden"]), textarea, button[type="submit"]', activePanel));
+      });
+    });
+
+    $all('[data-booking-billing-choice]', modal).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var choice = button.dataset.bookingBillingChoice;
+        $all('[data-booking-billing-choice]', modal).forEach(function (item) {
+          var selected = item === button;
+          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
+          setPressed(item, selected);
+        });
+        $all('[data-booking-billing-panel]', modal).forEach(function (panel) {
+          panel.hidden = panel.dataset.bookingBillingPanel !== choice;
+        });
+        var activePanel = $('[data-booking-billing-panel="' + escapeSelectorValue(choice) + '"]', modal);
+        focusElement(activePanel && $('input:not([type="hidden"]), select, textarea, button[type="submit"]', activePanel));
+      });
+    });
+
+    var optionalDueDate = $('[data-optional-due-date]', modal);
+    if (optionalDueDate) {
+      var dueToggle = $('input[name="hasDueDate"]', optionalDueDate);
+      var dueInput = $('input[name="dueDate"]', optionalDueDate);
+      var syncDueDate = function () {
+        if (!dueInput || !dueToggle) return;
+        dueInput.disabled = !dueToggle.checked;
+        dueInput.required = dueToggle.checked;
+      };
+      if (dueToggle) dueToggle.addEventListener('change', syncDueDate);
+      syncDueDate();
+    }
+
+    var cancellationButton = $('[data-booking-cancellation-open]', modal);
+    var cancellationPanel = $('[data-booking-cancellation-panel]', modal);
+    if (cancellationButton && cancellationPanel) {
+      cancellationButton.addEventListener('click', function () {
+        cancellationPanel.hidden = false;
+        cancellationButton.hidden = true;
+        focusElement($('textarea, button[type="submit"]', cancellationPanel));
+      });
+    }
 
     var completeButton = $('[data-complete-booking]', modal);
     if (completeButton) {
@@ -3680,7 +3953,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       hiddenInput('bookingId', booking.id) +
       '<div class="admin-action-grid">' +
         '<label>Amount<input name="amount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
-        '<label>Due date<input name="dueDate" type="text" inputmode="numeric" required value="' + escapeHtml(defaultInvoiceDueDate()) + '" placeholder="2026-12-31"></label>' +
+        '<div class="admin-optional-date-field" data-optional-due-date>' +
+          '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Set due date</span></label>' +
+          '<label>Due date<input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
+        '</div>' +
       '</div>' +
       '<div class="admin-action-grid">' +
         '<label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
@@ -3696,6 +3972,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderMarkBookingPaidForm(booking) {
     return '<form class="admin-action-form" data-admin-action-form data-action="markBookingPaid">' +
       hiddenInput('bookingId', booking.id) +
+      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
       '<div class="admin-action-grid">' +
         '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('cash') + '</select></span></label>' +
         '<label>Payment note<input name="paymentNote" type="text" maxlength="500" placeholder="Optional"></label>' +
@@ -3710,6 +3987,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var invoice = activeInvoiceForBooking(booking.id);
 
     if (invoice) {
+      if (invoice.invoice_status === 'payment') {
+        return '<div class="admin-detail-section">' +
+          '<h2>Payment</h2>' +
+          '<div class="admin-invoice-primary-fact">' +
+            '<span>Amount paid</span>' +
+            '<strong>' + escapeHtml(formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency)) + '</strong>' +
+            '<span>' + escapeHtml(invoice.paid_at ? formatDateTime(invoice.paid_at) : 'Payment recorded') + '</span>' +
+          '</div>' +
+          '<div class="admin-context-actions"><button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Payment details</span></button></div>' +
+        '</div>';
+      }
       return '<div class="admin-detail-section">' +
         '<h2>Invoice and payment</h2>' +
         '<div class="admin-modal-status-line">' +
@@ -3726,23 +4014,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</div>';
     }
 
-    if (booking.payment_status === 'paid') {
-      return '<div class="admin-detail-section">' +
-        '<h2>Invoice and payment</h2>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Payment', paymentLabel(booking.payment_status)) +
-          detailRow('Paid at', booking.paid_at ? formatDateTime(booking.paid_at) : '') +
-          detailRow('Method', booking.payment_method) +
-          detailRow('Note', booking.payment_note) +
-        '</div>' +
-      '</div>';
-    }
-
     return '<div class="admin-detail-section">' +
       '<h2>Invoice and payment</h2>' +
-      '<p class="admin-detail-note">Create an invoice only when needed. If the customer paid cash and no invoice is needed, mark this booking paid without invoice.</p>' +
-      renderCreateInvoiceForm(booking) +
-      renderMarkBookingPaidForm(booking) +
+      '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a billing action">' +
+        '<button class="admin-button admin-button-primary" type="button" data-booking-billing-choice="invoice" aria-expanded="false">Create and send invoice</button>' +
+        '<button class="admin-button admin-button-secondary" type="button" data-booking-billing-choice="payment" aria-expanded="false">Mark paid without invoice</button>' +
+      '</div>' +
+      '<div class="admin-booking-decision-panel" data-booking-billing-panel="invoice" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
+      '<div class="admin-booking-decision-panel" data-booking-billing-panel="payment" hidden>' + renderMarkBookingPaidForm(booking) + '</div>' +
     '</div>';
   }
 
@@ -3750,44 +4029,65 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (booking.status === 'pending') {
       return '<div class="admin-detail-section admin-booking-decision">' +
         '<h2>Review decision</h2>' +
-        '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
-          '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
-          '<div class="admin-action-grid">' +
-            '<label>Date<input name="date" type="text" inputmode="numeric" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '" placeholder="2026-12-31"></label>' +
-            '<label>Start<input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
-            '<label>End<input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
-          '</div>' +
-          '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-          '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
-          '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-          '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm booking</button></div>' +
-        '</form>' +
-      '</div>' +
-      '<div class="admin-detail-section admin-booking-rejection">' +
-        '<h2>Reject booking</h2>' +
-        '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
-          '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
-          '<label>Customer-visible reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-          '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
-          '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-          '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Reject booking</button></div>' +
-        '</form>' +
+        '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a booking decision">' +
+          '<button class="admin-button admin-button-primary" type="button" data-booking-decision-choice="requested" aria-expanded="false">Confirm requested time</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-expanded="false">Change time</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="reject" aria-expanded="false">Reject</button>' +
+        '</div>' +
+        '<div class="admin-booking-decision-panel" data-booking-decision-panel="requested" hidden>' +
+          '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
+            hiddenInput('bookingId', booking.id) +
+            hiddenInput('date', dateInputValue(booking.requested_start_at)) +
+            hiddenInput('startTime', timeInputValue(booking.requested_start_at)) +
+            hiddenInput('endTime', timeInputValue(booking.requested_end_at)) +
+            '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+            '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm requested time</button></div>' +
+          '</form>' +
+        '</div>' +
+        '<div class="admin-booking-decision-panel" data-booking-decision-panel="change" hidden>' +
+          '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
+            hiddenInput('bookingId', booking.id) +
+            '<div class="admin-action-grid">' +
+              '<label>Date<input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label>Start<input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label>End<input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
+            '</div>' +
+            '<label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+            '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
+          '</form>' +
+        '</div>' +
+        '<div class="admin-booking-decision-panel" data-booking-decision-panel="reject" hidden>' +
+          '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
+            hiddenInput('bookingId', booking.id) +
+            '<label>Customer-visible reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
+            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+            '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Reject booking</button></div>' +
+          '</form>' +
+        '</div>' +
       '</div>';
     }
 
     if (booking.status === 'confirmed') {
       return '<div class="admin-detail-section admin-booking-decision">' +
         '<h2>Actions</h2>' +
-        '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
-          '<input type="hidden" name="bookingId" value="' + escapeHtml(booking.id) + '">' +
-          '<label>Customer-visible cancellation reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-          '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
-          '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-          '<div class="admin-action-buttons">' +
-            '<button class="admin-button admin-button-danger" type="submit">Cancel booking</button>' +
-            '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>' +
-          '</div>' +
-        '</form>' +
+        '<div class="admin-action-buttons">' +
+          '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-cancellation-open>Cancel booking</button>' +
+        '</div>' +
+        '<div class="admin-booking-cancellation-panel" data-booking-cancellation-panel hidden>' +
+          '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
+            hiddenInput('bookingId', booking.id) +
+            '<label>Customer-visible cancellation reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
+            '<label>Internal note <span class="admin-field-optional">Optional</span><textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+            '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Confirm cancellation</button></div>' +
+          '</form>' +
+        '</div>' +
       '</div>';
     }
 
@@ -3894,14 +4194,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var customerName = customer.display_name || 'Unnamed customer';
       var customerEmail = customer.email || 'No email';
       var customerContact = [customer.email, customer.phone].filter(Boolean).join(' · ') || 'No contact details';
-      var lastBooking = customer.last_booking_at ? formatDateTime(customer.last_booking_at) : 'No bookings yet';
       var customerMeta = bookings.length + ' booking' + (bookings.length === 1 ? '' : 's') + ' · ' + invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
-      var customerSummary = lastBooking + ' · ' + customerMeta;
-      var customerLabel = [customerName, customerEmail, customer.phone || 'No phone', lastBooking, customerMeta].join(', ');
+      var customerLabel = [customerName, customerEmail, customer.phone || 'No phone', customerMeta].join(', ');
       return '<button class="admin-customer-item admin-data-row' + (customer.id === state.selectedCustomerId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(customerLabel) + '" data-customer-id="' + escapeHtml(customer.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title">' + escapeHtml(customerName) + '</span></span>' +
         '<span class="admin-row-service admin-booking-meta">' + escapeHtml(customerContact) + '</span>' +
-        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(customerSummary) + '</span>' +
+        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(customerMeta) + '</span>' +
       '</button>';
     }).join('');
 
@@ -3943,6 +4241,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       status: 'idle',
       events: [],
       has_more: false,
+      next_cursor: null,
       error: ''
     };
   }
@@ -4040,19 +4339,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderCustomerActivityPanelContent(customer, bookings, invoices, recordedEvents) {
-    var fallbackEvents = buildCustomerActivity(customer, bookings, invoices, recordedEvents);
     var cache = customerActivityCacheEntry(customer.id);
-    var events = mergeCustomerActivityEvents(cache.events, fallbackEvents);
+    var fallbackEvents = buildCustomerActivity(customer, bookings, invoices, recordedEvents);
+    var events = Array.isArray(cache.events) ? cache.events : [];
+    if (cache.status === 'error' && !events.length) {
+      events = fallbackEvents;
+    }
     var status = '';
 
-    if (cache.status === 'loading') {
-      status = '<div class="admin-customer-activity-state" data-state="loading" role="status" aria-live="polite">' +
-        '<span><strong>Loading activity…</strong><span>Reliable booking and invoice events are shown while the timeline loads.</span></span>' +
-      '</div>';
+    if (cache.status === 'loading' && !events.length) {
+      return renderCustomerActivitySkeleton(7, 'Loading customer activity');
     } else if (cache.status === 'error') {
       status = '<div class="admin-customer-activity-state" data-state="error" role="status" aria-live="polite">' +
         '<span><strong>Activity could not be loaded.</strong><span>' +
-          escapeHtml(cache.error || 'The reliable events already available are shown below.') +
+          escapeHtml(cache.error || 'Try loading this part of the timeline again.') +
         '</span></span>' +
         '<button class="admin-button admin-button-secondary" type="button" data-customer-activity-retry>Retry</button>' +
       '</div>';
@@ -4060,13 +4360,25 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     return status +
       renderCustomerEvents(events) +
+      (cache.status === 'loading_more'
+        ? renderCustomerActivitySkeleton(3, 'Loading older customer activity')
+        : '') +
       (cache.status === 'loaded' && cache.has_more
-        ? '<p class="admin-customer-activity-limit">More historical activity is available than this view currently loads.</p>'
+        ? '<div class="admin-customer-activity-more" data-customer-activity-more role="status">Scroll for older activity</div>'
         : '');
+  }
+
+  function renderCustomerActivitySkeleton(count, label) {
+    var rows = [];
+    for (var index = 0; index < count; index += 1) {
+      rows.push('<li style="--admin-skeleton-delay:' + (index * 65) + 'ms"><span></span><div><i></i><i></i></div></li>');
+    }
+    return '<div class="admin-customer-activity-skeleton" role="status" aria-label="' + escapeHtml(label || 'Loading activity') + '"><ol aria-hidden="true">' + rows.join('') + '</ol></div>';
   }
 
   function customerActivitySummaryMeta(cache, eventCount) {
     if (cache.status === 'loading') return 'Loading…';
+    if (cache.status === 'loading_more') return eventCount + ' loaded';
     if (cache.status === 'error') return 'Unavailable';
     if (cache.status === 'loaded') {
       return eventCount + ' event' + (eventCount === 1 ? '' : 's');
@@ -4085,17 +4397,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var bookings = allBookingsForCustomer(customerId);
     var invoices = invoicesForCustomer(customerId);
     var recordedEvents = eventsForCustomer(customerId);
-    var events = mergeCustomerActivityEvents(
-      cache.events,
-      buildCustomerActivity(customer, bookings, invoices, recordedEvents)
-    );
-    panel.setAttribute('aria-busy', cache.status === 'loading' ? 'true' : 'false');
+    var events = Array.isArray(cache.events) ? cache.events : [];
+    var previousScrollTop = panel.scrollTop;
+    panel.setAttribute('aria-busy', ['loading', 'loading_more'].includes(cache.status) ? 'true' : 'false');
     panel.innerHTML = renderCustomerActivityPanelContent(
       customer,
       bookings,
       invoices,
       recordedEvents
     );
+    panel.scrollTop = previousScrollTop;
     var summaryMeta = $('[data-customer-activity-summary]', panel.closest('[data-customer-activity-disclosure]'));
     if (summaryMeta) summaryMeta.textContent = customerActivitySummaryMeta(cache, events.length);
   }
@@ -4104,7 +4415,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var opts = options || {};
     if (!customerById(customerId)) return false;
     var cached = customerActivityCacheEntry(customerId);
-    if (cached.status === 'loaded' && !opts.force) return true;
+    var append = opts.append === true;
+    if (append && (!cached.has_more || ['loading', 'loading_more'].includes(cached.status))) return true;
+    if (cached.status === 'loaded' && !opts.force && !append) return true;
     if (customerActivityLoads[customerId] && !opts.force) {
       return customerActivityLoads[customerId].promise;
     }
@@ -4116,11 +4429,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var controller = new AbortController();
     var requestId = customerActivityLoadSequence + 1;
     customerActivityLoadSequence = requestId;
-    var previousEvents = Array.isArray(cached.events) ? cached.events : [];
+    var previousEvents = append && Array.isArray(cached.events) ? cached.events : [];
+    var cursor = append && cached.next_cursor && typeof cached.next_cursor === 'object'
+      ? cached.next_cursor
+      : null;
     state.customerActivityCache[customerId] = {
-      status: 'loading',
+      status: append ? 'loading_more' : 'loading',
       events: previousEvents,
       has_more: Boolean(cached.has_more),
+      next_cursor: cursor,
       error: ''
     };
     rerenderCustomerActivityPanel(customerId);
@@ -4138,8 +4455,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           throw new Error('This account is not approved for admin access or the session has expired.');
         }
         if (controller.signal.aborted || customerActivityLoads[customerId] !== load) return false;
+        var activityUrl = ADMIN_ENDPOINT + '?view=customer_activity&customerId=' + encodeURIComponent(customerId) + '&limit=30';
+        if (cursor && cursor.occurred_at && cursor.id) {
+          activityUrl += '&beforeAt=' + encodeURIComponent(cursor.occurred_at) + '&beforeId=' + encodeURIComponent(cursor.id);
+        }
         var response = await fetch(
-          ADMIN_ENDPOINT + '?view=customer_activity&customerId=' + encodeURIComponent(customerId),
+          activityUrl,
           {
             method: 'GET',
             headers: authHeaders(),
@@ -4173,10 +4494,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         var normalizedEvents = activity.events.map(function (event, index) {
           return normalizeCustomerActivityApiEvent(event, customerId, index);
         }).filter(Boolean);
+        var combinedEvents = append
+          ? mergeCustomerActivityEvents(previousEvents, normalizedEvents)
+          : normalizedEvents;
         state.customerActivityCache[customerId] = {
           status: 'loaded',
-          events: normalizedEvents,
+          events: combinedEvents,
           has_more: Boolean(activity.has_more),
+          next_cursor: activity.next_cursor && typeof activity.next_cursor === 'object'
+            ? activity.next_cursor
+            : null,
           error: ''
         };
         rerenderCustomerActivityPanel(customerId);
@@ -4187,7 +4514,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           state.customerActivityCache[customerId] = {
             status: 'error',
             events: previousEvents,
-            has_more: false,
+            has_more: append ? Boolean(cached.has_more) : false,
+            next_cursor: cursor,
             error: error instanceof Error ? error.message : 'The complete customer activity timeline could not be loaded.'
           };
           rerenderCustomerActivityPanel(customerId);
@@ -4238,12 +4566,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var linkedBookings = allBookingsForCustomer(customer.id);
     var invoices = invoicesForCustomer(customer.id);
     var activityCache = customerActivityCacheEntry(customer.id);
-    var initialActivityEvents = activityCache.status === 'idle'
-      ? []
-      : mergeCustomerActivityEvents(
-          activityCache.events,
-          buildCustomerActivity(customer, linkedBookings, invoices, eventsForCustomer(customer.id))
-        );
+    var initialActivityEvents = Array.isArray(activityCache.events) ? activityCache.events : [];
     var holdActive = hasActiveLegalHold(customer);
     var redactionBlockReasons = customerRedactionBlockReasons(customer, bookings);
     var redactionDisabled = redactionBlockReasons.length > 0;
@@ -4251,22 +4574,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var deleteBlockReasons = customerDeleteBlockReasons(customer, linkedBookings);
     var deleteDisabled = deleteBlockReasons.length > 0;
     var deleteBlockText = deleteDisabled ? 'Unavailable: ' + deleteBlockReasons.join('; ') + '.' : '';
-    var erasureRequestDisabled = Boolean(customer.erasure_requested_at);
-    var erasureRequestTitle = erasureRequestDisabled ? 'Erasure request already recorded.' : '';
     var holdStatus = holdActive
       ? 'Active until ' + formatDateTime(customer.legal_hold_until)
       : 'No active legal hold';
     var holdDescription = holdActive
       ? 'Redaction and deletion are blocked until this hold is released or expires.'
       : 'Eligible personal data actions are not being blocked by a customer-level hold.';
-    var erasureStatus = customer.erasure_completed_at
-      ? 'Completed ' + formatDateTime(customer.erasure_completed_at)
-      : (customer.erasure_requested_at ? 'Requested ' + formatDateTime(customer.erasure_requested_at) : 'No request recorded');
-    var erasureDescription = customer.erasure_completed_at
-      ? 'The recorded erasure workflow has been completed.'
-      : (customer.erasure_requested_at
-        ? 'A request is recorded. Retained invoice, legal, and active operational records may remain.'
-        : 'Recording a request documents the customer request but does not delete data.');
     var profileStatus = customer.pii_redacted_at
       ? 'Redacted ' + formatDateTime(customer.pii_redacted_at)
       : 'Personal data present';
@@ -4301,24 +4614,27 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<section class="admin-detail-section admin-customer-bookings-section" aria-labelledby="admin-customer-bookings-title">' +
         '<h3 id="admin-customer-bookings-title">Bookings (' + escapeHtml(String(bookings.length)) + ')</h3>' +
         renderCustomerBookings(bookings) +
-        '<details class="admin-customer-related-group admin-customer-related-disclosure">' +
+        '<details class="admin-customer-related-group admin-customer-related-disclosure admin-disclosure" data-disclosure-key="customer-invoices">' +
           '<summary>Invoices <span>' + escapeHtml(String(invoices.length)) + '</span></summary>' +
           renderCustomerInvoices(invoices) +
         '</details>' +
       '</section>' +
-      '<details class="admin-detail-section admin-disclosure admin-privacy-controls">' +
+      '<details class="admin-detail-section admin-disclosure admin-privacy-controls" data-disclosure-key="privacy-controls">' +
         '<summary>Privacy consent and legal controls</summary>' +
         '<div class="admin-privacy-overview">' +
           '<div>' +
             '<h3>Current data status</h3>' +
             '<div class="admin-privacy-status-grid">' +
               '<div class="admin-privacy-status-card"><span>Legal retention</span><strong>' + escapeHtml(holdStatus) + '</strong><p>' + escapeHtml(holdDescription) + '</p></div>' +
-              '<div class="admin-privacy-status-card"><span>Erasure request</span><strong>' + escapeHtml(erasureStatus) + '</strong><p>' + escapeHtml(erasureDescription) + '</p></div>' +
               '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong><p>' + escapeHtml(profileDescription) + '</p></div>' +
-              '<div class="admin-privacy-status-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong></div>' +
+              '<div class="admin-privacy-status-card admin-privacy-marketing-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong>' +
+                (customer.marketing_consent_status === 'opted_in'
+                  ? renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw permission', 'admin-button-secondary', { customerId: customer.id })
+                  : '') +
+              '</div>' +
             '</div>' +
           '</div>' +
-          '<details class="admin-privacy-record-details">' +
+          '<details class="admin-privacy-record-details admin-disclosure" data-disclosure-key="consent-dates">' +
             '<summary>View consent and retention dates</summary>' +
             '<div class="admin-detail-list">' +
               detailRow('Terms accepted', customer.terms_accepted_at ? formatDateTime(customer.terms_accepted_at) : 'Not recorded') +
@@ -4330,18 +4646,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
               detailRow('Marketing consent version', customer.marketing_consent_text_version) +
               detailRow('Re-permission due', customer.marketing_repermission_due_at ? formatDateTime(customer.marketing_repermission_due_at) : '') +
               detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
-              detailRow('Erasure completed', customer.erasure_completed_at ? formatDateTime(customer.erasure_completed_at) : 'Not completed') +
             '</div>' +
           '</details>' +
           '<div>' +
             '<h3>Available actions</h3>' +
             '<div class="admin-privacy-action-list">' +
-              (customer.marketing_consent_status === 'opted_in'
-                ? '<div class="admin-privacy-action-card">' +
-                    '<div class="admin-privacy-action-heading"><h4>Withdraw marketing permission</h4><p>Stops future marketing emails. Transactional booking and invoice messages are unaffected.</p></div>' +
-                    renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw permission', 'admin-button-secondary', { customerId: customer.id }) +
-                  '</div>'
-                : '') +
               '<div class="admin-privacy-action-card">' +
                 '<div class="admin-privacy-action-heading"><h4>' + (holdActive ? 'Release legal hold' : 'Start a legal hold') + '</h4><p>' +
                   (holdActive
@@ -4349,11 +4658,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
                     : 'Temporarily blocks redaction and deletion for a legal, dispute, or retention reason.') +
                 '</p></div>' +
                 (holdActive ? renderReleaseHoldForm(customer) : renderSetHoldForm(customer, addDaysYmd(todayYmd(), 180))) +
-              '</div>' +
-              '<div class="admin-privacy-action-card">' +
-                '<div class="admin-privacy-action-heading"><h4>Record an erasure request</h4><p>Documents the customer request. It does not redact or delete records by itself.</p></div>' +
-                renderInlineActionForm('markCustomerErasureRequest', 'Record request', 'admin-button-secondary', { customerId: customer.id }, erasureRequestDisabled, erasureRequestTitle) +
-                (erasureRequestDisabled ? '<p class="admin-action-meta">A request is already recorded for this customer.</p>' : '') +
               '</div>' +
               '<div class="admin-privacy-action-card" data-tone="danger">' +
                 '<div class="admin-privacy-action-heading"><h4>Redact personal data</h4><p>Irreversibly removes direct identifiers from this profile and linked non-active bookings. Invoice records remain retained.</p></div>' +
@@ -4369,11 +4673,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</div>' +
         '</div>' +
       '</details>' +
-      '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure>' +
+      '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure data-disclosure-key="customer-activity">' +
         '<summary id="admin-customer-activity-title"><span>Customer activity</span><span class="admin-customer-disclosure-meta" data-customer-activity-summary>' +
           escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length)) +
         '</span></summary>' +
-        '<div role="region" aria-labelledby="admin-customer-activity-title" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (activityCache.status === 'loading' ? 'true' : 'false') + '">' +
+        '<div role="region" aria-labelledby="admin-customer-activity-title" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
           (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
         '</div>' +
       '</details>';
@@ -4411,7 +4715,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var retry = event.target.closest('[data-customer-activity-retry]');
       var activityPanel = event.target.closest('[data-customer-activity-panel]');
       if (retry && activityDisclosure.open && activityPanel && activityPanel.dataset.customerId === customer.id) {
-        loadCustomerActivity(customer.id, { force: true }).catch(function () {});
+        var retryCache = customerActivityCacheEntry(customer.id);
+        loadCustomerActivity(customer.id, retryCache.events.length ? { append: true } : { force: true }).catch(function () {});
         return;
       }
       if (!activityPanel || activityPanel.dataset.customerId !== customer.id) return;
@@ -4425,6 +4730,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         navigateToModal('invoice', invoiceButton.dataset.openInvoice);
       }
     });
+    var activityPanel = $('[data-customer-activity-panel]', modal);
+    if (activityPanel) {
+      activityPanel.addEventListener('scroll', function () {
+        if (!activityDisclosure || !activityDisclosure.open) return;
+        if (activityPanel.scrollHeight - activityPanel.scrollTop - activityPanel.clientHeight > 160) return;
+        var cache = customerActivityCacheEntry(customer.id);
+        if (cache.status === 'loaded' && cache.has_more) {
+          loadCustomerActivity(customer.id, { append: true }).catch(function () {});
+        }
+      }, { passive: true });
+    }
   }
 
   function renderCustomerBookings(bookings) {
@@ -4696,8 +5012,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderCustomerEvents(events) {
     if (!events.length) return '<p class="admin-customer-empty-copy">No reliable customer activity is available yet.</p>';
-    var visibleEvents = events.slice(0, 30);
-    var timeline = '<ol class="admin-customer-activity-list">' + visibleEvents.map(function (event) {
+    return '<ol class="admin-customer-activity-list">' + events.map(function (event) {
       var title = event.title || recordedCustomerEventTitle(event.event_type);
       var actor = event.actor_name ? 'By ' + event.actor_name : '';
       var content =
@@ -4718,84 +5033,175 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><div>' + content + '</div></li>';
     }).join('') + '</ol>';
-    if (events.length > visibleEvents.length) {
-      timeline += '<p class="admin-customer-activity-limit">Showing the 30 most recent of ' + escapeHtml(events.length) + ' loaded events.</p>';
-    }
-    return timeline;
   }
 
-  function invoiceSearchText(invoice) {
-    var customer = customerById(invoice.customer_id);
-    var booking = bookingById(invoice.booking_id);
-    return [
-      invoice.invoice_number,
-      invoice.invoice_status,
-      invoice.payment_status,
-      invoice.email_status,
-      invoice.customer_name,
-      invoice.customer_email,
-      invoice.service_description,
-      invoice.amount_cents,
-      customer && customer.display_name,
-      booking && booking.public_reference,
-      booking && booking.vehicle
-    ].join(' ').toLowerCase();
-  }
-
-  function filteredInvoices() {
-    var invoices = state.invoices.slice().sort(function (a, b) {
-      return new Date(b.issued_at || b.created_at) - new Date(a.issued_at || a.created_at);
+  function invoiceFilterSignature() {
+    return JSON.stringify({
+      search: state.invoiceSearch,
+      invoiceStatuses: state.invoiceStatuses.slice().sort(),
+      paymentStatuses: state.invoicePaymentStatuses.slice().sort(),
+      emailStatuses: state.invoiceEmailStatuses.slice().sort(),
+      dateField: state.invoiceDateField,
+      dateFrom: state.invoiceDateFrom,
+      dateTo: state.invoiceDateTo,
+      amountMin: state.invoiceAmountMin,
+      amountMax: state.invoiceAmountMax,
+      sort: state.invoiceSort
     });
-    if (state.invoiceFilter === 'unpaid') {
-      invoices = invoices.filter(function (invoice) {
-        return invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid';
-      });
-    } else if (state.invoiceFilter === 'paid') {
-      invoices = invoices.filter(function (invoice) {
-        return invoice.invoice_status === 'issued' && invoice.payment_status === 'paid';
-      });
-    } else if (state.invoiceFilter === 'void') {
-      invoices = invoices.filter(function (invoice) { return invoice.invoice_status === 'void'; });
+  }
+
+  function invoiceFilterCount() {
+    var count = state.invoiceStatuses.length + state.invoicePaymentStatuses.length + state.invoiceEmailStatuses.length;
+    if (state.invoiceDateFrom) count += 1;
+    if (state.invoiceDateTo) count += 1;
+    if (state.invoiceDateField !== 'created' && (state.invoiceDateFrom || state.invoiceDateTo)) count += 1;
+    if (state.invoiceAmountMin) count += 1;
+    if (state.invoiceAmountMax) count += 1;
+    return count;
+  }
+
+  function syncInvoiceFilterControls() {
+    var search = $('[data-invoice-search]');
+    if (search && search.value !== state.invoiceSearch) search.value = state.invoiceSearch;
+    [
+      ['[data-invoice-status]', state.invoiceStatuses],
+      ['[data-invoice-payment-status]', state.invoicePaymentStatuses],
+      ['[data-invoice-email-status]', state.invoiceEmailStatuses]
+    ].forEach(function (entry) {
+      $all(entry[0]).forEach(function (checkbox) { checkbox.checked = entry[1].includes(checkbox.value); });
+    });
+    var values = [
+      ['[data-invoice-date-field]', state.invoiceDateField],
+      ['[data-invoice-date-from]', state.invoiceDateFrom],
+      ['[data-invoice-date-to]', state.invoiceDateTo],
+      ['[data-invoice-amount-min]', state.invoiceAmountMin],
+      ['[data-invoice-amount-max]', state.invoiceAmountMax]
+    ];
+    values.forEach(function (entry) {
+      var control = $(entry[0]);
+      if (control && control.value !== entry[1]) control.value = entry[1];
+    });
+    var count = $('[data-invoice-filter-count]');
+    var activeCount = invoiceFilterCount();
+    if (count) {
+      count.textContent = String(activeCount);
+      count.hidden = activeCount === 0;
     }
-    var query = normalizeSearch(state.invoiceSearch);
-    if (query) {
-      var parts = query.split(/\s+/).filter(Boolean);
-      invoices = invoices.filter(function (invoice) {
-        var text = invoiceSearchText(invoice);
-        return parts.every(function (part) { return text.indexOf(part) !== -1; });
-      });
+    $all('[data-invoice-sort]').forEach(function (button) {
+      setPressed(button, button.dataset.invoiceSort === state.invoiceSort);
+    });
+    refreshCustomControls($('[data-page-root]'));
+  }
+
+  function replaceInvoiceFilterUrl() {
+    var url = new URL(PATHS.invoices, window.location.href);
+    if (state.invoiceSearch) url.searchParams.set('search', state.invoiceSearch);
+    if (state.invoiceStatuses.length) url.searchParams.set('invoiceStatuses', state.invoiceStatuses.join(','));
+    if (state.invoicePaymentStatuses.length) url.searchParams.set('paymentStatuses', state.invoicePaymentStatuses.join(','));
+    if (state.invoiceEmailStatuses.length) url.searchParams.set('emailStatuses', state.invoiceEmailStatuses.join(','));
+    if (state.invoiceDateField !== 'created') url.searchParams.set('dateField', state.invoiceDateField);
+    if (state.invoiceDateFrom) url.searchParams.set('from', state.invoiceDateFrom);
+    if (state.invoiceDateTo) url.searchParams.set('to', state.invoiceDateTo);
+    if (state.invoiceAmountMin) url.searchParams.set('amountMin', state.invoiceAmountMin);
+    if (state.invoiceAmountMax) url.searchParams.set('amountMax', state.invoiceAmountMax);
+    if (state.invoiceSort !== 'desc') url.searchParams.set('sort', state.invoiceSort);
+    var route = modalRouteFromUrl();
+    if (route && route.type === 'invoice' && route.id) url.searchParams.set('invoice', route.id);
+    history.replaceState(modalHistoryState(route, route ? 1 : 0), '', url.pathname + url.search);
+  }
+
+  function validMoneyFilter(value) {
+    var normalized = String(value || '').replace(',', '.').trim();
+    return /^\d+(\.\d{1,2})?$/.test(normalized) ? normalized : '';
+  }
+
+  async function loadInvoiceQuery(options) {
+    var opts = options || {};
+    var append = opts.append === true;
+    var signature = invoiceFilterSignature();
+    if (!append && !opts.force && state.invoiceQuerySignature === signature) return true;
+    if (activeInvoiceQuery) activeInvoiceQuery.abort();
+    var controller = new AbortController();
+    activeInvoiceQuery = controller;
+    state.invoiceQueryLoading = true;
+    var list = $('[data-invoice-list]');
+    if (!append && list && !opts.silent) {
+      list.setAttribute('aria-busy', 'true');
+      list.innerHTML = '<div class="admin-list-loading" role="status"><span class="admin-button-spinner" aria-hidden="true"></span><strong>Loading invoice records…</strong></div>';
     }
-    return invoices;
+    try {
+      if (!(await ensureActiveSession())) throw new Error('Sign in again before loading invoices.');
+      var query = new URLSearchParams({
+        view: 'invoices_query',
+        sort: state.invoiceSort,
+        offset: String(append ? state.invoices.length : 0),
+        limit: '100'
+      });
+      if (state.invoiceSearch) query.set('search', state.invoiceSearch);
+      if (state.invoiceStatuses.length) query.set('invoiceStatuses', state.invoiceStatuses.join(','));
+      if (state.invoicePaymentStatuses.length) query.set('paymentStatuses', state.invoicePaymentStatuses.join(','));
+      if (state.invoiceEmailStatuses.length) query.set('emailStatuses', state.invoiceEmailStatuses.join(','));
+      if (state.invoiceDateField) query.set('dateField', state.invoiceDateField);
+      if (state.invoiceDateFrom) query.set('dateFrom', state.invoiceDateFrom);
+      if (state.invoiceDateTo) query.set('dateTo', state.invoiceDateTo);
+      if (state.invoiceAmountMin) query.set('amountMinCents', String(Math.round(Number(state.invoiceAmountMin) * 100)));
+      if (state.invoiceAmountMax) query.set('amountMaxCents', String(Math.round(Number(state.invoiceAmountMax) * 100)));
+      var response = await fetch(ADMIN_ENDPOINT + '?' + query.toString(), {
+        method: 'GET', headers: authHeaders(), cache: 'no-store', signal: controller.signal
+      });
+      var body = await response.json().catch(function () { return {}; });
+      if (!response.ok) throw new Error(body.error || 'Invoice records could not be loaded.');
+      if (controller.signal.aborted || activeInvoiceQuery !== controller || state.page !== 'invoices' || invoiceFilterSignature() !== signature) return false;
+      var result = body.invoiceQuery && typeof body.invoiceQuery === 'object' ? body.invoiceQuery : {};
+      var rows = Array.isArray(result.rows) ? result.rows : [];
+      state.invoices = append ? state.invoices.concat(rows) : rows;
+      state.invoiceQueryTotal = Number(result.total_count) || 0;
+      state.invoiceQueryHasMore = Boolean(result.has_more);
+      state.invoiceQueryOffset = state.invoices.length;
+      state.invoiceQuerySignature = signature;
+      state.invoiceQueryLoading = false;
+      renderInvoicesPage();
+      return true;
+    } catch (error) {
+      if (isAbortError(error) || controller.signal.aborted) return false;
+      state.invoiceQueryLoading = false;
+      if (!append || !state.invoices.length) {
+        if (list) list.innerHTML = '<div class="admin-empty-state" role="alert"><div><h2>Invoice records could not be loaded</h2><p>' + escapeHtml(error instanceof Error ? error.message : 'Try again.') + '</p></div><button class="admin-button admin-button-secondary" type="button" data-invoice-query-retry>Try again</button></div>';
+      } else {
+        showToast(error instanceof Error ? error.message : 'Older invoice records could not be loaded.', 'error');
+      }
+      return false;
+    } finally {
+      if (activeInvoiceQuery === controller) activeInvoiceQuery = null;
+      if (list) list.removeAttribute('aria-busy');
+    }
   }
 
   function renderInvoicesPage() {
     var search = $('[data-invoice-search]');
     if (search) search.disabled = false;
-    $all('[data-invoice-filter]').forEach(function (control) {
-      control.disabled = false;
-    });
-    if (search && search.value !== state.invoiceSearch) search.value = state.invoiceSearch;
-    var clear = $('[data-invoice-clear]');
-    if (clear) {
-      clear.hidden = !state.invoiceSearch;
-      clear.disabled = !state.invoiceSearch;
-    }
+    $all('[data-invoice-status], [data-invoice-payment-status], [data-invoice-email-status], [data-invoice-date-field], [data-invoice-date-from], [data-invoice-date-to], [data-invoice-amount-min], [data-invoice-amount-max], [data-invoice-sort]').forEach(function (control) { control.disabled = false; });
+    syncInvoiceFilterControls();
     renderInvoiceList();
   }
 
   function renderInvoiceList() {
     var list = $('[data-invoice-list]');
     if (!list) return;
-    var invoices = filteredInvoices();
+    var invoices = state.invoices.slice().sort(function (a, b) {
+      var direction = state.invoiceSort === 'desc' ? -1 : 1;
+      return ((new Date(a.created_at).getTime() || 0) - (new Date(b.created_at).getTime() || 0)) * direction || String(a.id).localeCompare(String(b.id)) * direction;
+    });
     var count = $('[data-invoice-count]');
     if (count) {
-      count.textContent = invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
+      var total = state.invoiceQuerySignature ? state.invoiceQueryTotal : invoices.length;
+      count.textContent = total + ' record' + (total === 1 ? '' : 's');
       count.setAttribute('role', 'status');
       count.setAttribute('aria-live', 'polite');
       count.setAttribute('aria-atomic', 'true');
     }
     if (!invoices.length) {
-      var hasRefinement = state.invoiceFilter !== 'all' || Boolean(state.invoiceSearch);
+      var hasRefinement = invoiceFilterCount() > 0 || Boolean(state.invoiceSearch);
       list.innerHTML = emptyState(
         hasRefinement ? 'No invoices match the current search and filter.' : 'No invoices yet.',
         hasRefinement ? 'Clear filters' : '',
@@ -4804,11 +5210,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var emptyClear = $('[data-empty-invoices-clear]', list);
       if (emptyClear) {
         emptyClear.addEventListener('click', function () {
-          state.invoiceSearch = '';
-          state.invoiceFilter = 'all';
-          var allButton = $('[data-invoice-filter="all"]');
-          if (allButton) allButton.click();
-          else renderInvoicesPage();
+          resetInvoiceFilters();
           var search = $('[data-invoice-search]');
           if (search) search.focus();
         });
@@ -4821,9 +5223,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var customer = customerById(invoice.customer_id);
       var invoiceCustomer = customer ? customer.display_name : invoice.customer_name;
       var invoiceBooking = booking ? booking.public_reference : 'No booking';
-      var invoiceDate = invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued';
-      var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
-      var invoiceMeta = 'Due ' + (invoice.due_date || 'not set') + ' · Email ' + (invoice.email_status || 'not sent');
+      var invoiceDate = invoice.invoice_status === 'payment'
+        ? (invoice.paid_at ? formatDateTime(invoice.paid_at) : formatDateTime(invoice.created_at))
+        : (invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued');
+      var invoiceAmount = formatMoney(invoice.payment_status === 'paid' ? (invoice.paid_amount_cents || invoice.amount_cents) : invoice.amount_cents, invoice.currency);
+      var invoiceMeta = invoice.invoice_status === 'payment'
+        ? [paymentLabel(invoice.payment_status), invoice.payment_method || 'Method not recorded'].join(' · ')
+        : 'Due ' + (invoice.due_date || 'not set') + ' · Email ' + emailStatusLabel(invoice.email_status);
       var invoiceLabel = [invoice.invoice_number, invoiceCustomer, invoiceStatusLabel(invoice), invoiceBooking, invoiceDate, invoiceAmount, invoiceMeta].join(', ');
       return '<button class="admin-booking-item admin-data-row' + (invoice.id === state.selectedInvoiceId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(invoiceLabel) + '" data-invoice-id="' + escapeHtml(invoice.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(invoiceCustomer) + '</span></span></span>' +
@@ -4840,11 +5246,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         navigateToModal('invoice', button.dataset.invoiceId);
       });
     });
+    var pagination = $('[data-invoice-pagination]');
+    var loadMore = $('[data-invoice-load-more]');
+    if (pagination) pagination.hidden = !state.invoiceQueryHasMore;
+    if (loadMore) loadMore.disabled = state.invoiceQueryLoading;
   }
 
   function renderMarkInvoicePaidForm(invoice) {
     return '<form class="admin-action-form" data-admin-action-form data-action="markInvoicePaid">' +
       hiddenInput('invoiceId', invoice.id) +
+      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml((Number(invoice.amount_cents || 0) / 100).toFixed(2)) + '" placeholder="100.00"></label>' +
       '<div class="admin-action-grid">' +
         '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('bank_transfer') + '</select></span></label>' +
         '<label>Payment note<input name="paymentNote" type="text" maxlength="500" placeholder="Optional"></label>' +
@@ -4854,13 +5265,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     '</form>';
   }
 
+  function renderUpdateInvoicePaidAmountForm(invoice) {
+    var amount = Number(invoice.paid_amount_cents || invoice.amount_cents || 0) / 100;
+    return '<form class="admin-action-form admin-inline-edit-form" data-admin-action-form data-action="updateInvoicePaidAmount">' +
+      hiddenInput('invoiceId', invoice.id) +
+      '<label>Amount paid<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount.toFixed(2)) + '" placeholder="100.00"></label>' +
+      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Update paid amount</button></div>' +
+    '</form>';
+  }
+
   function renderVoidInvoiceForm(invoice) {
     if (invoice.invoice_status === 'void') return '';
+    var isPaymentOnly = invoice.invoice_status === 'payment';
     return '<form class="admin-action-form" data-admin-action-form data-action="voidInvoice">' +
       hiddenInput('invoiceId', invoice.id) +
       '<label>Void reason<textarea name="voidReason" maxlength="700" required placeholder="Required reason"></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Void invoice</button></div>' +
+      '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</button></div>' +
     '</form>';
   }
 
@@ -4872,9 +5294,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var customer = customerById(invoice.customer_id);
     var customerName = customer ? customer.display_name : invoice.customer_name;
     var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
+    var paidAmount = formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency);
     var invoiceLabel = invoiceStatusLabel(invoice);
     var isUnpaidIssued = invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid';
-    var amountLabel = isUnpaidIssued ? 'Amount due' : 'Invoice amount';
+    var isPaid = invoice.payment_status === 'paid' && invoice.invoice_status !== 'void';
+    var isPaymentOnly = invoice.invoice_status === 'payment';
+    var amountLabel = isPaid ? 'Amount paid' : (isUnpaidIssued ? 'Amount due' : 'Invoice amount');
     var dueSummary = invoice.invoice_status === 'void'
       ? 'No payment is due'
       : (invoice.payment_status === 'paid' ? 'Payment recorded' : 'Due ' + (invoice.due_date || 'date not set'));
@@ -4913,7 +5338,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div class="admin-invoice-overview-grid">' +
           '<div class="admin-invoice-primary-fact">' +
             '<span>' + escapeHtml(amountLabel) + '</span>' +
-            '<strong>' + escapeHtml(invoiceAmount) + '</strong>' +
+            '<strong>' + escapeHtml(isPaid ? paidAmount : invoiceAmount) + '</strong>' +
+            (isPaid && !isPaymentOnly ? '<span class="admin-invoice-original-amount">Invoice amount ' + escapeHtml(invoiceAmount) + '</span>' : '') +
             '<span>' + escapeHtml(dueSummary) + '</span>' +
           '</div>' +
           '<div class="admin-invoice-context-grid">' +
@@ -4932,8 +5358,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</div>' +
         '</div>' +
         '<div class="admin-invoice-overview-meta">' +
-          '<span>Issued: <strong>' + escapeHtml(invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued') + '</strong></span>' +
-          '<span>Email: <strong>' + escapeHtml(emailStatusLabel(invoice.email_status)) + '</strong></span>' +
+          '<span>' + (isPaymentOnly ? 'Recorded' : 'Issued') + ': <strong>' + escapeHtml(isPaymentOnly ? formatDateTime(invoice.paid_at || invoice.created_at) : (invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued')) + '</strong></span>' +
+          (!isPaymentOnly ? '<span>Email: <strong>' + escapeHtml(emailStatusLabel(invoice.email_status)) + '</strong></span>' : '') +
           (invoice.last_sent_at ? '<span>Last sent: <strong>' + escapeHtml(formatDateTime(invoice.last_sent_at)) + '</strong></span>' : '') +
         '</div>' +
       '</section>' +
@@ -4946,15 +5372,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (isUnpaidIssued
         ? '<section class="admin-detail-section admin-workflow-section">' +
             '<h3>Record payment</h3>' +
-            '<p class="admin-detail-note">Use this only after payment is received. It records the payment method and marks the invoice paid.</p>' +
             renderMarkInvoicePaidForm(invoice) +
           '</section>'
+        : '') +
+      (isPaid
+        ? '<details class="admin-detail-section admin-disclosure"><summary>Edit amount paid</summary>' + renderUpdateInvoicePaidAmountForm(invoice) + '</details>'
         : '') +
       '<details class="admin-detail-section admin-disclosure">' +
         '<summary>Invoice record details</summary>' +
         '<div class="admin-detail-list">' +
-          detailRow('Invoice state', invoice.invoice_status === 'issued' ? 'Issued' : invoiceLabel) +
+          detailRow('Record state', invoice.invoice_status === 'issued' ? 'Issued invoice' : (isPaymentOnly ? 'Payment without invoice' : invoiceLabel)) +
           detailRow('Payment state', paymentLabel(invoice.payment_status)) +
+          (isPaid ? detailRow('Amount paid', paidAmount) : '') +
+          (!isPaymentOnly ? detailRow('Invoice amount', invoiceAmount) : '') +
           detailRow('Due date', invoice.due_date) +
           detailRow('VAT', formatMoney(invoice.tax_cents, invoice.currency)) +
           detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
@@ -4963,8 +5393,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</details>' +
       (invoice.invoice_status !== 'void'
         ? '<details class="admin-detail-section admin-disclosure admin-danger-disclosure">' +
-            '<summary>Void invoice</summary>' +
-            '<p class="admin-detail-note">Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.</p>' +
+            '<summary>Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</summary>' +
+            '<p class="admin-detail-note">' + (isPaymentOnly ? 'Voiding removes this amount from recorded payments and returns the booking to unpaid.' : 'Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.') + '</p>' +
             renderVoidInvoiceForm(invoice) +
           '</details>'
         : '');
@@ -5199,6 +5629,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       createAndSendInvoice: 'Creating...',
       markBookingPaid: 'Saving...',
       markInvoicePaid: 'Saving...',
+      updateInvoicePaidAmount: 'Updating...',
       resendInvoice: 'Sending...',
       voidInvoice: 'Voiding...',
       deleteSlot: 'Cancelling...',
@@ -5226,6 +5657,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       createAndSendInvoice: 'Invoice created and sent.',
       markBookingPaid: 'Booking marked paid.',
       markInvoicePaid: 'Invoice marked paid.',
+      updateInvoicePaidAmount: 'Paid amount updated.',
       resendInvoice: 'Invoice resent.',
       voidInvoice: 'Invoice voided.',
       deleteSlot: 'Availability slot cancelled.',
@@ -5321,20 +5753,23 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var confirmOptions = confirmOptionsForAction(confirmAction || payload.action);
       if (confirmOptions && !opts.skipConfirm) {
         var confirmed = await openConfirmDialog(confirmOptions);
-        if (!confirmed) return;
+        if (!confirmed) return false;
       }
       setButtonBusy(trigger, true, busyLabelForAction(confirmAction || payload.action));
       setSyncState('Saving', 'loading');
       await adminAction(payload);
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
+      if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true });
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
       if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
       showToast(successMessageForAction(confirmAction || payload.action), 'success');
+      return true;
     } catch (error) {
       setSyncState('Action failed', 'error');
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
+      return false;
     } finally {
       if (trigger && document.body.contains(trigger)) {
         setButtonBusy(trigger, false);
@@ -5348,7 +5783,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!scope) return;
     var action = scope === 'series' ? 'deleteSlotSeries' : 'deleteSlot';
     captureSlotEditorBaseline();
-    await runAction({ action: action, slotId: slotId }, action, trigger, { skipConfirm: true });
+    await runAction({ action: action, slotId: slotId }, action, trigger, {
+      skipConfirm: true,
+      beforeRefresh: function () {
+        state.selectedSlotId = null;
+        slotEditorBaseline = '';
+        history.replaceState(modalHistoryState(null, 0), '', PATHS.availability);
+        setSlotEditorOpen(false, { restoreFocus: true });
+      }
+    });
   }
 
   async function handleActionSubmit(event) {
@@ -5370,6 +5813,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       legalHoldReason: data.get('legalHoldReason') || null,
       paymentMethod: data.get('paymentMethod') || null,
       paymentNote: data.get('paymentNote') || null,
+      paidAmount: data.get('paidAmount') || null,
       voidReason: data.get('voidReason') || null
     };
 
@@ -5413,12 +5857,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (action === 'createAndSendInvoice') {
       var amount = String(data.get('amount') || '').replace(',', '.').trim();
-      var dueDate = String(data.get('dueDate') || '').trim();
+      var hasDueDate = data.get('hasDueDate') === 'on';
+      var dueDate = hasDueDate ? String(data.get('dueDate') || '').trim() : '';
       if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
         showFieldError(errorEl, 'Use a valid amount, for example 100.00.', form.elements.amount);
         return;
       }
-      if (!isValidYmd(dueDate) || compareYmd(dueDate, todayYmd()) < 0) {
+      if (hasDueDate && (!isValidYmd(dueDate) || compareYmd(dueDate, todayYmd()) < 0)) {
         showFieldError(errorEl, 'Use a due date in YYYY-MM-DD format. It cannot be in the past.', form.elements.dueDate);
         return;
       }
@@ -5432,6 +5877,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       payload.vatRate = data.get('vatRate') || null;
       payload.serviceDescription = data.get('serviceDescription') || null;
       payload.billingDetails = data.get('billingDetails') || null;
+    }
+
+    if (['markBookingPaid', 'markInvoicePaid', 'updateInvoicePaidAmount'].includes(action)) {
+      var paidAmount = String(data.get('paidAmount') || '').replace(',', '.').trim();
+      if (!/^\d+(\.\d{1,2})?$/.test(paidAmount) || Number(paidAmount) <= 0) {
+        showFieldError(errorEl, 'Use a valid paid amount, for example 100.00.', form.elements.paidAmount);
+        return;
+      }
+      payload.paidAmount = paidAmount;
     }
 
     if (action === 'voidInvoice' && !String(data.get('voidReason') || '').trim()) {
@@ -5504,6 +5958,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function captureSlotEditorBaseline() {
     slotEditorBaseline = slotEditorFormState($('[data-admin-slot-form]'));
+    syncSlotSubmitState();
+  }
+
+  function syncSlotSubmitState() {
+    var form = $('[data-admin-slot-form]');
+    var submit = form && $('[data-admin-slot-submit]', form);
+    if (!form || !submit || form.getAttribute('aria-busy') === 'true') return;
+    var slotId = String(($('[data-admin-slot-id]', form) || {}).value || '').trim();
+    submit.disabled = Boolean(slotId) && Boolean(slotEditorBaseline) && slotEditorFormState(form) === slotEditorBaseline;
   }
 
   function slotEditorIsDirty() {
@@ -5624,10 +6087,139 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
     setRepeatControlsEnabled(!String(($('[data-admin-slot-id]', form) || {}).value || '').trim());
     slotEditorBaseline = draft.baseline;
+    syncSlotSubmitState();
     setSlotEditorOpen(true, { focus: false });
     var panel = $('.admin-slot-editor-panel', editor);
     if (panel) panel.scrollTop = draft.scrollTop;
     if (draft.activeName) focusElement($('[name="' + escapeSelectorValue(draft.activeName) + '"]', form));
+  }
+
+  function organizationSettingsFormState(form) {
+    if (!form) return '';
+    return JSON.stringify($all('input, textarea, select', form).map(function (control) {
+      return {
+        name: control.name || '',
+        value: String(control.value || '').trim(),
+        checked: Boolean(control.checked)
+      };
+    }));
+  }
+
+  function syncOrganizationSettingsSubmit() {
+    var form = $('[data-organization-settings-form]');
+    var submit = form && $('[data-organization-settings-submit]', form);
+    if (!form || !submit || form.getAttribute('aria-busy') === 'true') return;
+    submit.disabled = !organizationSettingsBaseline || organizationSettingsFormState(form) === organizationSettingsBaseline;
+  }
+
+  function setOrganizationField(form, name, value) {
+    var field = form && form.elements && form.elements[name];
+    if (field) field.value = value == null ? '' : String(value);
+  }
+
+  function renderOrganizationSettings() {
+    var form = $('[data-organization-settings-form]');
+    if (!form) return;
+    var settings = state.organizationSettings || {};
+    setOrganizationField(form, 'sellerName', settings.seller_name);
+    setOrganizationField(form, 'sellerAddress', settings.seller_address);
+    setOrganizationField(form, 'sellerCompanyCode', settings.seller_company_code);
+    setOrganizationField(form, 'sellerVatCode', settings.seller_vat_code);
+    setOrganizationField(form, 'sellerEmail', settings.seller_email);
+    setOrganizationField(form, 'sellerPhone', settings.seller_phone);
+    setOrganizationField(form, 'bankName', settings.bank_name);
+    setOrganizationField(form, 'bankAccountIban', settings.bank_account_iban);
+    setOrganizationField(form, 'bankSwiftBic', settings.bank_swift_bic);
+    setOrganizationField(form, 'bankRecipientName', settings.bank_recipient_name);
+    setOrganizationField(form, 'paymentInstructions', settings.payment_instructions);
+    var status = $('[data-organization-settings-status]', form);
+    if (status) {
+      status.textContent = '';
+      status.classList.remove('is-success');
+    }
+    organizationSettingsBaseline = organizationSettingsFormState(form);
+    syncOrganizationSettingsSubmit();
+  }
+
+  function renderOrganizationPage() {
+    renderOrganizationSettings();
+    renderConfirmationSchedule();
+  }
+
+  async function handleOrganizationSettingsSubmit(event) {
+    event.preventDefault();
+    var form = event.currentTarget;
+    var status = $('[data-organization-settings-status]', form);
+    clearFormValidation(form, status);
+    if (!form.reportValidity()) return;
+    if (!staffHasRole(state.staff, 'owner') || !staffHasAccess(state.staff, 'staff_users.manage', ['owner'])) {
+      showFieldError(status, 'Only an active organization owner can update these settings.');
+      return;
+    }
+
+    var data = new FormData(form);
+    var iban = String(data.get('bankAccountIban') || '').replace(/\s+/g, '').toUpperCase();
+    var swiftBic = String(data.get('bankSwiftBic') || '').replace(/\s+/g, '').toUpperCase();
+    if (!/^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$/.test(iban)) {
+      showFieldError(status, 'Enter a valid IBAN.', form.elements.bankAccountIban);
+      return;
+    }
+    if (swiftBic && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(swiftBic)) {
+      showFieldError(status, 'Enter a valid 8 or 11 character SWIFT or BIC.', form.elements.bankSwiftBic);
+      return;
+    }
+
+    try {
+      setFormBusy(form, true, 'Saving...');
+      setSyncState('Saving', 'loading');
+      var response = await adminAction({
+        action: 'updateOrganizationSettings',
+        sellerName: data.get('sellerName'),
+        sellerAddress: data.get('sellerAddress'),
+        sellerCompanyCode: data.get('sellerCompanyCode'),
+        sellerVatCode: data.get('sellerVatCode') || null,
+        sellerEmail: data.get('sellerEmail'),
+        sellerPhone: data.get('sellerPhone') || null,
+        bankName: data.get('bankName'),
+        bankAccountIban: iban,
+        bankSwiftBic: swiftBic || null,
+        bankRecipientName: data.get('bankRecipientName'),
+        paymentInstructions: data.get('paymentInstructions') || null
+      });
+      if (response.result && typeof response.result === 'object') {
+        state.organizationSettings = response.result;
+      }
+      renderOrganizationSettings();
+      setSyncState('Synced', 'synced');
+      showToast('Organization invoice details updated.', 'success');
+    } catch (error) {
+      setSyncState('Action failed', 'error');
+      if (status) status.textContent = error instanceof Error ? error.message : 'Could not save organization settings.';
+    } finally {
+      if (document.body.contains(form)) {
+        setFormBusy(form, false);
+        syncOrganizationSettingsSubmit();
+      }
+    }
+  }
+
+  function setupOrganizationEvents() {
+    var settingsForm = $('[data-organization-settings-form]');
+    var scheduleForm = $('[data-confirmation-schedule-form]');
+    if (settingsForm) {
+      settingsForm.addEventListener('submit', handleOrganizationSettingsSubmit);
+      settingsForm.addEventListener('input', syncOrganizationSettingsSubmit);
+      settingsForm.addEventListener('change', syncOrganizationSettingsSubmit);
+    }
+    if (scheduleForm) {
+      $all('[data-confirmation-day]', scheduleForm).forEach(function (row) {
+        var toggle = $('[data-confirmation-day-enabled]', row);
+        if (toggle) toggle.addEventListener('change', function () { updateConfirmationDayState(row); });
+      });
+      scheduleForm.addEventListener('submit', handleConfirmationScheduleSubmit);
+    }
+    initCustomControls($('[data-page-root]'));
+    renderOrganizationPage();
   }
 
   function confirmationScheduleHours() {
@@ -5863,11 +6455,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         confirmationDurationMinutes: duration,
         confirmationSchedule: schedule
       });
-      cancelDashboardLoad('schedule');
+      cancelDashboardLoad('organization');
       if (response.result && typeof response.result === 'object') {
         state.confirmationSettings = response.result;
       }
-      state.loadedViews.schedule = { loadedAt: Date.now() };
+      state.loadedViews.organization = { loadedAt: Date.now() };
       markModalClean();
       renderConfirmationSchedule();
       var savedStatus = $('[data-confirmation-schedule-status]');
@@ -5901,9 +6493,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
     return candidates.map(function (staff) {
       var selected = staff.id === selectedId ? ' selected' : '';
-      var roleSummary = staffRoleSummary(staff);
       return '<option value="' + escapeHtml(staff.id) + '"' + selected + '>' +
-        escapeHtml(staff.display_name) + (roleSummary ? ' - ' + escapeHtml(roleSummary) : '') +
+        escapeHtml(staff.display_name) +
       '</option>';
     }).join('');
   }
@@ -5939,7 +6530,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var created = Number(result.created_count) || 0;
     var skipped = Number(result.skipped_count) || 0;
     var conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
-    var hasTravelBuffer = Number(result.buffer_duration_minutes) > 0;
     var reasonLabels = {
       existing_availability: 'overlaps existing availability',
       existing_booking: 'overlaps an active booking',
@@ -5955,10 +6545,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<section class="admin-day-schedule-result" data-tone="' + (created ? 'success' : 'warning') + '" aria-labelledby="admin-day-schedule-result-title">' +
       '<strong id="admin-day-schedule-result-title">' + escapeHtml(summary) + '</strong>' +
       (conflictHtml
-        ? '<details open><summary>Review conflicts</summary><ul>' + conflictHtml + '</ul></details>'
-        : '<p>' + (hasTravelBuffer
-          ? 'The travel periods between these slots remain unavailable.'
-          : 'No travel buffer was added, so the generated slots may be consecutive.') + '</p>') +
+        ? '<details class="admin-disclosure" open><summary>Review conflicts</summary><ul>' + conflictHtml + '</ul></details>'
+        : '') +
     '</section>';
   }
 
@@ -5973,7 +6561,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<div class="admin-modal-header">' +
         '<div>' +
           '<h2>Create day schedule</h2>' +
-          '<p>Generate bookable inspection slots with travel time left between clients.</p>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close day schedule" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
@@ -5981,11 +6568,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<form class="admin-day-schedule-form" data-admin-day-schedule-form novalidate>' +
         '<div class="admin-day-schedule-core-fields">' +
           '<label>Date<input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
-          '<fieldset class="admin-time-range">' +
-            '<legend>Workday</legend>' +
-            '<label><span>Start</span><input name="startTime" type="time" value="09:00" step="900" required data-admin-day-schedule-start></label>' +
-            '<label><span>End</span><input name="endTime" type="time" value="18:00" step="900" required data-admin-day-schedule-end></label>' +
-          '</fieldset>' +
+          '<div class="admin-day-schedule-time-grid">' +
+            '<label><span>Start time</span><input name="startTime" type="time" value="09:00" step="900" required data-admin-day-schedule-start></label>' +
+            '<label><span>End time</span><input name="endTime" type="time" value="18:00" step="900" required data-admin-day-schedule-end></label>' +
+          '</div>' +
           '<label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
           (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
         '</div>' +
@@ -6034,15 +6620,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     var visibleRanges = ranges.slice(0, 8).map(function (range) {
-      return '<li>' + escapeHtml(range.start) + '-' + escapeHtml(range.end) + '</li>';
+      return '<li><time>' + escapeHtml(range.start) + '</time><span aria-hidden="true">→</span><time>' + escapeHtml(range.end) + '</time></li>';
     }).join('');
     preview.dataset.tone = 'neutral';
     preview.innerHTML = '<strong>' + ranges.length + (ranges.length === 1 ? ' bookable slot' : ' bookable slots') + '</strong>' +
-      '<ul>' + visibleRanges + '</ul>' +
-      (ranges.length > 8 ? '<span>+' + (ranges.length - 8) + ' more</span>' : '') +
-      '<p>' + (buffer > 0
-        ? 'Travel periods are left as gaps and are not bookable.'
-        : 'No travel buffer is selected, so slots may be consecutive.') + '</p>';
+      '<ol>' + visibleRanges + '</ol>' +
+      (ranges.length > 8 ? '<span>+' + (ranges.length - 8) + ' more</span>' : '');
   }
 
   function renderDayScheduleModal() {
@@ -6140,11 +6723,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var skipped = Number(dayScheduleLastResult && dayScheduleLastResult.skipped_count) || 0;
       var message = created + (created === 1 ? ' availability slot created.' : ' availability slots created.');
       if (skipped) message += ' ' + skipped + (skipped === 1 ? ' conflict skipped.' : ' conflicts skipped.');
-      var existingResult = $('[data-tone][aria-labelledby="admin-day-schedule-result-title"]', form.parentElement);
-      if (existingResult) existingResult.remove();
-      form.insertAdjacentHTML('beforebegin', dayScheduleResultHtml(dayScheduleLastResult));
       setSyncState('Saved', 'success');
       showToast(message, created ? 'success' : 'info');
+      if (created > 0) {
+        await closeModalRoute({ force: true });
+      } else {
+        var existingResult = $('[data-tone][aria-labelledby="admin-day-schedule-result-title"]', form.parentElement);
+        if (existingResult) existingResult.remove();
+        form.insertAdjacentHTML('beforebegin', dayScheduleResultHtml(dayScheduleLastResult));
+      }
     } catch (error) {
       setSyncState('Action failed', 'error');
       if (status) status.textContent = error instanceof Error ? error.message : 'Could not create the day schedule.';
@@ -6183,7 +6770,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
-    renderConfirmationScheduleAccess();
   }
 
   function selectedSlotHasActiveBooking(slotId) {
@@ -6254,9 +6840,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var dateInput = $('[data-admin-slot-date]', form);
     var startSelect = $('[data-admin-slot-start]', form);
     var endSelect = $('[data-admin-slot-end]', form);
-    var internalNote = $('[name="internalNote"]', form);
     var submit = $('[data-admin-slot-submit]', form);
-    var reset = $('[data-admin-slot-reset]', form);
     var del = $('[data-admin-slot-delete]', form);
     var repeatToggle = $('[data-admin-repeat-toggle]', form);
 
@@ -6272,9 +6856,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       rebuildSlotTimeOptions(true);
       if (startSelect) startSelect.value = formatTime(slot.start_at);
       if (endSelect) endSelect.value = formatTime(slot.end_at);
-      if (internalNote) internalNote.value = slot.internal_note || '';
       if (submit) submit.textContent = 'Update slot';
-      if (reset) reset.hidden = false;
       if (del) del.hidden = false;
       if (repeatToggle) repeatToggle.checked = false;
       setRepeatControlsEnabled(false);
@@ -6287,7 +6869,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (title) title.textContent = 'New slot';
     if (slotId) slotId.value = '';
     if (submit) submit.textContent = 'Create slot';
-    if (reset) reset.hidden = true;
     if (del) del.hidden = true;
     setRepeatControlsEnabled(true);
     refreshCustomControls(form);
@@ -6314,8 +6895,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var selectedStaff = staffSelect.value;
     staffSelect.innerHTML = '<option value="">Unassigned</option>' + state.staffList.filter(function (staff) { return staff.is_active; }).map(function (staff) {
-      var roleSummary = staffRoleSummary(staff);
-      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedStaff ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + (roleSummary ? ' - ' + escapeHtml(roleSummary) : '') + '</option>';
+      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedStaff ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + '</option>';
     }).join('');
 
     if (!dateInput.value) {
@@ -6375,8 +6955,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           serviceCode: data.get('serviceCode') || 'all',
           assignedStaffId: data.get('assignedStaffId') || null,
           startAt: validation.startAt,
-          endAt: validation.endAt,
-          internalNote: data.get('internalNote') || null
+          endAt: validation.endAt
         });
         await refresh({ preserveScroll: true, force: true });
         if (errorEl) {
@@ -6384,6 +6963,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           errorEl.classList.add('is-success');
         }
         captureSlotEditorBaseline();
+        showToast('Availability slot updated.', 'success');
       } catch (error) {
         setSyncState('Action failed', 'error');
         if (errorEl) errorEl.textContent = error instanceof Error ? error.message : 'Could not update slot.';
@@ -6418,7 +6998,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           assignedStaffId: data.get('assignedStaffId') || null,
           startAt: occurrence.startAt,
           endAt: occurrence.endAt,
-          internalNote: data.get('internalNote') || null,
           recurrenceSeriesId: recurrenceSeriesId
         });
         created += 1;
@@ -6430,15 +7009,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (document.body.contains(form)) setFormBusy(form, false);
     await refresh({ preserveScroll: true, force: true });
 
-    if (errorEl) {
+    if (errorEl && failures.length) {
       if (failures.length) {
         errorEl.textContent = created + ' created. Failed: ' + failures.join(' ');
-      } else {
-        errorEl.textContent = created === 1 ? 'Slot created.' : created + ' slots created.';
-        errorEl.classList.add('is-success');
       }
     }
-    if (!failures.length) captureSlotEditorBaseline();
+    if (!failures.length && created > 0) {
+      state.selectedSlotId = null;
+      slotEditorBaseline = '';
+      history.replaceState(modalHistoryState(null, 0), '', PATHS.availability);
+      setSlotEditorOpen(false, { restoreFocus: true });
+      showToast(created === 1 ? 'Availability slot created.' : created + ' availability slots created.', 'success');
+    }
   }
 
   function renderSlots() {
@@ -6513,12 +7095,76 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (dateInput) delete dateInput.dataset.datePickerBound;
   }
 
+  function applyBookingFilterParameters(params) {
+    var previousSignature = state.bookingQuerySignature;
+    var allowedStatuses = ['pending', 'confirmed', 'completed', 'rejected', 'cancelled', 'expired'];
+    var allowedDateFields = ['received', 'inspection', 'confirmed', 'completed', 'rejected', 'cancelled', 'expired'];
+    state.filter = 'all';
+    state.bookingSearch = String(params.get('search') || '').slice(0, 200);
+    state.bookingStatuses = String(params.get('statuses') || '').split(',').filter(function (status) {
+      return allowedStatuses.includes(status);
+    });
+    state.bookingDateField = allowedDateFields.includes(params.get('dateField')) ? params.get('dateField') : 'received';
+    state.bookingDateFrom = isValidYmd(params.get('from')) ? params.get('from') : '';
+    state.bookingDateTo = isValidYmd(params.get('to')) ? params.get('to') : '';
+    state.bookingSort = ['asc', 'desc'].includes(params.get('sort')) ? params.get('sort') : 'desc';
+
+    var legacyFilter = params.get('filter');
+    if (!state.bookingStatuses.length && ['pending', 'confirmed', 'completed'].includes(legacyFilter)) {
+      state.bookingStatuses = [legacyFilter];
+    }
+    if (legacyFilter === 'today' && !state.bookingDateFrom && !state.bookingDateTo) {
+      state.bookingStatuses = ['pending', 'confirmed', 'completed'];
+      state.bookingDateField = 'inspection';
+      state.bookingDateFrom = todayYmd();
+      state.bookingDateTo = todayYmd();
+    }
+    if (previousSignature !== bookingFilterSignature()) {
+      state.bookingQueryTotal = 0;
+      state.bookingQueryHasMore = false;
+      state.bookingQueryOffset = 0;
+      state.bookingQuerySignature = '';
+    }
+  }
+
+  function applyInvoiceFilterParameters(params) {
+    var previousSignature = state.invoiceQuerySignature;
+    var parseList = function (name, allowed) {
+      return String(params.get(name) || '').split(',').filter(function (value) { return allowed.includes(value); });
+    };
+    state.invoiceSearch = String(params.get('search') || '').slice(0, 200);
+    state.invoiceStatuses = parseList('invoiceStatuses', ['draft', 'issued', 'payment', 'void']);
+    state.invoicePaymentStatuses = parseList('paymentStatuses', ['unpaid', 'paid', 'void']);
+    state.invoiceEmailStatuses = parseList('emailStatuses', ['not_sent', 'sent', 'failed', 'skipped']);
+    state.invoiceDateField = ['created', 'issued', 'due', 'paid', 'voided'].includes(params.get('dateField')) ? params.get('dateField') : 'created';
+    state.invoiceDateFrom = isValidYmd(params.get('from')) ? params.get('from') : '';
+    state.invoiceDateTo = isValidYmd(params.get('to')) ? params.get('to') : '';
+    state.invoiceAmountMin = validMoneyFilter(params.get('amountMin'));
+    state.invoiceAmountMax = validMoneyFilter(params.get('amountMax'));
+    state.invoiceSort = params.get('sort') === 'asc' ? 'asc' : 'desc';
+    var legacyFilter = params.get('filter');
+    if (legacyFilter === 'unpaid' && !state.invoicePaymentStatuses.length) state.invoicePaymentStatuses = ['unpaid'];
+    if (legacyFilter === 'paid' && !state.invoicePaymentStatuses.length) state.invoicePaymentStatuses = ['paid'];
+    if (legacyFilter === 'void' && !state.invoiceStatuses.length) state.invoiceStatuses = ['void'];
+    if (previousSignature !== invoiceFilterSignature()) {
+      state.invoiceQueryTotal = 0;
+      state.invoiceQueryHasMore = false;
+      state.invoiceQueryOffset = 0;
+      state.invoiceQuerySignature = '';
+    }
+  }
+
   function applyRouteParameters(page) {
     var params = new URLSearchParams(window.location.search);
     state.page = page;
-    state.filter = 'pending';
-    state.invoiceFilter = 'unpaid';
-    state.bookingSort = 'asc';
+    state.filter = 'all';
+    state.invoiceFilter = 'all';
+    state.bookingSort = 'desc';
+    state.bookingSearch = '';
+    state.bookingStatuses = [];
+    state.bookingDateField = 'received';
+    state.bookingDateFrom = '';
+    state.bookingDateTo = '';
     state.slotFilter = 'all';
     state.customerSearch = '';
     state.invoiceSearch = '';
@@ -6528,39 +7174,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     state.slotEditorOpen = false;
     state.hasRendered = false;
 
-    if (page === 'bookings' && ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))) {
-      state.filter = params.get('filter');
-    }
-    if (page === 'invoices' && ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))) {
-      state.invoiceFilter = params.get('filter');
-    }
-    if (['asc', 'desc'].includes(params.get('sort'))) {
-      state.bookingSort = params.get('sort');
-    }
+    if (page === 'bookings') applyBookingFilterParameters(params);
+    if (page === 'invoices') applyInvoiceFilterParameters(params);
     syncSelectedModalState(modalRouteFromUrl());
   }
 
   function applyCurrentPageUrlParameters(page) {
     var params = new URLSearchParams(window.location.search);
     if (page === 'bookings') {
-      state.filter = ['pending', 'today', 'confirmed', 'completed', 'all'].includes(params.get('filter'))
-        ? params.get('filter')
-        : 'pending';
-      state.bookingSort = ['asc', 'desc'].includes(params.get('sort')) ? params.get('sort') : 'asc';
-      $all('[data-filter]').forEach(function (button) {
-        setPressed(button, button.dataset.filter === state.filter);
-      });
-      $all('[data-booking-sort]').forEach(function (button) {
-        setPressed(button, button.dataset.bookingSort === state.bookingSort);
-      });
+      applyBookingFilterParameters(params);
+      syncBookingFilterControls();
     }
     if (page === 'invoices') {
-      state.invoiceFilter = ['all', 'unpaid', 'paid', 'void'].includes(params.get('filter'))
-        ? params.get('filter')
-        : 'unpaid';
-      $all('[data-invoice-filter]').forEach(function (button) {
-        setPressed(button, button.dataset.invoiceFilter === state.invoiceFilter);
-      });
+      applyInvoiceFilterParameters(params);
+      syncInvoiceFilterControls();
     }
     if (page === 'availability') {
       state.selectedSlotId = params.get('slot');
@@ -6579,6 +7206,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (state.page === 'customers') setupCustomerEvents();
     if (state.page === 'invoices') setupInvoiceEvents();
     if (state.page === 'marketing') setupMarketingEvents();
+    if (state.page === 'organization') setupOrganizationEvents();
     if (pageController && typeof pageController.afterEvents === 'function') {
       pageController.afterEvents({ state: state });
     }
@@ -7604,48 +8232,98 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
-  function setupBookingEvents() {
-    var filters = $('[data-admin-filters]');
-    var sortControls = $('[data-admin-booking-sort]');
+  function commitBookingFilters(options) {
+    var opts = options || {};
+    state.bookingQuerySignature = '';
+    state.bookingQueryHasMore = false;
+    state.bookingQueryOffset = 0;
+    replaceBookingFilterUrl();
+    syncBookingFilterControls();
+    return loadBookingQuery({ force: true, silent: Boolean(opts.silent) });
+  }
 
-    if (filters) {
-      filters.setAttribute('role', 'group');
-      if (!filters.getAttribute('aria-label')) filters.setAttribute('aria-label', 'Filter bookings');
-      $all('[data-filter]', filters).forEach(function (item) {
-        setPressed(item, item.dataset.filter === state.filter);
+  function resetBookingFilters() {
+    state.bookingSearch = '';
+    state.bookingStatuses = [];
+    state.bookingDateField = 'received';
+    state.bookingDateFrom = '';
+    state.bookingDateTo = '';
+    state.bookingSort = 'desc';
+    commitBookingFilters();
+  }
+
+  function setupBookingEvents() {
+    var sortControls = $('[data-admin-booking-sort]');
+    var search = $('[data-booking-search]');
+
+    if (search) search.addEventListener('input', function () {
+      state.bookingSearch = search.value.trim().slice(0, 200);
+      window.clearTimeout(bookingSearchTimer);
+      replaceBookingFilterUrl();
+      bookingSearchTimer = window.setTimeout(function () {
+        commitBookingFilters({ silent: true });
+      }, 250);
+    });
+
+    $all('[data-booking-status]').forEach(function (checkbox) {
+      checkbox.addEventListener('change', function () {
+        state.bookingStatuses = $all('[data-booking-status]:checked').map(function (item) { return item.value; });
+        commitBookingFilters();
       });
-      $all('[data-filter]', filters).forEach(function (button) {
-        button.addEventListener('click', function () {
-          state.filter = button.dataset.filter;
-          $all('[data-filter]', filters).forEach(function (item) {
-            setPressed(item, item === button);
-          });
-          state.selectedBookingId = null;
-          history.replaceState(modalHistoryState(null, 0), '', PATHS.bookings + '?filter=' + encodeURIComponent(state.filter) + '&sort=' + encodeURIComponent(state.bookingSort));
-          closeModal();
-          renderBookingsPage();
-        });
+    });
+
+    var dateField = $('[data-booking-date-field]');
+    var dateFrom = $('[data-booking-date-from]');
+    var dateTo = $('[data-booking-date-to]');
+    if (dateField) dateField.addEventListener('change', function () {
+      state.bookingDateField = dateField.value;
+      commitBookingFilters();
+    });
+    if (dateFrom) dateFrom.addEventListener('change', function () {
+      state.bookingDateFrom = isValidYmd(dateFrom.value) ? dateFrom.value : '';
+      commitBookingFilters();
+    });
+    if (dateTo) dateTo.addEventListener('change', function () {
+      state.bookingDateTo = isValidYmd(dateTo.value) ? dateTo.value : '';
+      commitBookingFilters();
+    });
+
+    $all('[data-booking-range]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var today = todayYmd();
+        state.bookingDateFrom = button.dataset.bookingRange === 'month' ? today.slice(0, 8) + '01' : today;
+        state.bookingDateTo = today;
+        commitBookingFilters();
       });
-    }
+    });
+
+    var reset = $('[data-booking-filters-reset]');
+    if (reset) reset.addEventListener('click', resetBookingFilters);
 
     if (sortControls) {
       sortControls.setAttribute('role', 'group');
       if (!sortControls.getAttribute('aria-label')) sortControls.setAttribute('aria-label', 'Sort bookings');
       $all('[data-booking-sort]', sortControls).forEach(function (item) {
-        item.textContent = item.dataset.bookingSort === 'desc' ? 'Latest first' : 'Earliest first';
         setPressed(item, item.dataset.bookingSort === state.bookingSort);
       });
       $all('[data-booking-sort]', sortControls).forEach(function (button) {
         button.addEventListener('click', function () {
           state.bookingSort = button.dataset.bookingSort === 'desc' ? 'desc' : 'asc';
-          $all('[data-booking-sort]', sortControls).forEach(function (item) {
-            setPressed(item, item === button);
-          });
-          history.replaceState(modalHistoryState(null, 0), '', PATHS.bookings + '?filter=' + encodeURIComponent(state.filter) + '&sort=' + encodeURIComponent(state.bookingSort));
-          renderBookingsPage();
+          commitBookingFilters();
         });
       });
     }
+
+    var loadMore = $('[data-booking-load-more]');
+    if (loadMore) loadMore.addEventListener('click', function () {
+      loadBookingQuery({ append: true, silent: true });
+    });
+
+    var root = $('[data-page-root]');
+    if (root) root.addEventListener('click', function (event) {
+      var retry = event.target.closest('[data-booking-query-retry]');
+      if (retry) loadBookingQuery({ force: true });
+    });
   }
 
   function setupCustomerEvents() {
@@ -7669,49 +8347,106 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
+  function commitInvoiceFilters(options) {
+    var opts = options || {};
+    state.invoiceQuerySignature = '';
+    state.invoiceQueryHasMore = false;
+    state.invoiceQueryOffset = 0;
+    replaceInvoiceFilterUrl();
+    syncInvoiceFilterControls();
+    return loadInvoiceQuery({ force: true, silent: Boolean(opts.silent) });
+  }
+
+  function resetInvoiceFilters() {
+    state.invoiceSearch = '';
+    state.invoiceStatuses = [];
+    state.invoicePaymentStatuses = [];
+    state.invoiceEmailStatuses = [];
+    state.invoiceDateField = 'created';
+    state.invoiceDateFrom = '';
+    state.invoiceDateTo = '';
+    state.invoiceAmountMin = '';
+    state.invoiceAmountMax = '';
+    state.invoiceSort = 'desc';
+    commitInvoiceFilters();
+  }
+
   function setupInvoiceEvents() {
-    var filters = $('[data-invoice-filters]');
-    if (filters) {
-      filters.setAttribute('role', 'group');
-      if (!filters.getAttribute('aria-label')) filters.setAttribute('aria-label', 'Filter invoices');
-      $all('[data-invoice-filter]', filters).forEach(function (button) {
-        setPressed(button, button.dataset.invoiceFilter === state.invoiceFilter);
-        button.addEventListener('click', function () {
-          state.invoiceFilter = button.dataset.invoiceFilter;
-          $all('[data-invoice-filter]', filters).forEach(function (item) {
-            setPressed(item, item === button);
-          });
-          state.selectedInvoiceId = null;
-          var url = new URL(window.location.href);
-          ['customer', 'booking', 'invoice', 'campaign'].forEach(function (key) {
-            url.searchParams.delete(key);
-          });
-          url.searchParams.set('filter', state.invoiceFilter);
-          history.replaceState(modalHistoryState(null, 0), '', url.pathname + url.search + url.hash);
-          closeModal();
-          renderInvoicesPage();
+    var search = $('[data-invoice-search]');
+    if (search) search.addEventListener('input', function () {
+      state.invoiceSearch = search.value.trim().slice(0, 200);
+      window.clearTimeout(invoiceSearchTimer);
+      replaceInvoiceFilterUrl();
+      invoiceSearchTimer = window.setTimeout(function () {
+        commitInvoiceFilters({ silent: true });
+      }, 250);
+    });
+
+    [
+      ['[data-invoice-status]', 'invoiceStatuses'],
+      ['[data-invoice-payment-status]', 'invoicePaymentStatuses'],
+      ['[data-invoice-email-status]', 'invoiceEmailStatuses']
+    ].forEach(function (entry) {
+      $all(entry[0]).forEach(function (checkbox) {
+        checkbox.addEventListener('change', function () {
+          state[entry[1]] = $all(entry[0] + ':checked').map(function (item) { return item.value; });
+          commitInvoiceFilters();
         });
       });
-    }
+    });
 
-    var search = $('[data-invoice-search]');
-    if (search) {
-      search.addEventListener('input', function () {
-        state.invoiceSearch = search.value;
-        renderInvoicesPage();
+    var dateField = $('[data-invoice-date-field]');
+    var dateFrom = $('[data-invoice-date-from]');
+    var dateTo = $('[data-invoice-date-to]');
+    var amountMin = $('[data-invoice-amount-min]');
+    var amountMax = $('[data-invoice-amount-max]');
+    if (dateField) dateField.addEventListener('change', function () {
+      state.invoiceDateField = dateField.value;
+      commitInvoiceFilters();
+    });
+    if (dateFrom) dateFrom.addEventListener('change', function () {
+      state.invoiceDateFrom = isValidYmd(dateFrom.value) ? dateFrom.value : '';
+      commitInvoiceFilters();
+    });
+    if (dateTo) dateTo.addEventListener('change', function () {
+      state.invoiceDateTo = isValidYmd(dateTo.value) ? dateTo.value : '';
+      commitInvoiceFilters();
+    });
+    [amountMin, amountMax].forEach(function (control) {
+      if (!control) return;
+      control.addEventListener('change', function () {
+        var normalized = validMoneyFilter(control.value);
+        control.value = normalized;
+        if (control === amountMin) state.invoiceAmountMin = normalized;
+        else state.invoiceAmountMax = normalized;
+        commitInvoiceFilters();
       });
-    }
-    var clear = $('[data-invoice-clear]');
-    if (clear) {
-      clear.addEventListener('click', function () {
-        state.invoiceSearch = '';
-        if (search) {
-          search.value = '';
-          search.focus();
-        }
-        renderInvoicesPage();
+    });
+
+    $all('[data-invoice-range]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var today = todayYmd();
+        state.invoiceDateFrom = button.dataset.invoiceRange === 'month' ? today.slice(0, 8) + '01' : today;
+        state.invoiceDateTo = today;
+        commitInvoiceFilters();
       });
-    }
+    });
+    var reset = $('[data-invoice-filters-reset]');
+    if (reset) reset.addEventListener('click', resetInvoiceFilters);
+    $all('[data-invoice-sort]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        state.invoiceSort = button.dataset.invoiceSort === 'asc' ? 'asc' : 'desc';
+        commitInvoiceFilters();
+      });
+    });
+    var loadMore = $('[data-invoice-load-more]');
+    if (loadMore) loadMore.addEventListener('click', function () {
+      loadInvoiceQuery({ append: true, silent: true });
+    });
+    var root = $('[data-page-root]');
+    if (root) root.addEventListener('click', function (event) {
+      if (event.target.closest('[data-invoice-query-retry]')) loadInvoiceQuery({ force: true });
+    });
   }
 
   function setupAvailabilityEvents() {
@@ -7721,13 +8456,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var editor = $('[data-admin-slot-editor]');
     var openButton = $('[data-admin-slot-open]');
     var dayScheduleButton = $('[data-admin-day-schedule-open]');
-    var scheduleButton = $('[data-confirmation-schedule-open]');
     var repeatToggle = $('[data-admin-repeat-toggle]', form);
     var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
     var dateInput = $('[data-admin-slot-date]', form);
     var startSelect = $('[data-admin-slot-start]', form);
-    var resetButton = $('[data-admin-slot-reset]', form);
     var deleteButton = $('[data-admin-slot-delete]', form);
     var errorEl = $('[data-admin-slot-error]', form);
     var scheduleReady = viewIsLoaded('schedule');
@@ -7737,13 +8470,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (dayScheduleButton) dayScheduleButton.disabled = true;
       form.dataset.loadingView = 'true';
       setFormBusy(form, true, 'Loading...');
-    }
-
-    if (scheduleButton) {
-      scheduleButton.addEventListener('click', function () {
-        if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) return;
-        navigateToModal('confirmationSchedule', 'edit');
-      });
     }
 
     if (openButton) {
@@ -7807,12 +8533,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
     }
 
-    if (resetButton) {
-      resetButton.addEventListener('click', function () {
-        resetSlotForm({ keepOpen: true, restoreFocus: false });
-      });
-    }
-
     if (deleteButton) {
       deleteButton.addEventListener('click', async function () {
         var slotId = String(($('[data-admin-slot-id]', form) || {}).value || '').trim();
@@ -7822,6 +8542,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     form.addEventListener('submit', handleSlotSubmit);
+    form.addEventListener('input', syncSlotSubmitState);
+    form.addEventListener('change', syncSlotSubmitState);
 
     initCustomControls(form);
     captureSlotEditorBaseline();
@@ -7834,6 +8556,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var requestedView = opts.view || adminViewForPage(state.page);
     var hadLoadedView = viewIsLoaded(requestedView);
     var preserveDirtyModal = modalIsDirty();
+    var modalViewState = captureModalViewState();
     var slotEditorDraft = captureSlotEditorDraft();
     state.isRefreshing = true;
     if (!hadLoadedView) clearPageLoadError();
@@ -7850,6 +8573,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setUserLabel();
       setActiveNav();
       renderPage();
+      if (state.page === 'bookings') {
+        await loadBookingQuery({ force: true, silent: Boolean(state.hasRendered) });
+        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+      }
+      if (state.page === 'invoices') {
+        await loadInvoiceQuery({ force: true, silent: Boolean(state.hasRendered) });
+        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+      }
       if (
         !state.hasRendered &&
         pageController &&
@@ -7864,6 +8595,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       restoreSlotEditorDraft(slotEditorDraft);
       if (!preserveDirtyModal) {
         renderModalFromCurrentUrl();
+        restoreModalViewState(modalViewState);
       } else if (opts.background) {
         showToast('Live data updated. Unsaved detail changes were kept.', 'info');
       }
@@ -7901,6 +8633,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (state.page === 'customers') renderCustomersPage();
     if (state.page === 'invoices') renderInvoicesPage();
     if (state.page === 'marketing') renderMarketingPage();
+    if (state.page === 'organization') renderOrganizationPage();
   }
 
   async function init() {

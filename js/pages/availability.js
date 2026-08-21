@@ -32,15 +32,6 @@ export function renderStaticPage(root) {
               disabled
             >${ICONS.add}<span>Create day</span></button>
             <button
-              class="admin-button admin-button-secondary admin-icon-button"
-              type="button"
-              data-confirmation-schedule-open
-              aria-label="Edit confirmation schedule"
-              aria-haspopup="dialog"
-              title="Confirmation schedule"
-              hidden
-            >${ICONS.booking}</button>
-            <button
               class="admin-button admin-button-secondary admin-availability-add-button"
               type="button"
               data-admin-slot-open
@@ -110,7 +101,6 @@ export function renderStaticPage(root) {
             <label><span>End</span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
           </fieldset>
           <label>Assign to<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
-          <label class="admin-field-wide">Note<input name="internalNote" type="text" maxlength="500" placeholder="Optional internal note"></label>
           <fieldset class="admin-repeat">
             <label class="admin-checkbox admin-repeat-toggle">
               <input type="checkbox" name="repeatWeekly" data-admin-repeat-toggle>
@@ -127,7 +117,6 @@ export function renderStaticPage(root) {
           <div class="admin-form-error" data-admin-slot-error role="status" aria-live="polite"></div>
           <div class="admin-action-buttons">
             <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Create slot</button>
-            <button class="admin-button admin-button-secondary" type="button" data-admin-slot-reset hidden>New slot</button>
             <button class="admin-button admin-button-danger" type="button" data-admin-slot-delete hidden>Cancel slot</button>
           </div>
         </form>

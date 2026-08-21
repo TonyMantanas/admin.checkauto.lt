@@ -5,7 +5,7 @@ export const page = 'customers';
 export function renderStaticPage(root) {
   root.innerHTML = `
     <section class="admin-customer-layout">
-      <section class="admin-panel admin-panel-full" aria-label="Customer profiles">
+      <section class="admin-panel admin-panel-full admin-list-panel" aria-label="Customer profiles">
         <div class="admin-panel-header admin-workspace-header admin-customers-workspace-header">
           <div class="admin-page-title">
             <h1>Customers</h1>
