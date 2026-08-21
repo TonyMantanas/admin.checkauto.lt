@@ -1,6 +1,6 @@
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
-import { state } from './state.js?v=20260821-1';
+import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
 import { syncStaffNavigation } from './shell.js?v=20260821-1';
@@ -51,7 +51,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var MIN_PASSWORD_CHARACTERS = 14;
   var MAX_PASSWORD_BYTES = 72;
   var TIME_ZONE = 'Europe/Vilnius';
-  var EXPIRY_TICK_MS = 30 * 1000;
+  var EXPIRY_TICK_MS = 1000;
   var DEFAULT_START_HOUR = 8;
   var DEFAULT_END_HOUR = 22;
   var HOUR_HEIGHT = 56;
@@ -453,6 +453,26 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return totalMinutes + 'm';
   }
 
+  function expiryDurationExactLabel(remainingMs) {
+    if (remainingMs <= 0) return 'Automatic rejection is being processed';
+    var totalSeconds = Math.max(1, Math.ceil(remainingMs / 1000));
+    var days = Math.floor(totalSeconds / (24 * 60 * 60));
+    var hours = Math.floor((totalSeconds % (24 * 60 * 60)) / (60 * 60));
+    var minutes = Math.floor((totalSeconds % (60 * 60)) / 60);
+    var seconds = totalSeconds % 60;
+    var parts = [];
+    if (days) parts.push(days + 'd');
+    if (hours || days) parts.push(hours + 'h');
+    if (minutes || hours || days) parts.push(minutes + 'm');
+    parts.push(seconds + 's');
+    return parts.join(' ') + ' before automatic rejection';
+  }
+
+  function expiryCountdownTooltip(timer, expiresAt) {
+    var exact = formatDateTime(expiresAt);
+    return expiryDurationExactLabel(timer ? timer.remainingMs : 0) + '. Deadline: ' + exact + '.';
+  }
+
   function expiryCountdownState(expiresAt, createdAt, nowValue) {
     var expiresMs = new Date(expiresAt || '').getTime();
     if (!Number.isFinite(expiresMs)) return null;
@@ -496,13 +516,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var mode = ['compact', 'header'].includes(variant) ? variant : 'full';
     var label = expiryCountdownLabel(timer, mode === 'header' ? 'compact' : mode);
     var exact = formatDateTime(booking.pending_expires_at);
+    var tooltip = expiryCountdownTooltip(timer, booking.pending_expires_at);
     var attributes =
       ' data-admin-expiry' +
       ' data-expiry-variant="' + mode + '"' +
       ' data-expires-at="' + escapeHtml(booking.pending_expires_at) + '"' +
       ' data-created-at="' + escapeHtml(booking.created_at || '') + '"' +
       ' data-tone="' + escapeHtml(timer.tone) + '"' +
-      ' aria-label="Review deadline: ' + escapeHtml(label) + '. Expires ' + escapeHtml(exact) + '."';
+      ' aria-label="' + escapeHtml(mode === 'header' ? tooltip : 'Review deadline: ' + label + '. Expires ' + exact + '.') + '"';
 
     if (mode === 'compact') {
       return '<span class="admin-expiry-compact"' + attributes + '>' +
@@ -511,9 +532,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     if (mode === 'header') {
-      return '<span class="admin-expiry-ring"' + attributes + ' style="--admin-expiry-progress:' + timer.progress.toFixed(2) + '%" title="Review deadline: ' + escapeHtml(exact) + '">' +
-        '<span><strong data-admin-expiry-remaining>' + escapeHtml(timer.shortLabel || 'Due') + '</strong><small>left</small></span>' +
-      '</span>';
+      return '<span class="admin-expiry-ring" role="img" tabindex="0"' + attributes + ' style="--admin-expiry-progress:' + timer.progress.toFixed(2) + '%" title="' + escapeHtml(tooltip) + '"></span>';
     }
 
     return '<div class="admin-expiry-panel"' + attributes + '>' +
@@ -540,7 +559,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var exact = formatDateTime(countdown.dataset.expiresAt);
 
       countdown.dataset.tone = timer.tone;
-      countdown.setAttribute('aria-label', 'Review deadline: ' + label + '. Expires ' + exact + '.');
+      var tooltip = expiryCountdownTooltip(timer, countdown.dataset.expiresAt);
+      countdown.setAttribute('aria-label', variant === 'header' ? tooltip : 'Review deadline: ' + label + '. Expires ' + exact + '.');
+      if (variant === 'header') countdown.setAttribute('title', tooltip);
       if (remaining) remaining.textContent = label;
       if (progress) progress.style.width = timer.progress.toFixed(2) + '%';
       if (variant === 'header') countdown.style.setProperty('--admin-expiry-progress', timer.progress.toFixed(2) + '%');
@@ -1008,6 +1029,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.maintenancePreview = null;
       state.confirmationSettings = null;
       state.organizationSettings = null;
+      state.invoiceSettingsReadiness = null;
       state.dashboardAnalytics = null;
       state.dashboardTrendDays = 30;
       state.staffUsersLoadedAt = 0;
@@ -1048,6 +1070,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (Object.prototype.hasOwnProperty.call(data, 'organizationSettings')) {
       state.organizationSettings = data.organizationSettings && typeof data.organizationSettings === 'object'
         ? data.organizationSettings
+        : null;
+    }
+    if (Object.prototype.hasOwnProperty.call(data, 'invoiceSettingsReadiness')) {
+      state.invoiceSettingsReadiness = data.invoiceSettingsReadiness && typeof data.invoiceSettingsReadiness === 'object'
+        ? data.invoiceSettingsReadiness
         : null;
     }
     if (Object.prototype.hasOwnProperty.call(data, 'dashboardAnalytics')) {
@@ -3782,12 +3809,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
-          '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
+          '<div class="admin-booking-modal-title">' +
+            '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
+            expiryCountdownHtml(booking, 'header') +
+          '</div>' +
           '<div class="admin-modal-status-line">' +
             '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
           '</div>' +
         '</div>' +
-        expiryCountdownHtml(booking, 'header') +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<section class="admin-detail-section admin-booking-overview">' +
@@ -3869,13 +3898,29 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (optionalDueDate) {
       var dueToggle = $('input[name="hasDueDate"]', optionalDueDate);
       var dueInput = $('input[name="dueDate"]', optionalDueDate);
+      var dueField = $('[data-due-date-field]', optionalDueDate);
       var syncDueDate = function () {
         if (!dueInput || !dueToggle) return;
         dueInput.disabled = !dueToggle.checked;
         dueInput.required = dueToggle.checked;
+        if (dueField) dueField.classList.toggle('is-disabled', !dueToggle.checked);
       };
       if (dueToggle) dueToggle.addEventListener('change', syncDueDate);
       syncDueDate();
+    }
+
+    var vatMode = $('select[name="vatMode"]', modal);
+    var vatRateField = $('[data-vat-rate-field]', modal);
+    var vatRateInput = vatRateField && $('input[name="vatRate"]', vatRateField);
+    if (vatMode && vatRateField && vatRateInput) {
+      var syncVatRate = function () {
+        var included = vatMode.value === 'included';
+        vatRateField.hidden = !included;
+        vatRateInput.disabled = !included;
+        vatRateInput.required = included;
+      };
+      vatMode.addEventListener('change', syncVatRate);
+      syncVatRate();
     }
 
     var cancellationButton = $('[data-booking-cancellation-open]', modal);
@@ -3958,23 +4003,39 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderCreateInvoiceForm(booking) {
-    return '<form class="admin-action-form" data-admin-action-form data-action="createAndSendInvoice">' +
+    var readiness = state.invoiceSettingsReadiness;
+    var setupBlocked = Boolean(readiness && readiness.ready === false);
+    var missingFields = setupBlocked && Array.isArray(readiness.missing_fields)
+      ? readiness.missing_fields.join(', ')
+      : '';
+    var canOpenOrganization = staffCanAccessPage(state.staff, 'organization');
+    var setupMessage = setupBlocked
+      ? '<div class="admin-invoice-settings-warning" role="alert">' +
+          '<div><strong>Invoice setup is incomplete</strong>' +
+          '<span>Add ' + escapeHtml(missingFields || 'the legal entity and bank details') + ' before issuing an invoice.</span></div>' +
+          (canOpenOrganization
+            ? '<a class="admin-button admin-button-secondary" href="' + escapeHtml(PATHS.organization) + '">Open Organization</a>'
+            : '<span>Ask an organization owner to complete these details.</span>') +
+        '</div>'
+      : '';
+    return '<form class="admin-action-form admin-invoice-create-form" data-admin-action-form data-action="createAndSendInvoice">' +
       hiddenInput('bookingId', booking.id) +
+      setupMessage +
       '<div class="admin-action-grid">' +
         '<label>Amount<input name="amount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
         '<div class="admin-optional-date-field" data-optional-due-date>' +
-          '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Set due date</span></label>' +
-          '<label>Due date<input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
+          '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Include a due date</span></label>' +
+          '<label data-due-date-field>Due date<input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
         '</div>' +
       '</div>' +
       '<div class="admin-action-grid">' +
         '<label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
-        '<label>VAT rate %<input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label>' +
+        '<label data-vat-rate-field hidden>VAT rate %<input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label>' +
       '</div>' +
       '<label>Service description<input name="serviceDescription" type="text" maxlength="300" value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
-      '<label>Billing details<textarea name="billingDetails" maxlength="1000" placeholder="Optional billing address, company code, VAT code..."></textarea></label>' +
+      '<label>Customer billing details (optional)<textarea name="billingDetails" rows="3" maxlength="1000" placeholder="Billing address, company code, VAT code..."></textarea></label>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Create and send invoice</button></div>' +
+      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit"' + (setupBlocked ? ' disabled title="Complete invoice settings on the Organization page first."' : '') + '>Create and send invoice</button></div>' +
     '</form>';
   }
 
@@ -5756,6 +5817,79 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     target.setAttribute('aria-atomic', 'true');
   }
 
+  function bookingActionProgressLabel(action) {
+    return {
+      confirmBooking: 'Confirming booking…',
+      rejectBooking: 'Rejecting booking…',
+      cancelBooking: 'Cancelling booking…',
+      completeBooking: 'Marking booking completed…'
+    }[action] || 'Updating booking…';
+  }
+
+  function showBookingActionProgress(target, action) {
+    if (!target || !['confirmBooking', 'rejectBooking', 'cancelBooking', 'completeBooking'].includes(action)) return false;
+    var section = target.closest('.admin-booking-decision');
+    if (!section) return false;
+    section.setAttribute('aria-busy', 'true');
+    section.innerHTML =
+      '<h2>Actions</h2>' +
+      '<div class="admin-booking-action-progress" role="status" aria-live="polite">' +
+        '<span class="admin-button-spinner" aria-hidden="true"></span>' +
+        '<span>' + escapeHtml(bookingActionProgressLabel(action)) + '</span>' +
+      '</div>';
+    return true;
+  }
+
+  function applyBookingActionResult(payload, result) {
+    if (!payload || !payload.bookingId) return null;
+    var index = state.bookings.findIndex(function (booking) { return booking.id === payload.bookingId; });
+    if (index < 0) return null;
+    var current = state.bookings[index];
+    var now = new Date().toISOString();
+    var patch = { updated_at: now };
+
+    if (payload.action === 'confirmBooking') {
+      patch.status = 'confirmed';
+      patch.final_start_at = payload.startAt || current.requested_start_at;
+      patch.final_end_at = payload.endAt || current.requested_end_at;
+      patch.assigned_to_staff_id = payload.assignedStaffId || current.assigned_to_staff_id;
+      patch.confirmed_at = now;
+      patch.pending_expires_at = null;
+    } else if (payload.action === 'rejectBooking') {
+      patch.status = 'rejected';
+      patch.rejected_at = now;
+    } else if (payload.action === 'cancelBooking') {
+      patch.status = 'cancelled';
+      patch.cancelled_at = now;
+    } else if (payload.action === 'completeBooking') {
+      patch.status = 'completed';
+      patch.completed_at = now;
+    } else {
+      return null;
+    }
+
+    if (result && typeof result.status === 'string') patch.status = result.status;
+    state.bookings[index] = Object.assign({}, current, patch);
+    return state.bookings[index];
+  }
+
+  function renderPatchedBookingModal(payload, result) {
+    var booking = applyBookingActionResult(payload, result);
+    var route = modalRouteFromUrl();
+    if (booking && route && route.type === 'booking' && route.id === booking.id) {
+      renderBookingModal(booking);
+    }
+    return booking;
+  }
+
+  function restoreBookingModalAfterActionError(payload) {
+    var route = modalRouteFromUrl();
+    if (payload && payload.bookingId && route && route.type === 'booking' && route.id === payload.bookingId) {
+      var booking = bookingById(payload.bookingId);
+      if (booking) renderBookingModal(booking);
+    }
+  }
+
   async function runAction(payload, confirmAction, trigger, options) {
     var opts = options || {};
     try {
@@ -5765,10 +5899,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         if (!confirmed) return false;
       }
       setButtonBusy(trigger, true, busyLabelForAction(confirmAction || payload.action));
+      showBookingActionProgress(trigger, payload.action);
       setSyncState('Saving', 'loading');
-      await adminAction(payload);
+      var response = await adminAction(payload);
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
+      renderPatchedBookingModal(payload, response.result);
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true });
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
@@ -5777,6 +5913,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return true;
     } catch (error) {
       setSyncState('Action failed', 'error');
+      restoreBookingModalAfterActionError(payload);
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
       return false;
     } finally {
@@ -5915,10 +6052,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     try {
       setFormBusy(form, true, busyLabelForAction(action));
+      showBookingActionProgress(form, action);
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
+      renderPatchedBookingModal(payload, response.result);
       if (action === 'deleteCustomerProfile') {
         state.selectedCustomerId = null;
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
@@ -5940,6 +6079,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showToast(successMessageForAction(action), 'success');
     } catch (error) {
       setSyncState('Action failed', 'error');
+      restoreBookingModalAfterActionError(payload);
       if (errorEl && document.body.contains(errorEl)) {
         errorEl.textContent = error instanceof Error ? error.message : 'The action could not be completed.';
       } else {

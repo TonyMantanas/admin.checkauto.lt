@@ -24,6 +24,7 @@ export const state = {
   maintenancePreview: null,
   confirmationSettings: null,
   organizationSettings: null,
+  invoiceSettingsReadiness: null,
   dashboardAnalytics: null,
   dashboardTrendDays: 30,
   filter: 'all',

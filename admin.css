@@ -2808,15 +2808,16 @@ a.admin-dashboard-operation:focus-visible {
 .admin-expiry-ring {
   --admin-expiry-color: var(--admin-warning);
   --admin-expiry-progress: 0%;
-  width: 3.65rem;
-  height: 3.65rem;
-  flex: 0 0 3.65rem;
+  width: 1.15rem;
+  height: 1.15rem;
+  flex: 0 0 1.15rem;
   display: grid;
   place-items: center;
   border-radius: 50%;
   color: var(--admin-expiry-color);
+  cursor: help;
   background:
-    radial-gradient(circle, var(--admin-surface) 59%, transparent 60%),
+    radial-gradient(circle, var(--admin-surface) 53%, transparent 55%),
     conic-gradient(var(--admin-expiry-color) var(--admin-expiry-progress), var(--admin-border) 0);
 }
 
@@ -2829,27 +2830,9 @@ a.admin-dashboard-operation:focus-visible {
   --admin-expiry-color: var(--admin-danger);
 }
 
-.admin-expiry-ring > span {
-  display: grid;
-  justify-items: center;
-  line-height: 1;
-}
-
-.admin-expiry-ring strong {
-  max-width: 2.7rem;
-  overflow: hidden;
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-expiry-ring small {
-  margin-block-start: 0.18rem;
-  color: var(--admin-text-tertiary);
-  font-size: 0.58rem;
-  font-weight: 700;
-  text-transform: uppercase;
+.admin-expiry-ring:focus-visible {
+  outline: 2px solid var(--admin-focus);
+  outline-offset: 2px;
 }
 
 .admin-filter-menu {
@@ -3086,7 +3069,7 @@ a.admin-dashboard-operation:focus-visible {
   gap: var(--admin-space-2);
 }
 
-.admin-checkbox-row {
+.admin-action-form .admin-checkbox-row {
   min-height: 2rem;
   display: flex;
   align-items: center;
@@ -3097,9 +3080,65 @@ a.admin-dashboard-operation:focus-visible {
   cursor: pointer;
 }
 
-.admin-checkbox-row input {
+.admin-action-form .admin-checkbox-row input {
+  width: 1rem;
+  min-width: 1rem;
+  height: 1rem;
+  min-height: 1rem;
+  padding: 0;
+  flex: 0 0 1rem;
   margin: 0;
   accent-color: var(--admin-accent);
+}
+
+.admin-optional-date-field [data-due-date-field].is-disabled {
+  color: var(--admin-text-tertiary);
+  opacity: 0.68;
+}
+
+.admin-invoice-create-form {
+  max-width: 44rem;
+}
+
+.admin-invoice-create-form textarea {
+  min-height: 5.25rem;
+}
+
+.admin-invoice-settings-warning {
+  padding: var(--admin-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  border: 1px solid color-mix(in srgb, var(--admin-warning) 38%, var(--admin-border));
+  border-radius: var(--admin-control-radius);
+  color: var(--admin-text);
+  background: var(--admin-warning-soft);
+}
+
+.admin-invoice-settings-warning > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-invoice-settings-warning strong,
+.admin-invoice-settings-warning span {
+  font-size: var(--admin-text-xs);
+}
+
+.admin-invoice-settings-warning span {
+  color: var(--admin-text-secondary);
+}
+
+.admin-booking-action-progress {
+  min-height: var(--admin-control-height);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  font-weight: 700;
 }
 
 .admin-invoice-original-amount {
@@ -5580,6 +5619,17 @@ button.admin-mini-item::after {
 
 .admin-modal-header h2 {
   overflow-wrap: anywhere;
+}
+
+.admin-booking-modal-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--admin-space-2);
+}
+
+.admin-booking-modal-title h2 {
+  min-width: 0;
 }
 
 .admin-preview-close {
@@ -8602,8 +8652,9 @@ details.admin-dashboard-staff[open] > summary::after {
     justify-self: start;
   }
 
-  .admin-modal-header .admin-expiry-ring {
-    margin-inline-start: auto;
+  .admin-invoice-settings-warning {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 
