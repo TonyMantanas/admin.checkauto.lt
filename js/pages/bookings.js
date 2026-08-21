@@ -18,38 +18,45 @@ export function renderStaticPage(root) {
               <input type="search" data-booking-search placeholder="Reference, customer, vehicle, service" autocomplete="off" disabled>
             </label>
             <details class="admin-filter-menu" data-booking-filter-menu>
-              <summary><span>Filters</span><span class="admin-filter-count" data-booking-filter-count hidden>0</span></summary>
-              <div class="admin-filter-popover">
-                <fieldset class="admin-filter-statuses">
-                  <legend>Status</legend>
-                  <div class="admin-filter-check-grid">
-                    <label><input type="checkbox" value="pending" data-booking-status><span>Pending review</span></label>
-                    <label><input type="checkbox" value="confirmed" data-booking-status><span>Confirmed</span></label>
-                    <label><input type="checkbox" value="completed" data-booking-status><span>Completed</span></label>
-                    <label><input type="checkbox" value="rejected" data-booking-status><span>Rejected</span></label>
-                    <label><input type="checkbox" value="cancelled" data-booking-status><span>Cancelled</span></label>
-                    <label><input type="checkbox" value="expired" data-booking-status><span>Expired</span></label>
+              <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-booking-filter-count hidden>0</span></summary>
+              <div class="admin-filter-popover" aria-label="Booking filters">
+                <header class="admin-filter-popover-header">
+                  <strong>Filter bookings</strong>
+                  <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
+                </header>
+                <div class="admin-filter-popover-body">
+                  <fieldset class="admin-filter-statuses">
+                    <legend>Status</legend>
+                    <div class="admin-filter-check-grid">
+                      <label><input type="checkbox" value="pending" data-booking-status><span>Pending review</span></label>
+                      <label><input type="checkbox" value="confirmed" data-booking-status><span>Confirmed</span></label>
+                      <label><input type="checkbox" value="completed" data-booking-status><span>Completed</span></label>
+                      <label><input type="checkbox" value="rejected" data-booking-status><span>Rejected</span></label>
+                      <label><input type="checkbox" value="cancelled" data-booking-status><span>Cancelled</span></label>
+                      <label><input type="checkbox" value="expired" data-booking-status><span>Expired</span></label>
+                    </div>
+                  </fieldset>
+                  <div class="admin-filter-date-grid">
+                    <label>Date event<span class="admin-select-wrap"><select data-booking-date-field>
+                      <option value="received">Booking received</option>
+                      <option value="inspection">Inspection date</option>
+                      <option value="confirmed">Confirmed date</option>
+                      <option value="completed">Completed date</option>
+                      <option value="rejected">Rejected date</option>
+                      <option value="cancelled">Cancelled date</option>
+                      <option value="expired">Expired date</option>
+                    </select></span></label>
+                    <label>From<input type="date" data-booking-date-from></label>
+                    <label>To<input type="date" data-booking-date-to></label>
                   </div>
-                </fieldset>
-                <div class="admin-filter-date-grid">
-                  <label>Date event<span class="admin-select-wrap"><select data-booking-date-field>
-                    <option value="received">Booking received</option>
-                    <option value="inspection">Inspection date</option>
-                    <option value="confirmed">Confirmed date</option>
-                    <option value="completed">Completed date</option>
-                    <option value="rejected">Rejected date</option>
-                    <option value="cancelled">Cancelled date</option>
-                    <option value="expired">Expired date</option>
-                  </select></span></label>
-                  <label>From<input type="date" data-booking-date-from></label>
-                  <label>To<input type="date" data-booking-date-to></label>
-                </div>
-                <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
-                  <button class="admin-button admin-button-secondary" type="button" data-booking-range="today">Today</button>
-                  <button class="admin-button admin-button-secondary" type="button" data-booking-range="month">Month to date</button>
+                  <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
+                    <button class="admin-button admin-button-secondary" type="button" data-booking-range="today">Today</button>
+                    <button class="admin-button admin-button-secondary" type="button" data-booking-range="month">Month to date</button>
+                  </div>
                 </div>
                 <div class="admin-filter-actions">
-                  <button class="admin-button admin-button-ghost" type="button" data-booking-filters-reset>Reset filters</button>
+                  <button class="admin-button admin-button-ghost" type="button" data-booking-filters-reset>Reset</button>
+                  <button class="admin-button admin-button-primary" type="button" data-filter-close>Done</button>
                 </div>
               </div>
             </details>

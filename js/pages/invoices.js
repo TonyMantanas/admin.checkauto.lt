@@ -24,55 +24,62 @@ export function renderStaticPage(root) {
               >
             </label>
             <details class="admin-filter-menu" data-invoice-filter-menu>
-              <summary><span>Filters</span><span class="admin-filter-count" data-invoice-filter-count hidden>0</span></summary>
-              <div class="admin-filter-popover">
-                <fieldset class="admin-filter-statuses">
-                  <legend>Record type</legend>
-                  <div class="admin-filter-check-grid">
-                    <label><input type="checkbox" value="draft" data-invoice-status><span>Draft</span></label>
-                    <label><input type="checkbox" value="issued" data-invoice-status><span>Invoice</span></label>
-                    <label><input type="checkbox" value="payment" data-invoice-status><span>Payment only</span></label>
-                    <label><input type="checkbox" value="void" data-invoice-status><span>Void</span></label>
+              <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-invoice-filter-count hidden>0</span></summary>
+              <div class="admin-filter-popover" aria-label="Invoice filters">
+                <header class="admin-filter-popover-header">
+                  <strong>Filter invoices</strong>
+                  <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close invoice filters" title="Close">${ICONS.close}</button>
+                </header>
+                <div class="admin-filter-popover-body">
+                  <fieldset class="admin-filter-statuses">
+                    <legend>Record type</legend>
+                    <div class="admin-filter-check-grid">
+                      <label><input type="checkbox" value="draft" data-invoice-status><span>Draft</span></label>
+                      <label><input type="checkbox" value="issued" data-invoice-status><span>Invoice</span></label>
+                      <label><input type="checkbox" value="payment" data-invoice-status><span>Payment only</span></label>
+                      <label><input type="checkbox" value="void" data-invoice-status><span>Void</span></label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="admin-filter-statuses">
+                    <legend>Payment</legend>
+                    <div class="admin-filter-check-grid">
+                      <label><input type="checkbox" value="unpaid" data-invoice-payment-status><span>Unpaid</span></label>
+                      <label><input type="checkbox" value="paid" data-invoice-payment-status><span>Paid</span></label>
+                      <label><input type="checkbox" value="void" data-invoice-payment-status><span>Void</span></label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="admin-filter-statuses">
+                    <legend>Email delivery</legend>
+                    <div class="admin-filter-check-grid">
+                      <label><input type="checkbox" value="not_sent" data-invoice-email-status><span>Not sent</span></label>
+                      <label><input type="checkbox" value="sent" data-invoice-email-status><span>Sent</span></label>
+                      <label><input type="checkbox" value="failed" data-invoice-email-status><span>Failed</span></label>
+                      <label><input type="checkbox" value="skipped" data-invoice-email-status><span>Not applicable</span></label>
+                    </div>
+                  </fieldset>
+                  <div class="admin-filter-date-grid">
+                    <label>Date event<span class="admin-select-wrap"><select data-invoice-date-field>
+                      <option value="created">Record created</option>
+                      <option value="issued">Invoice issued</option>
+                      <option value="due">Due date</option>
+                      <option value="paid">Paid date</option>
+                      <option value="voided">Voided date</option>
+                    </select></span></label>
+                    <label>From<input type="date" data-invoice-date-from></label>
+                    <label>To<input type="date" data-invoice-date-to></label>
                   </div>
-                </fieldset>
-                <fieldset class="admin-filter-statuses">
-                  <legend>Payment</legend>
-                  <div class="admin-filter-check-grid">
-                    <label><input type="checkbox" value="unpaid" data-invoice-payment-status><span>Unpaid</span></label>
-                    <label><input type="checkbox" value="paid" data-invoice-payment-status><span>Paid</span></label>
-                    <label><input type="checkbox" value="void" data-invoice-payment-status><span>Void</span></label>
+                  <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
+                    <button class="admin-button admin-button-secondary" type="button" data-invoice-range="today">Today</button>
+                    <button class="admin-button admin-button-secondary" type="button" data-invoice-range="month">Month to date</button>
                   </div>
-                </fieldset>
-                <fieldset class="admin-filter-statuses">
-                  <legend>Email delivery</legend>
-                  <div class="admin-filter-check-grid">
-                    <label><input type="checkbox" value="not_sent" data-invoice-email-status><span>Not sent</span></label>
-                    <label><input type="checkbox" value="sent" data-invoice-email-status><span>Sent</span></label>
-                    <label><input type="checkbox" value="failed" data-invoice-email-status><span>Failed</span></label>
-                    <label><input type="checkbox" value="skipped" data-invoice-email-status><span>Not applicable</span></label>
+                  <div class="admin-filter-amount-grid">
+                    <label>Amount from<input type="text" inputmode="decimal" placeholder="0.00" data-invoice-amount-min></label>
+                    <label>Amount to<input type="text" inputmode="decimal" placeholder="500.00" data-invoice-amount-max></label>
                   </div>
-                </fieldset>
-                <div class="admin-filter-date-grid">
-                  <label>Date event<span class="admin-select-wrap"><select data-invoice-date-field>
-                    <option value="created">Record created</option>
-                    <option value="issued">Invoice issued</option>
-                    <option value="due">Due date</option>
-                    <option value="paid">Paid date</option>
-                    <option value="voided">Voided date</option>
-                  </select></span></label>
-                  <label>From<input type="date" data-invoice-date-from></label>
-                  <label>To<input type="date" data-invoice-date-to></label>
-                </div>
-                <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
-                  <button class="admin-button admin-button-secondary" type="button" data-invoice-range="today">Today</button>
-                  <button class="admin-button admin-button-secondary" type="button" data-invoice-range="month">Month to date</button>
-                </div>
-                <div class="admin-filter-amount-grid">
-                  <label>Amount from<input type="text" inputmode="decimal" placeholder="0.00" data-invoice-amount-min></label>
-                  <label>Amount to<input type="text" inputmode="decimal" placeholder="500.00" data-invoice-amount-max></label>
                 </div>
                 <div class="admin-filter-actions">
-                  <button class="admin-button admin-button-ghost" type="button" data-invoice-filters-reset>Reset filters</button>
+                  <button class="admin-button admin-button-ghost" type="button" data-invoice-filters-reset>Reset</button>
+                  <button class="admin-button admin-button-primary" type="button" data-filter-close>Done</button>
                 </div>
               </div>
             </details>

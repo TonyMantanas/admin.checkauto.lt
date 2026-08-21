@@ -2,7 +2,10 @@ import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-1';
 import { auth } from './auth.js?v=20260804-1';
+import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
 import { syncStaffNavigation } from './shell.js?v=20260821-1';
+import { skeletons } from './skeletons.js?v=20260802-1';
+import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
 
 /* ==========================================================================
@@ -617,6 +620,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function minutesToTime(minutes) {
     var normalized = Math.max(0, Math.min(23 * 60 + 45, minutes));
     return pad2(Math.floor(normalized / 60)) + ':' + pad2(normalized % 60);
+  }
+
+  function normalizeTimeControl(control) {
+    if (!control || !control.value) return;
+    var normalized = normalizeTimeToStep(control.value, SLOT_STEP_MINUTES);
+    if (normalized && control.value !== normalized) control.value = normalized;
   }
 
   function isoFromVilniusInput(dateValue, timeValue) {
@@ -3624,7 +3633,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var list = $('[data-admin-booking-list]');
     if (!append && list && !opts.silent) {
       list.setAttribute('aria-busy', 'true');
-      list.innerHTML = '<div class="admin-list-loading" role="status"><span class="admin-button-spinner" aria-hidden="true"></span><strong>Loading bookings…</strong></div>';
+      list.innerHTML = skeletons.list('bookings', 8);
     }
 
     try {
@@ -5127,7 +5136,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var list = $('[data-invoice-list]');
     if (!append && list && !opts.silent) {
       list.setAttribute('aria-busy', 'true');
-      list.innerHTML = '<div class="admin-list-loading" role="status"><span class="admin-button-spinner" aria-hidden="true"></span><strong>Loading invoice records…</strong></div>';
+      list.innerHTML = skeletons.list('invoices', 8);
     }
     try {
       if (!(await ensureActiveSession())) throw new Error('Sign in again before loading invoices.');
@@ -6569,8 +6578,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div class="admin-day-schedule-core-fields">' +
           '<label>Date<input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
           '<div class="admin-day-schedule-time-grid">' +
-            '<label><span>Start time</span><input name="startTime" type="time" value="09:00" step="900" required data-admin-day-schedule-start></label>' +
-            '<label><span>End time</span><input name="endTime" type="time" value="18:00" step="900" required data-admin-day-schedule-end></label>' +
+            '<label><span>Start time</span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
+            '<label><span>End time</span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
           '</div>' +
           '<label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
           (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
@@ -6636,6 +6645,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     updateDaySchedulePreview(form);
     $all('input, select', form).forEach(function (control) {
       control.addEventListener('change', function () {
+        if (control.matches('[data-admin-day-schedule-start], [data-admin-day-schedule-end]')) {
+          normalizeTimeControl(control);
+        }
         updateDaySchedulePreview(form);
       });
     });
@@ -6658,6 +6670,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    normalizeTimeControl($('[data-admin-day-schedule-start]', form));
+    normalizeTimeControl($('[data-admin-day-schedule-end]', form));
     var data = new FormData(form);
     var dateValue = String(data.get('date') || '');
     var startTime = String(data.get('startTime') || '');
@@ -6932,6 +6946,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showFieldError(errorEl, 'Availability is still loading. Try again in a moment.', $('[data-admin-slot-date]', form));
       return;
     }
+    normalizeTimeControl($('[data-admin-slot-start]', form));
+    normalizeTimeControl($('[data-admin-slot-end]', form));
     var data = new FormData(form);
     var dateValue = String(data.get('date') || '');
     var startTime = String(data.get('startTime') || '');
@@ -8255,6 +8271,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function setupBookingEvents() {
     var sortControls = $('[data-admin-booking-sort]');
     var search = $('[data-booking-search]');
+    setupFilterMenu($('[data-booking-filter-menu]'));
 
     if (search) search.addEventListener('input', function () {
       state.bookingSearch = search.value.trim().slice(0, 200);
@@ -8373,6 +8390,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setupInvoiceEvents() {
     var search = $('[data-invoice-search]');
+    setupFilterMenu($('[data-invoice-filter-menu]'));
     if (search) search.addEventListener('input', function () {
       state.invoiceSearch = search.value.trim().slice(0, 200);
       window.clearTimeout(invoiceSearchTimer);
