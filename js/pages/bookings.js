@@ -56,7 +56,7 @@ export function renderStaticPage(root) {
                 </div>
                 <div class="admin-filter-actions">
                   <button class="admin-button admin-button-ghost" type="button" data-booking-filters-reset>Reset</button>
-                  <button class="admin-button admin-button-primary" type="button" data-filter-close>Done</button>
+                  <button class="admin-button admin-button-secondary" type="button" data-filter-close>Close</button>
                 </div>
               </div>
             </details>

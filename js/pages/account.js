@@ -280,7 +280,7 @@ function setButtonBusy(button, busy) {
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
   } else {
-    button.textContent = button.dataset.idleLabel || 'Receive reset link';
+    button.textContent = button.dataset.idleLabel || 'Email me a reset link';
     button.classList.remove('is-loading');
     button.disabled = false;
     button.removeAttribute('aria-busy');
@@ -507,13 +507,13 @@ export function renderStaticPage(root) {
 
             <section class="admin-account-section admin-account-security" aria-labelledby="account-security-title">
               <h2 id="account-security-title">Password</h2>
-              <p>Request a reset link for your own account. It will be emailed to your sign-in address.</p>
+              <p>We’ll email a reset link to your sign-in address.</p>
               <button
                 class="admin-button admin-button-secondary"
                 type="button"
                 data-account-password-reset
                 disabled
-              >Receive reset link</button>
+              >Email me a reset link</button>
               <p
                 class="admin-account-reset-status"
                 data-account-reset-status

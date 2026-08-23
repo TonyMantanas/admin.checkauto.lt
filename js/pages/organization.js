@@ -19,7 +19,6 @@ export function renderStaticPage(root) {
         <header class="admin-panel-header admin-panel-header-compact admin-workspace-header admin-organization-workspace-header">
           <div class="admin-page-title">
             <h1 id="organization-page-title">Organization</h1>
-            <p>Invoice identity, payment details, and booking review hours.</p>
           </div>
         </header>
 
@@ -28,7 +27,6 @@ export function renderStaticPage(root) {
             <header class="admin-organization-section-header">
             <div>
               <h2 id="organization-invoice-title">Invoice details</h2>
-              <p>These legal and bank details are copied into each new invoice.</p>
             </div>
             </header>
             <div data-organization-invoice-loading>
@@ -68,8 +66,7 @@ export function renderStaticPage(root) {
           <section class="admin-organization-section" aria-labelledby="organization-confirmation-title">
             <header class="admin-organization-section-header">
               <div>
-                <h2 id="organization-confirmation-title">Booking confirmation schedule</h2>
-                <p>Set how long a customer request remains open and when review time counts.</p>
+                <h2 id="organization-confirmation-title">Booking review window</h2>
               </div>
             </header>
             <div data-organization-schedule-loading>
@@ -78,7 +75,7 @@ export function renderStaticPage(root) {
             <form class="admin-confirmation-schedule-form admin-confirmation-schedule-page-form" data-confirmation-schedule-form data-organization-schedule-content novalidate hidden>
               <div class="admin-confirmation-settings">
                 <label>
-                  <span class="admin-field-label">Time to confirm <span class="admin-required-marker" aria-hidden="true">*</span></span>
+                  <span class="admin-field-label">Decision window <span class="admin-required-marker" aria-hidden="true">*</span></span>
                   <span class="admin-select-wrap">
                     <select name="confirmationDurationMinutes" data-confirmation-duration required>
                       <option value="15">15 minutes</option>
@@ -113,7 +110,7 @@ export function renderStaticPage(root) {
               </fieldset>
               <p class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></p>
               <div class="admin-action-buttons">
-                <button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit>Save confirmation schedule</button>
+                <button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit>Save review window</button>
               </div>
             </form>
           </section>

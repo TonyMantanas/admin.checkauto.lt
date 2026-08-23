@@ -15,8 +15,9 @@ export function renderStaticPage(root) {
           <label><span class="admin-field-label">Subject <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="marketingSubject" type="text" maxlength="140" required placeholder="Email subject"></label>
           <label><span class="admin-field-label">Message <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="marketingBody" maxlength="6000" required placeholder="Write the email message"></textarea></label>
           <div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>
+          <p class="admin-detail-note admin-detail-note-warning" data-marketing-unavailable role="status" aria-live="polite" hidden></p>
           <div class="admin-action-buttons">
-            <button class="admin-button admin-button-primary" type="submit" disabled>${ICONS.send}<span>Send email</span></button>
+            <button class="admin-button admin-button-primary" type="submit" disabled>${ICONS.send}<span>Review email</span></button>
           </div>
         </form>
       </section>

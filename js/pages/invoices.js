@@ -6,15 +6,15 @@ export const page = 'invoices';
 export function renderStaticPage(root) {
   root.innerHTML = `
     <section class="admin-workbench admin-invoices-workbench">
-      <section class="admin-panel admin-list-panel" aria-label="Invoice ledger">
+      <section class="admin-panel admin-list-panel" aria-label="Billing records">
         <div class="admin-panel-header admin-workspace-header admin-invoices-workspace-header">
           <div class="admin-page-title">
-            <h1>Invoices</h1>
+            <h1>Billing</h1>
             <p class="admin-count" data-invoice-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
           </div>
           <div class="admin-workspace-controls">
             <label class="admin-search admin-search-inline admin-search-compact">
-              <span>Search invoices</span>
+              <span>Search billing</span>
               <input
                 type="search"
                 data-invoice-search
@@ -25,9 +25,9 @@ export function renderStaticPage(root) {
             </label>
             <details class="admin-filter-menu" data-invoice-filter-menu>
               <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-invoice-filter-count hidden>0</span></summary>
-              <div class="admin-filter-popover" aria-label="Invoice filters">
+              <div class="admin-filter-popover" aria-label="Billing filters">
                 <header class="admin-filter-popover-header">
-                  <strong>Filter invoices</strong>
+                  <strong>Filter billing</strong>
                   <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close invoice filters" title="Close">${ICONS.close}</button>
                 </header>
                 <div class="admin-filter-popover-body">
@@ -79,15 +79,23 @@ export function renderStaticPage(root) {
                 </div>
                 <div class="admin-filter-actions">
                   <button class="admin-button admin-button-ghost" type="button" data-invoice-filters-reset>Reset</button>
-                  <button class="admin-button admin-button-primary" type="button" data-filter-close>Done</button>
+                  <button class="admin-button admin-button-secondary" type="button" data-filter-close>Close</button>
                 </div>
               </div>
             </details>
-            <div class="admin-segmented" data-admin-invoice-sort role="group" aria-label="Sort invoices">
+            <div class="admin-segmented" data-admin-invoice-sort role="group" aria-label="Sort billing records">
               <button class="admin-segmented-icon" type="button" data-invoice-sort="asc" aria-pressed="false" aria-label="Oldest first" title="Oldest first" disabled>${ICONS.sortAscending}</button>
               <button class="is-active admin-segmented-icon" type="button" data-invoice-sort="desc" aria-pressed="true" aria-label="Newest first" title="Newest first" disabled>${ICONS.sortDescending}</button>
             </div>
           </div>
+        </div>
+        <div class="admin-data-head admin-invoice-data-head" aria-hidden="true">
+          <span>Record and customer</span>
+          <span>Status</span>
+          <span>Booking</span>
+          <span>Date</span>
+          <span>Amount</span>
+          <span>Details</span>
         </div>
         <div class="admin-invoice-list" data-invoice-list>${skeletons.list('invoices')}</div>
         <div class="admin-list-pagination" data-invoice-pagination hidden>

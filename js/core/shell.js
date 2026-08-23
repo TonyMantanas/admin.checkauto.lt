@@ -1,25 +1,15 @@
-import { PATHS } from './routes.js?v=20260821-1';
+import { PATHS } from './routes.js?v=20260823-1';
 import { ICONS } from './icons.js?v=20260802-1';
 
 const groups = [
   {
-    label: 'Today',
+    label: 'Workspace',
     items: [
-      { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard }
-    ]
-  },
-  {
-    label: 'Operations',
-    items: [
+      { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard },
       { page: 'bookings', label: 'Bookings', href: PATHS.bookings },
       { page: 'availability', label: 'Availability', href: PATHS.availability },
       { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access' },
-      { page: 'invoices', label: 'Invoices', href: PATHS.invoices, accessRight: 'sensitive_data.access' }
-    ]
-  },
-  {
-    label: 'Growth',
-    items: [
+      { page: 'invoices', label: 'Billing', href: PATHS.invoices, accessRight: 'sensitive_data.access' },
       { page: 'marketing', label: 'Marketing', href: PATHS.marketing, accessRight: 'sensitive_data.access' }
     ]
   }
@@ -79,6 +69,12 @@ export function renderShell(page) {
           <p data-admin-user></p>
         </div>
         <div class="admin-shell-actions">
+          <a
+            class="admin-button admin-button-secondary admin-account-link"
+            href="${PATHS.account}"
+            data-admin-nav="account"
+            ${page === 'account' ? 'aria-current="page"' : ''}
+          >${ICONS.user}<span>Account</span></a>
           <button
             class="admin-button admin-button-secondary admin-icon-button"
             type="button"
@@ -86,14 +82,6 @@ export function renderShell(page) {
             aria-label="Refresh admin data"
             title="Refresh"
           >${ICONS.refresh}</button>
-          <a
-            class="admin-button admin-button-secondary admin-icon-button"
-            href="${PATHS.account}"
-            data-admin-nav="account"
-            ${page === 'account' ? 'aria-current="page"' : ''}
-            aria-label="Account settings"
-            title="Account settings"
-          >${ICONS.user}</a>
           <button
             class="admin-button admin-button-ghost admin-icon-button"
             type="button"
@@ -167,7 +155,7 @@ export function syncStaffNavigation(staff, page) {
 
   section.className = 'admin-nav-group';
   label.className = 'admin-nav-group-label';
-  label.textContent = 'Organization';
+  label.textContent = 'Settings';
   organizationLink.href = PATHS.organization;
   organizationLink.dataset.adminNav = 'organization';
   organizationLink.textContent = 'Organization';

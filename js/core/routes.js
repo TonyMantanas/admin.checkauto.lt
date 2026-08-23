@@ -26,7 +26,7 @@ export const PAGE_TITLES = {
   bookings: 'Bookings',
   availability: 'Availability',
   customers: 'Customers',
-  invoices: 'Invoices',
+  invoices: 'Billing',
   marketing: 'Marketing',
   organization: 'Organization',
   users: 'Users',

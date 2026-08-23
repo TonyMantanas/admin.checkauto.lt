@@ -128,12 +128,14 @@ function setStatus(status, message, inputs = []) {
   status.textContent = message || '';
   if (!status.id) status.id = `reset-status-${Math.random().toString(36).slice(2)}`;
   for (const input of inputs.filter(Boolean)) {
+    const descriptionId = String(input.dataset.adminDescriptionId || '').trim();
     if (message) {
       input.setAttribute('aria-invalid', 'true');
-      input.setAttribute('aria-describedby', status.id);
+      input.setAttribute('aria-describedby', `${descriptionId ? `${descriptionId} ` : ''}${status.id}`);
     } else {
       input.removeAttribute('aria-invalid');
-      input.removeAttribute('aria-describedby');
+      if (descriptionId) input.setAttribute('aria-describedby', descriptionId);
+      else input.removeAttribute('aria-describedby');
     }
   }
 }

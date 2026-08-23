@@ -22,6 +22,11 @@ export function renderStaticPage(root) {
             >
           </label>
         </div>
+        <div class="admin-data-head admin-customer-data-head" aria-hidden="true">
+          <span>Customer</span>
+          <span>Contact</span>
+          <span>Bookings and invoices</span>
+        </div>
         <div class="admin-customer-list" data-customer-list>${skeletons.list('customers')}</div>
       </section>
     </section>

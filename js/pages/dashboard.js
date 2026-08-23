@@ -61,7 +61,6 @@ export function renderStaticPage(root) {
         <section class="admin-dashboard-action-rail" aria-labelledby="dashboard-attention-title">
           <header class="admin-dashboard-board-heading">
             <div>
-              <p class="admin-dashboard-eyebrow">Priority</p>
               <h2 id="dashboard-attention-title" data-dashboard-attention-title>Needs action</h2>
             </div>
             <p data-dashboard-attention-summary>Bookings that need review or assignment.</p>
@@ -72,10 +71,8 @@ export function renderStaticPage(root) {
         <section class="admin-dashboard-today" aria-labelledby="dashboard-today-title">
           <header class="admin-dashboard-board-heading">
             <div>
-              <p class="admin-dashboard-eyebrow">Operations</p>
               <h2 id="dashboard-today-title">Today</h2>
             </div>
-            <p>Workload and near-term capacity.</p>
           </header>
           <div data-dashboard-today>${dashboardListSkeletons(2)}</div>
         </section>

@@ -30,7 +30,7 @@ export function renderStaticPage(root) {
               aria-haspopup="dialog"
               title="Create day schedule"
               disabled
-            >${ICONS.add}<span>Create day</span></button>
+            >${ICONS.add}<span>Create schedule</span></button>
             <button
               class="admin-button admin-button-secondary admin-availability-add-button"
               type="button"

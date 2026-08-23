@@ -464,7 +464,7 @@ function modalHeader(title, subtitle, closeLabel, badge = '') {
 
 function createUserModalHtml() {
   return `
-    ${modalHeader('Create user', 'Create an admin account without sending email.', 'Close create user')}
+    ${modalHeader('Create user', '', 'Close create user')}
     <form class="admin-action-form admin-user-form" data-user-create-form novalidate>
       <div class="admin-user-form-grid">
         <label>

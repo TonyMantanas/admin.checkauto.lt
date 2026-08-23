@@ -6,23 +6,23 @@ import { drawers } from './core/drawers.js?v=20260727-3';
 import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
-import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260821-1';
-import { initAdminRuntime } from './core/runtime.js?v=20260821-7';
-import { renderShell } from './core/shell.js?v=20260821-1';
+import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20260823-1';
+import { initAdminRuntime } from './core/runtime.js?v=20260823-1';
+import { renderShell } from './core/shell.js?v=20260823-1';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
 import { validators } from './core/validation.js?v=20260727-3';
 
 const pageControllers = {
-  dashboard: () => import('./pages/dashboard.js?v=20260821-3'),
-  bookings: () => import('./pages/bookings.js?v=20260821-2'),
-  availability: () => import('./pages/availability.js?v=20260821-3'),
-  customers: () => import('./pages/customers.js?v=20260821-1'),
-  invoices: () => import('./pages/invoices.js?v=20260821-2'),
-  marketing: () => import('./pages/marketing.js?v=20260821-2'),
-  organization: () => import('./pages/organization.js?v=20260821-3'),
-  users: () => import('./pages/users.js?v=20260821-3'),
-  account: () => import('./pages/account.js?v=20260821-2'),
+  dashboard: () => import('./pages/dashboard.js?v=20260823-1'),
+  bookings: () => import('./pages/bookings.js?v=20260823-1'),
+  availability: () => import('./pages/availability.js?v=20260823-1'),
+  customers: () => import('./pages/customers.js?v=20260823-1'),
+  invoices: () => import('./pages/invoices.js?v=20260823-1'),
+  marketing: () => import('./pages/marketing.js?v=20260823-1'),
+  organization: () => import('./pages/organization.js?v=20260823-1'),
+  users: () => import('./pages/users.js?v=20260823-1'),
+  account: () => import('./pages/account.js?v=20260823-1'),
   login: () => import('./pages/login.js?v=20260821-2')
 };
 
@@ -82,20 +82,25 @@ function preloadPage(page) {
 }
 
 function renderBootstrapError(error) {
+  console.error('Admin console startup failed.', error);
   const root = document.querySelector('[data-page-root]') || document.body;
   const loading = document.querySelector('[data-admin-loading]');
   const consoleRoot = document.querySelector('[data-admin-console]');
   if (loading) loading.hidden = true;
   if (consoleRoot) consoleRoot.hidden = false;
   root.innerHTML = `
-    <section class="admin-loading">
+    <section class="admin-loading" role="alert" aria-labelledby="admin-startup-error-title">
       <div>
         <div class="admin-brand">check<span>auto</span>.lt</div>
-        <p>Admin console could not start.</p>
-        <p class="admin-form-status">${error instanceof Error ? error.message : 'Unknown startup error.'}</p>
+        <h1 id="admin-startup-error-title">Admin console could not start</h1>
+        <p>Check your connection, then try again.</p>
+        <button class="admin-button admin-button-primary" type="button" data-admin-bootstrap-retry>Try again</button>
       </div>
     </section>
   `;
+  root.querySelector('[data-admin-bootstrap-retry]')?.addEventListener('click', () => {
+    window.location.reload();
+  });
 }
 
 async function boot() {
