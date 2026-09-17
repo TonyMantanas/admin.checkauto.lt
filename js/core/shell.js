@@ -64,32 +64,30 @@ export function renderShell(page) {
         <div data-admin-owner-nav></div>
       </nav>
       <div class="admin-sidebar-account">
-        <div class="admin-sidebar-user">
-          <p class="admin-sync-state" data-admin-sync-state data-state="synced" role="status" aria-live="polite" aria-atomic="true">Up to date</p>
-          <p data-admin-user></p>
-        </div>
         <div class="admin-shell-actions">
-          <a
-            class="admin-button admin-button-secondary admin-account-link"
-            href="${PATHS.account}"
-            data-admin-nav="account"
-            ${page === 'account' ? 'aria-current="page"' : ''}
-          >${ICONS.user}<span>Account</span></a>
           <button
-            class="admin-button admin-button-secondary admin-icon-button"
+            class="admin-button admin-button-ghost admin-account-trigger"
+            type="button"
+            data-admin-account-toggle
+            aria-haspopup="menu"
+            aria-expanded="false"
+            aria-controls="admin-account-menu"
+          >${ICONS.user}<span data-admin-user>Account</span><span class="admin-account-chevron">${ICONS.next}</span></button>
+          <button
+            class="admin-button admin-icon-button admin-sync-state"
             type="button"
             data-admin-refresh
-            aria-label="Refresh admin data"
-            title="Refresh"
-          >${ICONS.refresh}</button>
-          <button
-            class="admin-button admin-button-ghost admin-icon-button"
-            type="button"
-            data-admin-logout
-            aria-label="Sign out"
-            title="Sign out"
-          >${ICONS.signOut}</button>
+            data-admin-sync-state
+            data-state="synced"
+            aria-label="Synced. Refresh admin data"
+            title="Synced. Refresh admin data"
+          ><span data-sync-icon="synced">${ICONS.check}</span><span data-sync-icon="loading">${ICONS.refresh}</span><span data-sync-icon="error">${ICONS.alert}</span></button>
         </div>
+        <div class="admin-account-menu" id="admin-account-menu" data-admin-account-menu role="menu" aria-label="Account" hidden>
+          <a class="admin-account-menu-item" href="${PATHS.account}" data-admin-nav="account" role="menuitem" tabindex="-1" ${page === 'account' ? 'aria-current="page"' : ''}><span class="admin-icon admin-icon-settings" aria-hidden="true"></span><span>Settings</span></a>
+          <button class="admin-account-menu-item" type="button" data-admin-logout role="menuitem" tabindex="-1">${ICONS.signOut}<span>Log out</span></button>
+        </div>
+        <span class="admin-sync-announcement" data-admin-sync-announcement role="status" aria-live="polite" aria-atomic="true"></span>
       </div>
     </aside>
     <button
@@ -101,6 +99,81 @@ export function renderShell(page) {
       tabindex="-1"
     ></button>
   `;
+}
+
+export function setupAccountMenu() {
+  const root = document.querySelector('.admin-sidebar-account');
+  const trigger = root && root.querySelector('[data-admin-account-toggle]');
+  const menu = root && root.querySelector('[data-admin-account-menu]');
+  if (!trigger || !menu) return { close() {} };
+  const items = Array.from(menu.querySelectorAll('[role="menuitem"]'));
+
+  function close({ restoreFocus = false } = {}) {
+    if (menu.hidden) return;
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) trigger.focus({ preventScroll: true });
+  }
+
+  function open(index = 0) {
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+    items[index].focus({ preventScroll: true });
+  }
+
+  trigger.addEventListener('click', () => {
+    if (menu.hidden) open();
+    else close({ restoreFocus: true });
+  });
+  trigger.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    open(event.key === 'ArrowUp' ? items.length - 1 : 0);
+  });
+  menu.addEventListener('keydown', (event) => {
+    const index = items.indexOf(document.activeElement);
+    let nextIndex;
+    if (event.key === 'ArrowDown') nextIndex = (index + 1) % items.length;
+    if (event.key === 'ArrowUp') nextIndex = (index - 1 + items.length) % items.length;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = items.length - 1;
+    if (nextIndex !== undefined) {
+      event.preventDefault();
+      items[nextIndex].focus();
+    } else if (event.key === 'Tab') {
+      // Leave the menu in the same order as the two visible footer controls.
+      event.preventDefault();
+      event.stopPropagation();
+      close();
+      (event.shiftKey ? trigger : root.querySelector('[data-admin-refresh]')).focus();
+    } else if (event.key === ' ' && document.activeElement.tagName === 'A') {
+      event.preventDefault();
+      document.activeElement.click();
+    } else if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      const match = items.find((item) => item.textContent.trim().toLowerCase().startsWith(event.key.toLowerCase()));
+      if (match) {
+        event.preventDefault();
+        match.focus();
+      }
+    }
+  });
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || menu.hidden) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close({ restoreFocus: true });
+  });
+  menu.addEventListener('click', (event) => {
+    if (event.target.closest('[role="menuitem"]')) close({ restoreFocus: true });
+  });
+  document.addEventListener('pointerdown', (event) => {
+    if (!root.contains(event.target)) close({ restoreFocus: menu.contains(document.activeElement) });
+  });
+  document.addEventListener('focusin', (event) => {
+    if (!menu.contains(event.target) && event.target !== trigger) close();
+  });
+  window.addEventListener('popstate', () => close());
+  return { close };
 }
 
 function staffRoles(staff) {

@@ -3,7 +3,7 @@ import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { syncStaffNavigation } from './shell.js?v=20260823-1';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20260917-1';
 import { skeletons } from './skeletons.js?v=20260821-2';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -96,6 +96,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var dayScheduleLastResult = null;
   var calendarMediaQuery = null;
   var navigationMediaQuery = null;
+  var accountMenu = null;
   var redirectPending = false;
   var ICON_ALERT = ICONS.alert;
   var ICON_BACK = ICONS.back;
@@ -110,12 +111,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var ICON_REFRESH = ICONS.refresh;
   var ICON_SUCCESS = ICONS.check;
   var ICON_USER = ICONS.user;
-  var ROLE_LABELS = {
-    owner: 'Owner',
-    admin: 'Administrator',
-    inspector: 'Inspector',
-    viewer: 'Viewer'
-  };
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -149,15 +144,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return (legacyRoles || []).some(function (role) {
       return staffHasRole(staff, role);
     });
-  }
-
-  function staffRoleSummary(staff) {
-    var roles = rolesForStaff(staff);
-    return roles.map(function (role) {
-      return ROLE_LABELS[role] || String(role)
-        .replace(/[._-]+/g, ' ')
-        .replace(/\b\w/g, function (character) { return character.toUpperCase(); });
-    }).join(', ');
   }
 
   function staffCanAccessPage(staff, page) {
@@ -2284,6 +2270,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function setNavOpen(open, options) {
+    if (accountMenu) accountMenu.close();
     var opts = options || {};
     var consoleRoot = $('.admin-console');
     var sidebar = $('#admin-sidebar');
@@ -2368,8 +2355,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var target = $('[data-admin-user]');
     syncStaffNavigation(state.staff, state.page);
     if (target && state.staff) {
-      var roleSummary = staffRoleSummary(state.staff);
-      target.textContent = state.staff.display_name + (roleSummary ? ' - ' + roleSummary : '');
+      var firstName = String(state.staff.display_name || '').trim().split(/\s+/)[0];
+      target.textContent = firstName || 'Account';
+      var trigger = $('[data-admin-account-toggle]');
+      if (trigger) trigger.setAttribute('aria-label', firstName ? firstName + ', account menu' : 'Account menu');
     }
   }
 
@@ -5985,14 +5974,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
-  function setSyncState(label, tone) {
+  function setSyncState(label, tone, detail) {
     var target = $('[data-admin-sync-state]');
     if (!target) return;
-    target.textContent = label;
-    target.dataset.state = tone || 'synced';
-    target.setAttribute('role', 'status');
-    target.setAttribute('aria-live', 'polite');
-    target.setAttribute('aria-atomic', 'true');
+    var status = tone === 'loading' || tone === 'error' ? tone : 'synced';
+    var description = label + (detail ? ': ' + detail : '');
+    var hint = status === 'loading'
+      ? description
+      : description + (/[.!?…]$/.test(description) ? ' ' : '. ') + 'Refresh admin data';
+    target.dataset.state = status;
+    target.setAttribute('aria-label', hint);
+    target.setAttribute('title', hint);
+    // Stay focusable while busy so keyboard users can still leave the menu.
+    target.setAttribute('aria-disabled', status === 'loading' ? 'true' : 'false');
+    target.setAttribute('aria-busy', status === 'loading' ? 'true' : 'false');
+    var announcement = $('[data-admin-sync-announcement]');
+    if (announcement && announcement.textContent !== description) announcement.textContent = description;
   }
 
   function bookingActionProgressLabel(action) {
@@ -6090,7 +6087,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showToast(successMessageForAction(confirmAction || payload.action), 'success');
       return true;
     } catch (error) {
-      setSyncState('Action failed', 'error');
+      setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
       restoreBookingModalAfterActionError(payload);
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
       return false;
@@ -6270,7 +6267,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       showToast(successMessageForAction(action), 'success');
     } catch (error) {
-      setSyncState('Action failed', 'error');
+      setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
       restoreBookingModalAfterActionError(payload);
       if (errorEl && document.body.contains(errorEl)) {
         errorEl.textContent = error instanceof Error ? error.message : 'The action could not be completed.';
@@ -6549,7 +6546,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setSyncState('Synced', 'synced');
       showToast('Organization invoice details updated.', 'success');
     } catch (error) {
-      setSyncState('Action failed', 'error');
+      setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
       if (status) status.textContent = error instanceof Error ? error.message : 'Could not save organization settings.';
     } finally {
       if (document.body.contains(form)) {
@@ -6837,7 +6834,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setSyncState('Synced', 'synced');
       showToast('Booking review window updated.', 'success');
     } catch (error) {
-      setSyncState('Action failed', 'error');
+      setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
       if (status) status.textContent = error instanceof Error ? error.message : 'Could not save the confirmation schedule.';
     } finally {
       if (document.body.contains(form)) setFormBusy(form, false);
@@ -7105,7 +7102,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         form.insertAdjacentHTML('beforebegin', dayScheduleResultHtml(dayScheduleLastResult));
       }
     } catch (error) {
-      setSyncState('Action failed', 'error');
+      setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
       if (status) status.textContent = error instanceof Error ? error.message : 'Could not create the day schedule.';
       setFormBusy(form, false);
       return;
@@ -7114,7 +7111,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     try {
       await refresh({ preserveScroll: true, force: true });
     } catch (error) {
-      setSyncState('Refresh failed', 'error');
+      setSyncState('Refresh failed', 'error', error instanceof Error ? error.message : '');
       if (document.body.contains(form) && status) {
         status.textContent = 'The day schedule was created, but the calendar could not be refreshed. Reload Availability to see the saved slots.';
       }
@@ -7334,7 +7331,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         captureSlotEditorBaseline();
         showToast('Availability slot updated.', 'success');
       } catch (error) {
-        setSyncState('Action failed', 'error');
+        setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
         if (errorEl) errorEl.textContent = error instanceof Error ? error.message : 'Could not update slot.';
       } finally {
         if (document.body.contains(form)) setFormBusy(form, false);
@@ -8473,6 +8470,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function setupShellEvents() {
+    accountMenu = setupAccountMenu();
     var navToggle = $('[data-admin-nav-toggle]');
     var sidebar = $('#admin-sidebar');
     if (sidebar && !sidebar.hasAttribute('tabindex')) sidebar.setAttribute('tabindex', '-1');
@@ -8534,16 +8532,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var refreshButton = $('[data-admin-refresh]');
     if (refreshButton) {
       refreshButton.addEventListener('click', async function () {
-        setButtonBusy(refreshButton, true, 'Refreshing...');
+        if (refreshButton.getAttribute('aria-disabled') === 'true') return;
         try {
-          await refresh({ preserveScroll: true, force: true });
-          showToast('Admin data refreshed.', 'success');
+          var refreshed = await refresh({ preserveScroll: true, force: true });
+          if (refreshed) showToast('Admin data refreshed.', 'success');
         } catch (error) {
           if (viewIsLoaded(adminViewForPage(state.page))) {
             showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
           }
-        } finally {
-          if (document.body.contains(refreshButton)) setButtonBusy(refreshButton, false);
         }
       });
     }
@@ -8551,6 +8547,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var logoutButton = $('[data-admin-logout]');
     if (logoutButton) {
       logoutButton.addEventListener('click', async function () {
+        accountMenu.close({ restoreFocus: true });
+        var confirmed = await openConfirmDialog({
+          title: 'Log out?',
+          message: 'Are you sure you want to log out?',
+          confirmLabel: 'Log out',
+          danger: true
+        });
+        if (!confirmed) return;
         setButtonBusy(logoutButton, true, 'Signing out...');
         await revokeAndClearSession();
         redirectTo(PATHS.login);
@@ -9013,7 +9017,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } catch (error) {
       if (isAbortError(error) || activityId !== refreshActivityId) return false;
       if (adminViewForPage(state.page) === requestedView) {
-        setSyncState('Sync failed', 'error');
+        setSyncState('Sync failed', 'error', error instanceof Error ? error.message : '');
         if (!hadLoadedView) {
           if (state.page === 'dashboard') renderDashboardUnavailable();
           else renderPageLoadError();
