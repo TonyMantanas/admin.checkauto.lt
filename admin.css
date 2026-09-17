@@ -493,7 +493,7 @@ fieldset {
 }
 
 .admin-sync-state[data-state="loading"] [data-sync-icon] .admin-icon {
-  animation: admin-spin 1s linear infinite;
+  animation: admin-spin 1s linear infinite reverse;
 }
 
 .admin-sync-announcement {
