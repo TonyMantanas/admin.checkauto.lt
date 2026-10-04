@@ -9436,3 +9436,15 @@ details.admin-dashboard-staff[open] > summary::after {
     border-color: #777;
   }
 }
+
+/* Operational queues and manual customer agreements. */
+.admin-operational-status { margin: 0 0 1.5rem; padding: 1rem; border: 1px solid var(--admin-border, #ddd); border-radius: 12px; }
+.admin-operational-status > summary { cursor: pointer; font-weight: 600; line-height: 1.5; }
+.admin-operational-status article { padding: 1rem 0; border-top: 1px solid var(--admin-border, #ddd); }
+.admin-operational-status p, .admin-price-agreement small, [data-dst-choice] small { overflow-wrap: anywhere; }
+.admin-price-agreement { border: 0; padding: 0; margin: .75rem 0; min-width: 0; }
+.admin-price-agreement legend { font-weight: 600; margin-bottom: .5rem; }
+.admin-price-agreement small, [data-dst-choice] small { display: block; line-height: 1.5; color: var(--admin-text-muted, #666); }
+.admin-operational-status .admin-action-form, .admin-detail-section .admin-disclosure .admin-action-form { padding-top: .75rem; }
+.admin-operational-status [role="alert"] { color: var(--admin-danger, #a32424); }
+@media (max-width: 40rem) { .admin-operational-status { padding: .8rem; } .admin-operational-status .admin-action-grid { grid-template-columns: 1fr; } }

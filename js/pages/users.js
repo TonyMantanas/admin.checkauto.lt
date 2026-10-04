@@ -707,22 +707,9 @@ async function handleEditSubmit(event, state, user) {
   mutationPending = true;
   setFormBusy(form, true);
   try {
-    if (profileChanged) {
-      await runMutation(state, {
-        action: 'updateProfile',
-        userId: user.id,
-        displayName,
-        phone,
-        calendarEmail
-      });
-    }
-    if (rolesChanged) {
-      await runMutation(state, {
-        action: 'setRoles',
-        userId: user.id,
-        roles
-      });
-    }
+    await runMutation(state, {
+      action: 'updateUser', userId: user.id, displayName, phone, calendarEmail, roles
+    });
     if (typeof modals.markClean === 'function') modals.markClean();
     if (typeof modals.closeRoute === 'function') await modals.closeRoute({ force: true });
     await refreshAfterMutation(state);

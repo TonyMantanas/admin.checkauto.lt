@@ -1,3 +1,5 @@
+import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, operationalPanel, bindPriceTotals } from './reliability-ui.js?v=20261004-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -681,29 +683,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (normalized && control.value !== normalized) control.value = normalized;
   }
 
-  function isoFromVilniusInput(dateValue, timeValue) {
-    if (!isValidYmd(dateValue) || !isValidHm(timeValue)) {
-      return null;
-    }
-
-    var datePartsRaw = dateValue.split('-').map(Number);
-    var timePartsRaw = timeValue.split(':').map(Number);
-    var utcGuess = Date.UTC(
-      datePartsRaw[0],
-      datePartsRaw[1] - 1,
-      datePartsRaw[2],
-      timePartsRaw[0],
-      timePartsRaw[1]
-    );
-    var zonedParts = dateTimeParts(new Date(utcGuess).toISOString());
-    var zonedTime = Date.UTC(
-      Number(zonedParts.year),
-      Number(zonedParts.month) - 1,
-      Number(zonedParts.day),
-      Number(zonedParts.hour),
-      Number(zonedParts.minute)
-    );
-    return new Date(utcGuess - (zonedTime - utcGuess)).toISOString();
+  function isoFromVilniusInput(dateValue, timeValue, fold) {
+    return vilniusInstant(dateValue, timeValue, fold || '');
   }
 
   function dateInputValue(value) {
@@ -877,6 +858,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (invoice.invoice_status === 'void') return 'Void';
     if (invoice.invoice_status === 'payment') return 'Payment recorded';
     if (invoice.payment_status === 'paid') return 'Paid';
+    if (Number(invoice.paid_amount_cents)>0 && Number(invoice.paid_amount_cents)<Number(invoice.amount_cents)) return invoice.due_date && compareYmd(invoice.due_date,todayYmd())<0 ? 'Partially paid · overdue' : 'Partially paid';
     if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) return 'Overdue';
     return 'Unpaid';
   }
@@ -889,7 +871,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function emailStatusLabel(status) {
     return {
-      sent: 'Sent successfully',
+      sent: 'Accepted / delivery unknown',
+      queued: 'Queued',
+      processing: 'Sending',
+      delayed: 'Delivery delayed',
+      needs_review: 'Reconciliation required',
       delivered: 'Delivered',
       failed: 'Delivery failed',
       bounced: 'Delivery bounced',
@@ -902,6 +888,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function paymentLabel(status) {
     return {
       unpaid: 'Unpaid',
+      partial: 'Partially paid',
+      overpaid: 'Overpaid / credit',
+      needs_review: 'Balance needs review',
       paid: 'Paid',
       invoice_unpaid: 'Invoice unpaid',
       invoice_paid: 'Invoice paid',
@@ -934,10 +923,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function defaultInvoiceAmount(booking) {
-    var service = booking && serviceById(booking.service_id);
-    if (service && service.code === 'computer_diagnostics') return '20.00';
-    if (service && service.code === 'full_inspection') return '100.00';
-    return '100.00';
+    var agreement = currentAgreement(state.bookingOperations?.[booking?.id]?.data || state.operationsState, booking && booking.id);
+    return agreement ? (Number(agreement.total_amount_cents) / 100).toFixed(2) : '';
   }
 
   function defaultInvoiceDueDate() {
@@ -1002,13 +989,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           sessionStorage.removeItem(SESSION_KEY);
         } else {
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-          localStorage.removeItem(SESSION_KEY);
         }
       } catch (error) {
         state.sessionPersistence = 'session';
         try {
           sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
-          localStorage.removeItem(SESSION_KEY);
         } catch (storageError) {
           // Keep the in-memory session for restricted browsing contexts.
         }
@@ -1018,7 +1003,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       window.clearTimeout(sessionRefreshTimer);
       sessionRefreshTimer = null;
       try {
-        localStorage.removeItem(SESSION_KEY);
+        if (state.sessionPersistence === 'local') localStorage.removeItem(SESSION_KEY);
         sessionStorage.removeItem(SESSION_KEY);
       } catch (error) {
         // In-memory state is still cleared below.
@@ -1075,6 +1060,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function applyDashboardData(data) {
     if (!data || typeof data !== 'object') return;
     if (data.staff) state.staff = data.staff;
+    if (typeof data.recoveryAcknowledgementRequired === 'boolean') state.recoveryAcknowledgementRequired=data.recoveryAcknowledgementRequired;
+    if (data.operationsState) state.operationsState = data.operationsState;
     if (Array.isArray(data.accountSessions)) state.accountSessions = data.accountSessions;
     [
       'bookings',
@@ -1138,6 +1125,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var response = await fetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
       headers: {
         'Content-Type': 'application/json',
         apikey: SUPABASE_ANON_KEY
@@ -1145,7 +1133,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       body: JSON.stringify({ refresh_token: session.refresh_token })
     });
 
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if ([400, 401].includes(response.status)) return null;
+      throw new Error('Session refresh is temporarily unavailable. Try again.');
+    }
     return response.json();
   }
 
@@ -1167,42 +1158,32 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   async function ensureActiveSession() {
     var session = state.session || getStoredSession();
+    if (state.sessionPersistence === 'local') session = getStoredSession();
     if (!session || !session.access_token) return null;
     state.session = session;
-    if (!isSessionExpired(session)) {
-      scheduleSessionRefresh(session);
-      return session;
-    }
-
+    if (!isSessionExpired(session)) { scheduleSessionRefresh(session); return session; }
     if (sessionRefreshPromise) return sessionRefreshPromise;
-    sessionRefreshPromise = (async function () {
-      try {
-        var refreshed = await refreshSession(session);
-        if (refreshed && refreshed.access_token) {
-          storeSession(refreshed);
-          closeRealtime();
-          startRealtime();
-          return refreshed;
+    sessionRefreshPromise = withSharedSessionLock(
+      state.sessionPersistence === 'local' ? auth.sessionId(session) : 'tab-' + auth.sessionId(session),
+      async function () {
+        if (state.sessionPersistence === 'local') {
+          var latest = getStoredSession();
+          if (!latest) { storeSession(null); return null; }
+          session = latest;
+          if (!isSessionExpired(session)) { state.session=session; scheduleSessionRefresh(session); return session; }
         }
-      } catch (error) {
-        // Keep a still-valid token during a transient refresh failure and retry soon.
+        try {
+          var refreshed = await refreshSession(session);
+          if (!refreshed || !refreshed.access_token) { await revokeAndClearSession(session); return null; }
+          storeSession(refreshed); closeRealtime(); startRealtime(); return refreshed;
+        } catch (error) {
+          scheduleSessionRefresh(session, 15000);
+          if (Number(session.expires_at || 0)*1000 > Date.now()) return session;
+          throw error;
+        }
       }
-
-      if (Number(session.expires_at || 0) * 1000 > Date.now()) {
-        state.session = session;
-        scheduleSessionRefresh(session, 15 * 1000);
-        return session;
-      }
-
-      await revokeAndClearSession(session);
-      return null;
-    })();
-
-    try {
-      return await sessionRefreshPromise;
-    } finally {
-      sessionRefreshPromise = null;
-    }
+    );
+    try { return await sessionRefreshPromise; } finally { sessionRefreshPromise=null; }
   }
 
   async function getActiveSession() {
@@ -1364,11 +1345,21 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
+  var operationStores = Object.create(null);
+  function operationStore() {
+    var scope = (state.staff && state.staff.id || auth.sessionId(state.session)) + '/' + (state.sessionPersistence || 'session');
+    if (!operationStores[scope]) operationStores[scope] = createOperationStore(state.sessionPersistence === 'local' ? localStorage : sessionStorage, scope);
+    return operationStores[scope];
+  }
+
   async function adminAction(payload) {
     if (!(await ensureActiveSession())) {
       throw new Error('This account is not approved for admin access or the session has expired.');
     }
-    payload = ensureActionIdempotency(payload);
+    if (payload.action === 'sendMarketingCampaign') payload = ensureActionIdempotency(payload);
+    else if (['confirmBooking','rejectBooking','cancelBooking','recordAgreedPrice','createSlotSeries','recordPayment','recordRefund','correctPayment','resolvePaymentReconciliation','retryNotification','acknowledgeContact','createAndSendInvoice','resendInvoice'].includes(payload.action)) {
+      payload = await operationStore().attach(payload);
+    }
     var response = await fetch(ADMIN_ENDPOINT, {
       method: 'POST',
       headers: authHeaders(),
@@ -1388,6 +1379,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       throw new Error(data.error || 'The action could not be completed.');
     }
+    if (payload.action !== 'sendMarketingCampaign' && data.ok !== true) throw new Error('The response could not be read. Retry the same action to recover its result.');
+    if (payload.action !== 'sendMarketingCampaign' && payload.idempotencyKey) operationStore().complete(payload.idempotencyKey);
     return data;
   }
 
@@ -1493,7 +1486,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function scheduleRealtimeRefresh() {
-    if (!state.session || !['dashboard', 'availability', 'bookings'].includes(state.page)) return;
+    if (!state.session || document.visibilityState === 'hidden' || state.page === 'login' || state.page === 'marketing') return;
     var requestedView = adminViewForPage(state.page);
     window.clearTimeout(state.realtimeRefreshTimer);
     state.realtimeRefreshTimer = window.setTimeout(function () {
@@ -1543,7 +1536,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           presence: { key: '' },
           postgres_changes: [
             { event: '*', schema: 'public', table: 'availability_slots', filter: 'organization_id=eq.' + state.staff.organization_id },
-            { event: '*', schema: 'public', table: 'bookings', filter: 'organization_id=eq.' + state.staff.organization_id }
+            { event: '*', schema: 'public', table: 'bookings', filter: 'organization_id=eq.' + state.staff.organization_id },
+            { event: '*', schema: 'public', table: 'invoices', filter: 'organization_id=eq.' + state.staff.organization_id },
+            { event: '*', schema: 'public', table: 'customers', filter: 'organization_id=eq.' + state.staff.organization_id }
           ]
         },
         access_token: state.session.access_token
@@ -1571,7 +1566,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         window.clearInterval(state.realtimeHeartbeat);
         state.realtimeHeartbeat = null;
       }
-      if (state.session && ['dashboard', 'availability', 'bookings'].includes(state.page)) {
+      if (state.session && state.page !== 'login') {
         window.setTimeout(startRealtime, 10000);
       }
     };
@@ -1933,6 +1928,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     root.dataset.dirty = 'false';
     var panel = $('.admin-modal-panel', root);
     labelDialog(panel, 'Admin details');
+    installTimeChoices(root); bindPriceTotals(root);
     $all('[data-admin-modal-close]', root).forEach(function (item) {
       item.addEventListener('click', function () {
         closeModalRoute();
@@ -2705,7 +2701,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (!hasPreviousRevenuePeriod) previousRevenue = dashboardMoneyEntries(dashboardRevenuePeriodFromTrend(analytics, 1));
       primaryItems.push({
         label: 'Payments received',
-        period: 'Recorded payment total',
+        period: analytics.reporting_warning || 'Receipts before refunds · month to date',
         value: currentRevenue.length ? dashboardMoneyMarkup(currentRevenue) : '<span class="admin-dashboard-no-value">No payments</span>',
         unavailable: false,
         comparison: currentRevenue.length
@@ -2713,7 +2709,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           : (previousRevenue.length
             ? '<span class="admin-dashboard-kpi-comparison" data-tone="neutral">Down from ' + previousRevenue.map(function (entry) { return escapeHtml(formatMoney(entry.amount_cents, entry.currency)); }).join(' / ') + '</span>'
             : '<span class="admin-dashboard-kpi-comparison">No payments in either period</span>'),
-        href: PATHS.invoices + '?paymentStatuses=paid&dateField=paid&from=' + dashboardMonthStart + '&to=' + dashboardToday
+        href: PATHS.bookings + '?statuses=completed'
       });
     }
 
@@ -3328,7 +3324,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           points: fullMonthPoints,
           countChart: false,
           axisLabel: function (value) { return dashboardCompactMoney(value, currency); },
-          series: [{ key: 'amount_cents', label: 'Payments received', className: 'is-revenue' }],
+          series: [{ key: 'amount_cents', label: 'Receipts before refunds', className: 'is-revenue' }],
           tooltip: function (point) { return point.label + ': ' + formatMoney(point.amount_cents, currency); }
         }) + dashboardRevenueTable(points, currency);
       return '<section class="admin-dashboard-revenue-series" aria-labelledby="dashboard-revenue-series-' + index + '">' +
@@ -3750,6 +3746,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
+  async function fetchOperationalPages(query, controller, count, resultKey) {
+    var rows=[], last={};
+    for(var offset=Number(query.get('offset') || 0);rows.length<count;offset+=100) {
+      query.set('offset',String(offset));
+      var response=await fetch(ADMIN_ENDPOINT+'?'+query.toString(),{method:'GET',headers:authHeaders(),cache:'no-store',signal:controller.signal});
+      var body=await response.json().catch(function(){return {};});
+      if(!response.ok) throw new Error(body.error || 'Records could not be refreshed.');
+      last=body[resultKey] || {}; var page=Array.isArray(last.rows) ? last.rows : [];
+      rows=rows.concat(page);
+      if(!last.has_more || !page.length) break;
+    }
+    return {...last,rows:rows};
+  }
+
   async function loadBookingQuery(options) {
     var opts = options || {};
     var append = opts.append === true;
@@ -3784,16 +3794,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (state.bookingDateField) query.set('dateField', state.bookingDateField);
       if (state.bookingDateFrom) query.set('dateFrom', state.bookingDateFrom);
       if (state.bookingDateTo) query.set('dateTo', state.bookingDateTo);
-      var response = await fetch(ADMIN_ENDPOINT + '?' + query.toString(), {
-        method: 'GET',
-        headers: authHeaders(),
-        cache: 'no-store',
-        signal: controller.signal
-      });
-      var body = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(body.error || 'Bookings could not be loaded.');
+      var targetCount = !append && opts.preservePages && state.bookingQuerySignature === signature ? Math.max(100,state.bookings.length) : 100;
+      var result = await fetchOperationalPages(query,controller,targetCount,'bookingQuery');
       if (controller.signal.aborted || activeBookingQuery !== controller || state.page !== 'bookings' || bookingFilterSignature() !== signature) return false;
-      var result = body.bookingQuery && typeof body.bookingQuery === 'object' ? body.bookingQuery : {};
       var rows = Array.isArray(result.rows) ? result.rows : [];
       state.bookings = append ? state.bookings.concat(rows) : rows;
       state.bookingQueryTotal = Number(result.total_count) || 0;
@@ -3806,7 +3809,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted) return false;
       state.bookingQueryLoading = false;
-      if (list && (!opts.silent || !state.bookings.length) && (!append || !state.bookings.length)) {
+      if (list && !state.bookings.length) {
         list.innerHTML = '<div class="admin-empty-state" role="alert"><div><h2>Bookings could not be loaded</h2><p>' + escapeHtml(error instanceof Error ? error.message : 'Try again.') + '</p></div><button class="admin-button admin-button-secondary" type="button" data-booking-query-retry>Try again</button></div>';
         if (count) count.textContent = 'Unavailable';
       } else {
@@ -3894,7 +3897,30 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<span><strong>' + escapeHtml(label) + ':</strong> ' + escapeHtml(value || 'Not provided') + '</span>';
   }
 
+  var bookingOperationsLoads=Object.create(null);
+  async function loadBookingOperations(bookingId) {
+    if(bookingOperationsLoads[bookingId]) return;
+    bookingOperationsLoads[bookingId]=true;
+    try {
+      if(!(await ensureActiveSession())) return;
+      var response=await fetch(ADMIN_ENDPOINT+'?view=booking_operations&bookingId='+encodeURIComponent(bookingId),{headers:authHeaders(),cache:'no-store'});
+      var data=await response.json(); if(!response.ok) throw new Error(data.error || 'Booking history could not be loaded.');
+      state.bookingOperations=state.bookingOperations || {};
+      state.bookingOperations[bookingId]={data:data.bookingOperations,at:Date.now()};
+      var route=modalRouteFromUrl();
+      if(route && (route.id===bookingId || route.type==='invoice' && invoiceById(route.id)?.booking_id===bookingId) && !modalIsDirty()) {
+        if(route.type==='booking') renderBookingModal(bookingById(bookingId)); else renderInvoiceModal(route.id);
+      }
+    } catch(error) {showToast(error.message,'error');} finally {delete bookingOperationsLoads[bookingId];}
+  }
+  function bookingOperations(bookingId) {
+    var detail=state.bookingOperations && state.bookingOperations[bookingId];
+    if(!detail || Date.now()-detail.at>30000) loadBookingOperations(bookingId);
+    return detail ? detail.data : {...state.operationsState, detail_pending:true};
+  }
+
   function renderBookingModal(booking) {
+    var operations=bookingOperations(booking.id);
     var assigned = staffById(booking.assigned_to_staff_id);
     var requested = formatRange(booking.requested_start_at, booking.requested_end_at);
     var finalTime = booking.final_start_at ? formatRange(booking.final_start_at, booking.final_end_at) : 'Not confirmed yet';
@@ -3963,13 +3989,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           (booking.pending_expires_at && booking.status !== 'pending' ? '<span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
         '</div>' +
       '</section>' +
-      renderRequestActions(booking) +
+      priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
+      communicationSection(booking, operations) +
+      paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) +
+      (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (booking.customer_message
         ? '<div class="admin-detail-section admin-booking-note"><h3>Customer note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
-      renderBookingInvoiceActions(booking);
+      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
     var modal = openModal(html, 'lg');
+    bindPriceTotals(modal); installTimeChoices(modal);
     updateExpiryCountdowns();
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
@@ -4120,7 +4150,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function renderCreateInvoiceForm(booking) {
     var readiness = state.invoiceSettingsReadiness;
-    var setupBlocked = Boolean(readiness && readiness.ready === false);
+    var setupBlocked = Boolean(readiness && readiness.ready === false) || !currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id);
     var missingFields = setupBlocked && Array.isArray(readiness.missing_fields)
       ? readiness.missing_fields.join(', ')
       : '';
@@ -4137,8 +4167,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<form class="admin-action-form admin-invoice-create-form" data-admin-action-form data-action="createAndSendInvoice">' +
       hiddenInput('bookingId', booking.id) +
       setupMessage +
+      (!currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id) ? '<p role="alert">Record the customer agreement first.</p>' : '') +
       '<div class="admin-action-grid">' +
-        '<label><span class="admin-field-label">Amount <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="amount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
+        '<label><span class="admin-field-label">Amount <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="amount" type="text" inputmode="decimal" readonly required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
         '<div class="admin-optional-date-field" data-optional-due-date>' +
           '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Include a due date</span></label>' +
           '<label data-due-date-field><span class="admin-field-label">Due date <span class="admin-required-marker" data-due-date-required aria-hidden="true">*</span></span><input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
@@ -4155,17 +4186,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     '</form>';
   }
 
-  function renderMarkBookingPaidForm(booking) {
-    return '<form class="admin-action-form" data-admin-action-form data-action="markBookingPaid">' +
-      hiddenInput('bookingId', booking.id) +
-      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
-      '<div class="admin-action-grid">' +
-        '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('cash') + '</select></span></label>' +
-        '<label>Payment note<input name="paymentNote" type="text" maxlength="500"></label>' +
-      '</div>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Mark paid without invoice</button></div>' +
-    '</form>';
+  function renderMarkBookingPaidForm() {
+    return '<p>Record actual receipts and refunds in the permanent payment section above.</p>';
   }
 
   function renderBookingInvoiceActions(booking) {
@@ -4204,7 +4226,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<h2>Invoice and payment</h2>' +
       '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a billing action">' +
         '<button class="admin-button admin-button-primary" type="button" data-booking-billing-choice="invoice" aria-controls="booking-billing-invoice-panel" aria-expanded="false">Create and send invoice</button>' +
-        '<button class="admin-button admin-button-secondary" type="button" data-booking-billing-choice="payment" aria-controls="booking-billing-payment-panel" aria-expanded="false">Mark paid without invoice</button>' +
+        '<button class="admin-button admin-button-secondary" type="button" data-booking-billing-choice="payment" aria-controls="booking-billing-payment-panel" aria-expanded="false">Payment history</button>' +
       '</div>' +
       '<div class="admin-booking-decision-panel" id="booking-billing-invoice-panel" data-booking-billing-panel="invoice" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
       '<div class="admin-booking-decision-panel" id="booking-billing-payment-panel" data-booking-billing-panel="payment" hidden>' + renderMarkBookingPaidForm(booking) + '</div>' +
@@ -4227,6 +4249,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             hiddenInput('startTime', timeInputValue(booking.requested_start_at)) +
             hiddenInput('endTime', timeInputValue(booking.requested_end_at)) +
             '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id)) +
             '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm requested time</button></div>' +
@@ -4241,6 +4264,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
               '<label><span class="admin-field-label">End <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
             '</div>' +
             '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id)) +
             '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
@@ -4945,7 +4969,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var time = formatRange(start, end);
       var vehicle = booking.vehicle || 'No vehicle';
       var status = statusLabel(booking.status);
-      var payment = paymentLabel(booking.payment_status);
+      var payment = paymentLabel(booking.payment_balance?.state || booking.payment_status);
       var invoiceStatus = invoiceStatusLabel(invoice);
       var bookingLabel = [service, time, status, vehicle, booking.public_reference, payment, invoiceStatus].join(', ');
       return '<button class="admin-mini-item admin-customer-booking" type="button" aria-label="' + escapeHtml('Open booking: ' + bookingLabel) + '" data-open-booking="' + escapeHtml(booking.id) + '">' +
@@ -5357,13 +5381,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (state.invoiceDateTo) query.set('dateTo', state.invoiceDateTo);
       if (state.invoiceAmountMin) query.set('amountMinCents', String(Math.round(Number(state.invoiceAmountMin) * 100)));
       if (state.invoiceAmountMax) query.set('amountMaxCents', String(Math.round(Number(state.invoiceAmountMax) * 100)));
-      var response = await fetch(ADMIN_ENDPOINT + '?' + query.toString(), {
-        method: 'GET', headers: authHeaders(), cache: 'no-store', signal: controller.signal
-      });
-      var body = await response.json().catch(function () { return {}; });
-      if (!response.ok) throw new Error(body.error || 'Invoice records could not be loaded.');
+      var targetCount = !append && opts.preservePages && state.invoiceQuerySignature === signature ? Math.max(100,state.invoices.length) : 100;
+      var result = await fetchOperationalPages(query,controller,targetCount,'invoiceQuery');
       if (controller.signal.aborted || activeInvoiceQuery !== controller || state.page !== 'invoices' || invoiceFilterSignature() !== signature) return false;
-      var result = body.invoiceQuery && typeof body.invoiceQuery === 'object' ? body.invoiceQuery : {};
       var rows = Array.isArray(result.rows) ? result.rows : [];
       state.invoices = append ? state.invoices.concat(rows) : rows;
       state.invoiceQueryTotal = Number(result.total_count) || 0;
@@ -5509,9 +5529,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!invoice) return;
     state.selectedInvoiceId = invoice.id;
     var booking = bookingById(invoice.booking_id);
+    var operations=bookingOperations(invoice.booking_id);
     var customer = customerById(invoice.customer_id);
     var customerName = customer ? customer.display_name : invoice.customer_name;
     var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
+    var remainingAmount = operations?.payment_summaries?.[invoice.booking_id]?.remaining_cents;
+    var amountDue = remainingAmount == null ? invoiceAmount : formatMoney(remainingAmount,invoice.currency);
     var paidAmount = formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency);
     var invoiceLabel = invoiceStatusLabel(invoice);
     var isUnpaidIssued = invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid';
@@ -5519,7 +5542,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var isPaymentOnly = invoice.invoice_status === 'payment';
     var amountLabel = isPaid ? 'Amount paid' : (isUnpaidIssued ? 'Amount due' : 'Invoice amount');
     var dueSummary = invoice.invoice_status === 'void'
-      ? 'No payment is due'
+      ? 'Document voided; recorded money remains in the ledger'
       : (invoice.payment_status === 'paid' ? 'Payment recorded' : 'Due ' + (invoice.due_date || 'date not set'));
     var customerActions =
       (invoice.customer_phone
@@ -5556,7 +5579,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div class="admin-invoice-overview-grid">' +
           '<div class="admin-invoice-primary-fact">' +
             '<span>' + escapeHtml(amountLabel) + '</span>' +
-            '<strong>' + escapeHtml(isPaid ? paidAmount : invoiceAmount) + '</strong>' +
+            '<strong>' + escapeHtml(isPaid ? paidAmount : (isUnpaidIssued ? amountDue : invoiceAmount)) + '</strong>' +
             (isPaid && !isPaymentOnly ? '<span class="admin-invoice-original-amount">Invoice amount ' + escapeHtml(invoiceAmount) + '</span>' : '') +
             '<span>' + escapeHtml(dueSummary) + '</span>' +
           '</div>' +
@@ -5587,15 +5610,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (invoice.last_email_error
         ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
         : '') +
-      (isUnpaidIssued
-        ? '<section class="admin-detail-section admin-workflow-section">' +
-            '<h3>Record payment</h3>' +
-            renderMarkInvoicePaidForm(invoice) +
-          '</section>'
-        : '') +
-      (isPaid
-        ? '<details class="admin-detail-section admin-disclosure"><summary>Edit amount paid</summary>' + renderUpdateInvoicePaidAmountForm(invoice) + '</details>'
-        : '') +
+      (booking ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) + communicationSection(booking, operations) : '<p>Open the linked booking to review its payment ledger.</p>') +
       '<details class="admin-detail-section admin-disclosure">' +
         '<summary>Invoice record details</summary>' +
         '<div class="admin-detail-list">' +
@@ -5612,7 +5627,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (invoice.invoice_status !== 'void'
         ? '<details class="admin-detail-section admin-disclosure admin-danger-disclosure">' +
             '<summary>Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</summary>' +
-            '<p class="admin-detail-note">' + (isPaymentOnly ? 'Voiding removes this amount from recorded payments and returns the booking to unpaid.' : 'Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.') + '</p>' +
+            '<p class="admin-detail-note">' + (isPaymentOnly ? 'Voiding preserves the recorded money. Resolve its allocation, replacement invoice, or actual refund separately.' : 'Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.') + '</p>' +
             renderVoidInvoiceForm(invoice) +
           '</details>'
         : '');
@@ -5799,15 +5814,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }).join('');
   }
 
-  function validateDateTimePair(dateValue, startTime, endTime) {
+  function validateDateTimePair(dateValue, startTime, endTime, fold) {
     if (!isValidYmd(dateValue)) {
       return { error: 'Use the date format YYYY-MM-DD.' };
     }
 
-    var startAt = isoFromVilniusInput(dateValue, startTime);
-    var endAt = isoFromVilniusInput(dateValue, endTime);
+    var startAt = isoFromVilniusInput(dateValue, startTime, fold);
+    var endAt = isoFromVilniusInput(dateValue, endTime, fold);
     if (!startAt || !endAt) {
-      return { error: 'Choose a valid start and end time.' };
+      return { error: 'Choose valid Vilnius times. A skipped spring time is unavailable; a repeated autumn time requires choosing its occurrence.' };
     }
     if (timeToMinutes(startTime) % SLOT_STEP_MINUTES !== 0 || timeToMinutes(endTime) % SLOT_STEP_MINUTES !== 0) {
       return { error: 'Use 15-minute increments for start and end times.' };
@@ -5978,7 +5993,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var target = $('[data-admin-sync-state]');
     if (!target) return;
     var status = tone === 'loading' || tone === 'error' ? tone : 'synced';
-    var description = label + (detail ? ': ' + detail : '');
+    var description = label + (detail ? ': ' + detail : '') + (state.lastSuccessfulRefresh ? '. Last successful refresh ' + formatDateTime(new Date(state.lastSuccessfulRefresh).toISOString()) : '. No successful refresh yet');
     var hint = status === 'loading'
       ? description
       : description + (/[.!?…]$/.test(description) ? ' ' : '. ') + 'Refresh admin data';
@@ -6002,17 +6017,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function showBookingActionProgress(target, action) {
-    if (!target || !['confirmBooking', 'rejectBooking', 'cancelBooking', 'completeBooking'].includes(action)) return false;
-    var section = target.closest('.admin-booking-decision');
-    if (!section) return false;
-    section.setAttribute('aria-busy', 'true');
-    section.innerHTML =
-      '<h2>Actions</h2>' +
-      '<div class="admin-booking-action-progress" role="status" aria-live="polite">' +
-        '<span class="admin-button-spinner" aria-hidden="true"></span>' +
-        '<span>' + escapeHtml(bookingActionProgressLabel(action)) + '</span>' +
-      '</div>';
-    return true;
+    if (!target || !['confirmBooking','rejectBooking','cancelBooking','completeBooking'].includes(action)) return false;
+    var section=target.closest('.admin-booking-decision');
+    if(section) section.setAttribute('aria-busy','true');
+    return Boolean(section);
   }
 
   function applyBookingActionResult(payload, result) {
@@ -6077,18 +6085,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showBookingActionProgress(trigger, payload.action);
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
+      if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
       renderPatchedBookingModal(payload, response.result);
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
-      await refresh({ preserveScroll: true, force: true });
+      await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
       if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
-      showToast(successMessageForAction(confirmAction || payload.action), 'success');
+      showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Customer communication is queued; delivery is tracked separately.' : successMessageForAction(confirmAction || payload.action), 'success');
       return true;
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      restoreBookingModalAfterActionError(payload);
+      if (!modalIsDirty()) restoreBookingModalAfterActionError(payload);
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
       return false;
     } finally {
@@ -6139,7 +6148,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     };
 
     if (action === 'confirmBooking') {
-      var validation = validateDateTimePair(String(data.get('date') || ''), String(data.get('startTime') || ''), String(data.get('endTime') || ''));
+      var validation = validateDateTimePair(String(data.get('date') || ''), String(data.get('startTime') || ''), String(data.get('endTime') || ''), data.get('dstFold'));
       if (validation.error) {
         showFieldError(errorEl, validation.error, form.elements.date);
         return;
@@ -6148,10 +6157,35 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       payload.endAt = validation.endAt;
     }
 
+    if (['confirmBooking','recordAgreedPrice'].includes(action)) {
+      payload.serviceAmountCents = moneyCents(data.get('serviceAmount'));
+      payload.travelAmountCents = moneyCents(data.get('travelAmount'));
+      payload.customerAgreed = data.get('customerAgreed') === 'on';
+      payload.priceReason = data.get('priceReason') || null;
+      if (payload.serviceAmountCents === null || payload.travelAmountCents === null || !payload.customerAgreed) {
+        showFieldError(errorEl,'Enter both agreed amounts, including 0 travel, and confirm customer agreement.'); return;
+      }
+    }
+    if (['recordPayment','recordRefund','correctPayment'].includes(action)) {
+      var local = String(data.get('occurredLocal') || '').split('T');
+      payload.occurredAt = vilniusInstant(local[0] || '',local[1] || '',data.get('paymentFold'));
+      payload.paymentEntryId = data.get('paymentEntryId') || null;
+      if (!payload.occurredAt || moneyCents(payload.paidAmount,action==='correctPayment') === null) {
+        showFieldError(errorEl,'Enter the actual amount and a valid Vilnius date/time. Choose an occurrence if the time repeats.');return;
+      }
+    }
+    if (action==='resolvePaymentReconciliation' && data.get('disposition')==='already_refunded') {
+      var refundLocal=String(data.get('refundOccurredLocal') || '').split('T');
+      payload.refundedAt=vilniusInstant(refundLocal[0] || '',refundLocal[1] || '',data.get('refundFold'));
+      payload.refundMethod=data.get('refundMethod');
+      if(!payload.refundedAt || !payload.refundMethod){showFieldError(errorEl,'Enter the actual refund date and method.');return;}
+    }
+    ['notificationId','inquiryId','note','disposition'].forEach(function(key) { if(data.has(key)) payload[key]=data.get(key); });
+
     if (action === 'setCustomerLegalHold') {
       var holdDate = String(data.get('holdUntilDate') || '');
       var holdTime = String(data.get('holdUntilTime') || '');
-      var holdUntil = isoFromVilniusInput(holdDate, holdTime);
+      var holdUntil = isoFromVilniusInput(holdDate, holdTime, data.get('dstFold'));
       if (!holdUntil || new Date(holdUntil) <= new Date()) {
         showFieldError(errorEl, 'Use a future legal hold date and time in YYYY-MM-DD and HH:mm format.', form.elements.holdUntilDate);
         return;
@@ -6244,6 +6278,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showBookingActionProgress(form, action);
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
+      if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
+      if(!ensureModalRoot().contains(form)) form.reset();
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
       renderPatchedBookingModal(payload, response.result);
@@ -6251,12 +6287,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         state.selectedCustomerId = null;
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
-      await refresh({ preserveScroll: true, force: true });
+      await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if (action === 'createAndSendInvoice' && response.result && response.result.id) {
         navigateToModal('invoice', response.result.id, { force: true });
       } else if (action === 'deleteCustomerProfile') {
         closeModal({ restoreFocus: true });
-        showToast(successMessageForAction(action), 'success');
+        showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Communication is queued; check delivery separately.' : successMessageForAction(action), 'success');
         return;
       } else if (payload.invoiceId && invoiceById(payload.invoiceId)) {
         navigateToModal('invoice', payload.invoiceId, { force: true });
@@ -6265,10 +6301,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       } else if (payload.customerId && customerById(payload.customerId)) {
         navigateToModal('customer', payload.customerId, { force: true });
       }
-      showToast(successMessageForAction(action), 'success');
+      showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Communication is queued; check delivery separately.' : successMessageForAction(action), 'success');
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      restoreBookingModalAfterActionError(payload);
+      if (!modalIsDirty()) restoreBookingModalAfterActionError(payload);
       if (errorEl && document.body.contains(errorEl)) {
         errorEl.textContent = error instanceof Error ? error.message : 'The action could not be completed.';
       } else {
@@ -6277,6 +6313,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } finally {
       if (document.body.contains(form)) {
         setFormBusy(form, false);
+        var section=form.closest('.admin-booking-decision');if(section)section.removeAttribute('aria-busy');
         if (action === 'sendMarketingCampaign') syncMarketingFormState(form);
       }
     }
@@ -6456,9 +6493,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (field) field.value = value == null ? '' : String(value);
   }
 
-  function renderOrganizationSettings() {
+  function renderOrganizationSettings(force) {
     var form = $('[data-organization-settings-form]');
     if (!form) return;
+    if (!force && organizationSettingsBaseline && organizationSettingsFormState(form) !== organizationSettingsBaseline) return;
     var settings = state.organizationSettings || {};
     setOrganizationField(form, 'sellerName', settings.seller_name);
     setOrganizationField(form, 'sellerAddress', settings.seller_address);
@@ -6542,8 +6580,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (response.result && typeof response.result === 'object') {
         state.organizationSettings = response.result;
       }
-      renderOrganizationSettings();
+      renderOrganizationSettings(true);
+      state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
+      renderOperationalStatus();
       showToast('Organization invoice details updated.', 'success');
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
@@ -6704,9 +6744,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
-  function renderConfirmationSchedule() {
+  function renderConfirmationSchedule(force) {
     var form = $('[data-confirmation-schedule-form]');
     if (!form) return;
+    var snapshot=function(){return JSON.stringify(Array.from(new FormData(form).entries()));};
+    if (!force && form.dataset.scheduleBaseline && snapshot()!==form.dataset.scheduleBaseline) return;
 
     var settings = state.confirmationSettings;
     var canEdit = staffHasAccess(
@@ -6753,6 +6795,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
 
     refreshCustomControls(form);
+    form.dataset.scheduleBaseline=snapshot();
   }
 
   async function handleConfirmationScheduleSubmit(event) {
@@ -6825,13 +6868,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       state.loadedViews.organization = { loadedAt: Date.now() };
       markModalClean();
-      renderConfirmationSchedule();
+      renderConfirmationSchedule(true);
       var savedStatus = $('[data-confirmation-schedule-status]');
       if (savedStatus) {
         savedStatus.textContent = 'Review window saved. New bookings will use it.';
         savedStatus.classList.add('is-success');
       }
+      state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
+      renderOperationalStatus();
       showToast('Booking review window updated.', 'success');
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
@@ -7036,7 +7081,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       : String(state.staff && state.staff.id || '');
     var inspectionDuration = Number(data.get('inspectionDurationMinutes'));
     var bufferDuration = Number(data.get('bufferDurationMinutes'));
-    var validation = validateDateTimePair(dateValue, startTime, endTime);
+    var validation = validateDateTimePair(dateValue, startTime, endTime, data.get('dstFold'));
     var ranges = dayScheduleRanges(startTime, endTime, inspectionDuration, bufferDuration);
 
     if (validation.error) {
@@ -7074,18 +7119,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     setSyncState('Saving', 'loading');
     var response;
     try {
-      response = await adminAction({
-        action: 'createDaySchedule',
-        serviceCode: 'all',
-        assignedStaffId: assignedStaffId,
-        dayStartAt: validation.startAt,
-        dayEndAt: validation.endAt,
-        inspectionDurationMinutes: inspectionDuration,
-        bufferDurationMinutes: bufferDuration
+      var occurrences=ranges.map(function(range){
+        var start=range.start,end=range.end;
+        var pair=validateDateTimePair(dateValue,start,end,data.get('dstFold'));
+        if(pair.error) throw new Error(pair.error);
+        return {date:dateValue,startTime:start,endTime:end,startAt:pair.startAt,endAt:pair.endAt,fold:data.get('dstFold') || null};
       });
-      dayScheduleLastResult = response.result && typeof response.result === 'object'
-        ? response.result
-        : null;
+      response=await adminAction({action:'createSlotSeries',serviceCode:'all',assignedStaffId:assignedStaffId,occurrences:occurrences});
+      dayScheduleLastResult={created_count:response.result?.created || 0,skipped_count:0};
       state.calendarAnchor = dateValue;
       markModalClean();
       var created = Number(dayScheduleLastResult && dayScheduleLastResult.created_count) || 0;
@@ -7302,7 +7343,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var dateValue = String(data.get('date') || '');
     var startTime = String(data.get('startTime') || '');
     var endTime = String(data.get('endTime') || '');
-    var validation = validateDateTimePair(dateValue, startTime, endTime);
+    var validation = validateDateTimePair(dateValue, startTime, endTime, data.get('dstFold'));
     clearFormValidation(form, errorEl);
 
     if (validation.error) {
@@ -7339,54 +7380,26 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
-    var repeat = data.get('repeatWeekly') === 'on';
-    var weeks = repeat ? Number(data.get('repeatWeeks')) || 1 : 1;
-    var recurrenceSeriesId = repeat && weeks > 1 && window.crypto && window.crypto.randomUUID
-      ? window.crypto.randomUUID()
-      : null;
-    var failures = [];
-    var created = 0;
-    setFormBusy(form, true, busyLabelForAction('createSlot'));
-    setSyncState('Saving', 'loading');
-
-    for (var i = 0; i < weeks; i += 1) {
-      var occurrenceDate = addDaysYmd(dateValue, i * 7);
-      var occurrence = validateDateTimePair(occurrenceDate, startTime, endTime);
-      if (occurrence.error) {
-        failures.push(occurrenceDate + ': ' + occurrence.error);
-        continue;
-      }
-
-      try {
-        await adminAction({
-          action: 'createSlot',
-          serviceCode: data.get('serviceCode') || 'all',
-          assignedStaffId: data.get('assignedStaffId') || null,
-          startAt: occurrence.startAt,
-          endAt: occurrence.endAt,
-          recurrenceSeriesId: recurrenceSeriesId
-        });
-        created += 1;
-      } catch (error) {
-        failures.push(occurrenceDate + ': ' + (error instanceof Error ? error.message : 'Could not create slot.'));
-      }
+    var weeks = data.get('repeatWeekly') === 'on' ? Number(data.get('repeatWeeks')) || 1 : 1;
+    var occurrences = [];
+    for (var i=0;i<weeks;i++) {
+      var occurrenceDate = addDaysYmd(dateValue,i*7);
+      var occurrence = validateDateTimePair(occurrenceDate,startTime,endTime,data.get('dstFold'));
+      if (occurrence.error) { showFieldError(errorEl,occurrenceDate+': '+occurrence.error); return; }
+      occurrences.push({date:occurrenceDate,startTime:startTime,endTime:endTime,startAt:occurrence.startAt,endAt:occurrence.endAt,fold:data.get('dstFold') || null});
     }
-
-    if (document.body.contains(form)) setFormBusy(form, false);
-    await refresh({ preserveScroll: true, force: true });
-
-    if (errorEl && failures.length) {
-      if (failures.length) {
-        errorEl.textContent = created + ' created. Failed: ' + failures.join(' ');
-      }
-    }
-    if (!failures.length && created > 0) {
-      state.selectedSlotId = null;
-      slotEditorBaseline = '';
-      history.replaceState(modalHistoryState(null, 0), '', PATHS.availability);
-      setSlotEditorOpen(false, { restoreFocus: true });
-      showToast(created === 1 ? 'Availability slot created.' : created + ' availability slots created.', 'success');
-    }
+    setFormBusy(form,true,'Publishing availability'); setSyncState('Saving','loading');
+    try {
+      var response = await adminAction({action:'createSlotSeries',serviceCode:data.get('serviceCode') || 'all',assignedStaffId:data.get('assignedStaffId') || null,occurrences:occurrences});
+      state.selectedSlotId=null; slotEditorBaseline='';
+      history.replaceState(modalHistoryState(null,0),'',PATHS.availability);
+      setSlotEditorOpen(false,{restoreFocus:true});
+      await refresh({preserveScroll:true,force:true}).catch(function(){showToast('Availability saved. Refresh to load the updated schedule.','info');});
+      showToast((response.result && response.result.created || weeks)+' availability slots published.','success');
+    } catch(error) {
+      setSyncState('Action failed','error');
+      showFieldError(errorEl,error instanceof Error ? error.message : 'No slots were created.');
+    } finally { if(document.body.contains(form)) setFormBusy(form,false); }
   }
 
   function renderSlots() {
@@ -7893,6 +7906,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var activeChallenge = null;
     var activeUser = initialTemporaryPasswordUser || null;
     var recoveryCodes = [];
+    var firstMfaEnrollment = false;
 
     function loginSteps() {
       return [passwordForm, temporaryPasswordStep, enrollStep, challengeStep, recoveryStep, codesStep];
@@ -8070,6 +8084,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         await auth.removeFactor(session, factors.unverifiedTotp[i].id);
       }
 
+      firstMfaEnrollment = true;
       activeFactor = await auth.enrollTotp(session);
       activeChallenge = await auth.challengeTotp(session, activeFactor.id);
 
@@ -8112,39 +8127,46 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
 
       storeSession(verifiedSession, rememberDevice);
-      var recoveryResult = null;
+      await showMfaRecoveryCodesOrContinue();
+    }
+
+    async function showMfaRecoveryCodesOrContinue(regenerate) {
+      var result;
       try {
-        var response = await adminAction({ action: 'ensureMfaRecoveryCodes' });
-        recoveryResult = response && response.result;
-      } catch (error) {
-        // A recovery-code service failure must not strand a newly enrolled user.
-        recoveryResult = null;
-      }
-
-      await loadDashboard('auth', { force: true });
-
-      if (
-        recoveryResult &&
-        recoveryResult.created === true &&
-        Array.isArray(recoveryResult.codes) &&
-        recoveryResult.codes.length
-      ) {
-        recoveryCodes = recoveryResult.codes.slice();
-        var list = $('[data-admin-mfa-code-list]');
-        if (list) {
-          list.replaceChildren();
-          recoveryCodes.forEach(function (code) {
-            var item = document.createElement('li');
-            item.textContent = code;
-            list.appendChild(item);
-          });
+        var response=await adminAction({action:regenerate ? 'regenerateMfaRecoveryCodes' : 'ensureMfaRecoveryCodes'});
+        result=response && response.result;
+        if (result?.acknowledgementRequired) firstMfaEnrollment=true;
+        if (firstMfaEnrollment && (!result || !result.created || !result.codes?.length)) {
+          throw new Error('Recovery codes were not received. Regenerate them to finish setup.');
         }
-        showLoginStep(codesStep, 'Save your recovery codes');
+      } catch(error) {
+        showLoginStep(codesStep,'Finish account security');
+        recoveryCodes=[];
+        var list=$('[data-admin-mfa-code-list]'); if(list) list.replaceChildren();
+        var status=$('[data-recovery-generation-status]',codesStep);
+        if(!status){status=document.createElement('p');status.dataset.recoveryGenerationStatus='';status.setAttribute('role','alert');codesStep.prepend(status);}
+        status.textContent=error instanceof Error ? error.message : 'Recovery codes could not be generated.';
+        var finish=$('[data-admin-mfa-finish]'); if(finish) finish.disabled=true;
+        var retry=$('[data-recovery-regenerate]',codesStep);
+        if(!retry){retry=document.createElement('button');retry.type='button';retry.className='admin-button admin-button-secondary';retry.dataset.recoveryRegenerate='';retry.textContent='Regenerate recovery codes';codesStep.append(retry);retry.addEventListener('click',async function(){retry.disabled=true;await showMfaRecoveryCodesOrContinue(true);retry.disabled=false;});}
         return;
       }
-
+      await loadDashboard('auth',{force:true});
+      if(result?.created && result.codes?.length) {
+        recoveryCodes=result.codes.slice();
+        var list=$('[data-admin-mfa-code-list]'); if(list){list.replaceChildren();recoveryCodes.forEach(function(code){var item=document.createElement('li');item.textContent=code;list.appendChild(item);});}
+        var status=$('[data-recovery-generation-status]',codesStep);if(status)status.remove();
+        showLoginStep(codesStep,'Save your recovery codes');
+        var finish=$('[data-admin-mfa-finish]');if(finish)finish.disabled=true;
+        var acknowledgement=$('[data-recovery-acknowledgement]',codesStep);
+        if(!acknowledgement){var label=document.createElement('label');label.className='admin-checkbox-row';label.innerHTML='<input type="checkbox" data-recovery-acknowledgement><span>I have saved these recovery codes in a private place.</span>';finish.parentElement.insertBefore(label,finish);acknowledgement=$('input',label);acknowledgement.addEventListener('change',function(){if(finish)finish.disabled=!acknowledgement.checked;});}
+        acknowledgement.checked=false;
+        return;
+      }
       redirectTo(PATHS.dashboard);
     }
+
+    if(state.recoveryAcknowledgementRequired && state.session && auth.assuranceLevel(state.session)==='aal2') {firstMfaEnrollment=true;showMfaRecoveryCodesOrContinue().catch(function(error){showToast(error.message,'error');});}
 
     if (sessionStatus) {
       sessionStatus.textContent = initialMessage || '';
@@ -8153,7 +8175,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (loginLoading) loginLoading.hidden = true;
     if (activeUser && auth.requiresTemporaryPasswordChange(activeUser)) {
       showTemporaryPasswordStep(activeUser);
-    } else {
+    } else if (!state.recoveryAcknowledgementRequired) {
       showLoginStep(passwordForm, 'Sign in');
     }
 
@@ -8455,8 +8477,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var finishButton = $('[data-admin-mfa-finish]');
     if (finishButton) {
-      finishButton.addEventListener('click', function () {
+      finishButton.addEventListener('click', async function () {
+        if (!recoveryCodes.length || !$('[data-recovery-acknowledgement]')?.checked) return;
+        try { await adminAction({action:'acknowledgeMfaRecoveryCodes'}); } catch(error) { showToast('Recovery code acknowledgement could not be saved. Try again.','error');return; }
         recoveryCodes = [];
+        firstMfaEnrollment=false;
         redirectTo(PATHS.dashboard);
       });
     }
@@ -8950,6 +8975,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     form.addEventListener('change', syncSlotSubmitState);
 
     initCustomControls(form);
+    installTimeChoices(form.parentElement);
     captureSlotEditorBaseline();
   }
 
@@ -8984,11 +9010,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         renderPage();
       }
       if (state.page === 'bookings') {
-        await loadBookingQuery({ force: true, silent: bookingQueryWasPopulated });
+        if (!(await loadBookingQuery({ force: true, silent: bookingQueryWasPopulated, preservePages: true }))) throw new Error('Bookings could not be refreshed. Previously loaded records are retained.');
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       }
       if (state.page === 'invoices') {
-        await loadInvoiceQuery({ force: true, silent: invoiceQueryWasPopulated });
+        if (!(await loadInvoiceQuery({ force: true, silent: invoiceQueryWasPopulated, preservePages: true }))) throw new Error('Invoices could not be refreshed. Previously loaded records are retained.');
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       }
       if (
@@ -9006,10 +9032,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (!preserveDirtyModal) {
         renderModalFromCurrentUrl();
         restoreModalViewState(modalViewState);
-      } else if (opts.background) {
-        showToast('Live data updated. Unsaved detail changes were kept.', 'info');
       }
+      state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
+      renderOperationalStatus();
       showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
       startRealtime();
       state.hasRendered = true;
@@ -9017,6 +9043,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } catch (error) {
       if (isAbortError(error) || activityId !== refreshActivityId) return false;
       if (adminViewForPage(state.page) === requestedView) {
+        if(state.loadedViews[requestedView]) state.loadedViews[requestedView].loadedAt=0;
         setSyncState('Sync failed', 'error', error instanceof Error ? error.message : '');
         if (!hadLoadedView) {
           if (state.page === 'dashboard') renderDashboardUnavailable();
@@ -9032,8 +9059,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
+  function renderOperationalStatus() {
+    var container=$('[data-page-root]');
+    if (!container || state.page === 'marketing') return;
+    var existing = $('[data-operational-panel]', container);
+    if (existing && (modalIsDirty() || existing.contains(document.activeElement) || $all('textarea',existing).some(function(input){return input.value;}))) return;
+    var wasOpen = existing && $('details',existing) && $('details',existing).open;
+    if (!existing) { existing=document.createElement('div'); existing.dataset.operationalPanel=''; container.insertBefore(existing,container.children[1] || null); }
+    existing.innerHTML=operationalPanel(state.operationsState);
+    if (wasOpen && $('details',existing)) $('details',existing).open=true;
+    bindPriceTotals(existing);
+    $all('[data-admin-action-form]',existing).forEach(function(form){form.addEventListener('submit',handleActionSubmit);});
+  }
+
   function renderPage() {
     clearPageLoadError();
+    var opsPanel = $('[data-operational-panel]'); if (opsPanel) opsPanel.hidden = state.page === 'marketing';
     if (pageController && typeof pageController.beforeRender === 'function') {
       pageController.beforeRender({ state: state });
     }
@@ -9075,6 +9116,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             var factors = auth.factorsFromUser(authenticatedUser);
             if (factors.totp.length) {
               await loadDashboard('auth', { force: true });
+              if(state.recoveryAcknowledgementRequired) {setupLoginEvents('Finish recovery-code setup.');return;}
               redirectTo(PATHS.dashboard);
               return;
             }
@@ -9104,6 +9146,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    await loadDashboard('auth',{force:true});
+    if(state.recoveryAcknowledgementRequired){redirectTo(PATHS.login);return;}
     els.loading = $('[data-admin-loading]');
     els.console = $('[data-admin-console]');
     els.stats = $('[data-admin-stats]');
@@ -9120,6 +9164,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     document.addEventListener('visibilitychange', refreshVisiblePageIfStale);
     window.addEventListener('focus', refreshVisiblePageIfStale);
     setupCurrentPageEvents();
+    window.addEventListener('storage', function(event) {
+      if (event.key !== SESSION_KEY || state.sessionPersistence !== 'local') return;
+      if (!event.newValue) { closeRealtime(); storeSession(null); redirectTo(PATHS.login); return; }
+      try { state.session=JSON.parse(event.newValue); scheduleSessionRefresh(state.session); closeRealtime(); startRealtime(); } catch (_) {}
+    });
+    window.setInterval(function () {
+      if (document.visibilityState === 'hidden' || !state.session || state.page === 'login' || state.page === 'marketing' || state.isRefreshing) return;
+      refresh({ background: true, preserveScroll: true, force: true }).catch(reportNavigationRefreshError);
+    }, 30000);
     startExpiryTicker();
     setPageBusy(true, 'Loading admin data');
     setSyncState('Loading', 'loading');
