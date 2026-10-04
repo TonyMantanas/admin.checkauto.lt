@@ -7,7 +7,7 @@ import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
 import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20261004-2';
-import { initAdminRuntime } from './core/runtime.js?v=20261004-3';
+import { initAdminRuntime } from './core/runtime.js?v=20261004-4';
 import { renderShell } from './core/shell.js?v=20261004-3';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
@@ -19,7 +19,7 @@ const pageControllers = {
   availability: () => import('./pages/availability.js?v=20261004-2'),
   customers: () => import('./pages/customers.js?v=20261004-2'),
   invoices: () => import('./pages/invoices.js?v=20261004-2'),
-  notifications: () => import('./pages/notifications.js?v=20261004-2'),
+  notifications: () => import('./pages/notifications.js?v=20261004-4'),
   marketing: () => import('./pages/marketing.js?v=20261004-2'),
   organization: () => import('./pages/organization.js?v=20261004-2'),
   users: () => import('./pages/users.js?v=20261004-2'),
@@ -83,6 +83,7 @@ function preloadPage(page) {
 }
 
 function renderBootstrapError(error) {
+  window.CheckAutoStartup?.stop();
   console.error('Admin console startup failed.', error);
   const root = document.querySelector('[data-page-root]') || document.body;
   const loading = document.querySelector('[data-admin-loading]');
@@ -105,10 +106,12 @@ function renderBootstrapError(error) {
 }
 
 async function boot() {
+  window.CheckAutoStartup?.advance(.18);
   const page = document.body.dataset.adminPage || 'dashboard';
 
   renderShell(page);
   const controller = await mountPage(page, null, state);
+  window.CheckAutoStartup?.advance(.35);
   await initAdminRuntime(controller, {
     mountPage,
     preloadPage,

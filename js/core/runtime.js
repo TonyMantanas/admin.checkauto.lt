@@ -7,7 +7,7 @@ import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
 import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-3';
-import { skeletons } from './skeletons.js?v=20260821-2';
+import { skeletons } from './skeletons.js?v=20261004-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
 import { createWorkloadChartModel } from './workload-chart.js?v=20260821-2';
@@ -379,6 +379,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!pageRoot) return;
     clearPageLoadError();
     pageRoot.dataset.loadState = 'error';
+    if(state.page==='notifications') {
+      var notificationContent=$('[data-notifications-content]');
+      if(notificationContent) notificationContent.setAttribute('aria-busy','false');
+      var notificationCount=$('[data-notifications-count]');
+      if(notificationCount) notificationCount.textContent='Unavailable';
+    }
 
     var feedback = document.createElement('div');
     feedback.className = 'admin-load-feedback';
@@ -2253,12 +2259,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }[action] || null;
   }
 
-  function showConsole(options) {
+  async function showConsole(options) {
     var wasHidden = Boolean(els.console && els.console.hidden);
+    if (wasHidden) await window.CheckAutoStartup?.finish();
     if (els.loading) els.loading.hidden = true;
     if (els.console) els.console.hidden = false;
     if (wasHidden && !(options && options.preserveScroll)) {
       window.scrollTo(0, 0);
+    }
+    if (wasHidden && state.page === 'login') {
+      var input=$all('.admin-login input:not([type="checkbox"])').find(function(el) {return !el.closest('[hidden]');});
+      if(input) focusElement(input);
     }
   }
 
@@ -7763,7 +7774,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     setActiveNav();
     setUserLabel();
     setupCurrentPageEvents();
-    showConsole({ preserveScroll: true });
+    await showConsole({ preserveScroll: true });
+    if(state.navigationId !== navigationId) return;
 
     if (pageDataIsPopulated(page)) {
       renderPage();
@@ -9010,6 +9022,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     setSyncState(opts.background ? 'Updating' : 'Loading', 'loading');
     try {
       var applied = await loadDashboard(requestedView, { force: Boolean(opts.force) });
+      window.CheckAutoStartup?.advance(.85);
       if (activityId !== refreshActivityId || !applied || adminViewForPage(state.page) !== requestedView) return false;
       if (!staffCanAccessPage(state.staff, state.page)) {
         redirectTo(PATHS.dashboard);
@@ -9052,7 +9065,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
       renderOperationalStatus();
-      showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
+      window.CheckAutoStartup?.advance(.94);
+      await showConsole({ preserveScroll: opts.preserveScroll || state.hasRendered });
+      if(activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       startRealtime();
       state.hasRendered = true;
       return true;
@@ -9120,6 +9135,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   async function init() {
+    els.loading = $('[data-admin-loading]');
+    els.console = $('[data-admin-console]');
+    window.CheckAutoStartup?.advance(.45);
     clearLegacyDashboardCache();
     applyRouteParameters(document.body.dataset.adminPage || '');
     replaceCurrentHistoryState();
@@ -9133,11 +9151,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         await revokeAndClearSession(state.session);
       }
     }
+    window.CheckAutoStartup?.advance(.6);
 
     if (state.page === 'login') {
       if (state.session) {
         if (auth.requiresTemporaryPasswordChange(authenticatedUser)) {
           setupLoginEvents('', authenticatedUser);
+          await showConsole();
           if (pageController && typeof pageController.afterInit === 'function') {
             pageController.afterInit({ state: state });
           }
@@ -9148,7 +9168,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             var factors = auth.factorsFromUser(authenticatedUser);
             if (factors.totp.length) {
               await loadDashboard('auth', { force: true });
-              if(state.recoveryAcknowledgementRequired) {setupLoginEvents('Finish recovery-code setup.');return;}
+              if(state.recoveryAcknowledgementRequired) {setupLoginEvents('Finish recovery-code setup.');await showConsole();return;}
               redirectTo(PATHS.dashboard);
               return;
             }
@@ -9161,6 +9181,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       } else {
         setupLoginEvents();
       }
+      await showConsole();
       if (pageController && typeof pageController.afterInit === 'function') {
         pageController.afterInit({ state: state });
       }
@@ -9179,6 +9200,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     await loadDashboard('auth',{force:true});
+    window.CheckAutoStartup?.advance(.72);
     if(state.recoveryAcknowledgementRequired){redirectTo(PATHS.login);return;}
     els.loading = $('[data-admin-loading]');
     els.console = $('[data-admin-console]');
@@ -9219,7 +9241,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       setUserLabel();
       setActiveNav();
-      showConsole({ preserveScroll: true });
+      await showConsole({ preserveScroll: true });
       if (viewIsLoaded(adminViewForPage(state.page))) {
         showToast(error instanceof Error ? error.message : 'Refresh failed.', 'error');
       }

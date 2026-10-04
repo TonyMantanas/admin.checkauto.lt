@@ -7,14 +7,21 @@
   <meta name="referrer" content="no-referrer">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; base-uri 'none'; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://ddhhhieitupjixynjrry.supabase.co; form-action 'self'; upgrade-insecure-requests">
   <script src="../js/frame-guard.js?v=20260730-1"></script>
+  <script defer src="../js/startup-progress.js?v=20261004-4"></script>
   <title>Reset password · checkauto.lt</title>
-  <link rel="stylesheet" href="../admin.css?v=20261004-3">
+  <link rel="stylesheet" href="../admin.css?v=20261004-4">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 </head>
 <body class="admin-page admin-login-page admin-reset-page" data-admin-page="reset-password">
   <a class="admin-skip-link" href="#admin-main">Skip to main content</a>
   <div class="admin-app">
-    <main id="admin-main" tabindex="-1">
+    <section class="admin-loading" data-admin-loading role="status" aria-busy="true" aria-label="Loading admin interface">
+      <div>
+        <div class="admin-brand">check<span>auto</span>.lt</div>
+        <div class="admin-startup-progress" aria-hidden="true"><span data-startup-progress></span></div>
+      </div>
+    </section>
+    <main id="admin-main" tabindex="-1" data-admin-console hidden>
       <section class="admin-login" aria-label="Reset admin account password">
         <div class="admin-login-panel admin-reset-panel">
           <div class="admin-brand">check<span>auto</span>.lt</div>
@@ -112,6 +119,6 @@
     </main>
   </div>
 
-  <script type="module" src="../js/reset-password.js?v=20260823-1"></script>
+  <script type="module" src="../js/reset-password.js?v=20261004-4"></script>
 </body>
 </html>

@@ -37,6 +37,22 @@ function stats() {
   `).join('');
 }
 
+function notifications(count = 5) {
+  return `
+    <div class="admin-notifications-toolbar admin-notifications-skeleton-filters" aria-hidden="true">
+      ${Array.from({ length: 3 }, () => block('admin-skeleton-pill')).join('')}
+    </div>
+    <div class="admin-notification-list" aria-hidden="true">
+      ${Array.from({ length: count }, (_, index) => `
+        <div class="admin-notification-item admin-skeleton-row" style="--admin-skeleton-delay:${index * 70}ms">
+          ${block('admin-notification-icon')}
+          <div class="admin-notification-copy admin-skeleton-primary">${block('admin-skeleton-line admin-skeleton-line-wide')}${block('admin-skeleton-line admin-skeleton-line-medium')}</div>
+          ${block('admin-skeleton-control admin-notification-skeleton-action')}
+        </div>
+      `).join('')}
+    </div>`;
+}
+
 function calendarDay(index) {
   const eventCount = index % 3 === 0 ? 2 : 1;
   return `
@@ -152,6 +168,7 @@ export const skeletons = Object.freeze({
   confirmationSchedule,
   formFields,
   list,
+  notifications,
   preview,
   stats
 });

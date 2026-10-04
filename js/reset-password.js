@@ -238,6 +238,7 @@ function passwordValidationMessage(password, confirmation) {
 }
 
 async function initializeRecovery() {
+  window.CheckAutoStartup?.advance(.35);
   const code = recoveryCodeFromUrl();
   const codeVerifier = readPkceVerifier();
   try {
@@ -254,11 +255,13 @@ async function initializeRecovery() {
     throw error;
   }
   clearPkceVerifier();
+  window.CheckAutoStartup?.advance(.65);
   if (!isRecentRecoverySession(recoverySession)) {
     throw new Error('This reset link has expired or is not a valid recovery link.');
   }
 
   recoveryUser = await auth.getUser(recoverySession);
+  window.CheckAutoStartup?.advance(.85);
   recoveryFactors = auth.factorsFromUser(recoveryUser).totp;
   if (!recoveryFactors.length) {
     throw new Error('This account has no verified authenticator. Contact an administrator.');
@@ -458,4 +461,12 @@ initializeRecovery().catch((error) => {
       ? error.message
       : 'This reset link is invalid, expired, or has already been used.'
   );
+}).finally(async () => {
+  await window.CheckAutoStartup?.finish();
+  const loading=target('[data-admin-loading]');
+  const content=target('[data-admin-console]');
+  if(loading) loading.hidden=true;
+  if(content) content.hidden=false;
+  const section=['[data-reset-mfa]','[data-reset-password]','[data-reset-error]','[data-reset-success]'].map(selector=>target(selector)).find(item=>item && !item.hidden);
+  if(section) setOnlyVisible(section);
 });
