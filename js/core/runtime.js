@@ -1,11 +1,12 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, operationalPanel, bindPriceTotals } from './reliability-ui.js?v=20261004-1';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261004-2';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261004-2';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20260917-1';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-2';
 import { skeletons } from './skeletons.js?v=20260821-2';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -1048,6 +1049,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.organizationSettings = null;
       state.invoiceSettingsReadiness = null;
       state.dashboardAnalytics = null;
+      state.operationsState = null;
+      state.operationsSummary = null;
+      state.bookingOperations = Object.create(null);
       state.dashboardTrendDays = 30;
       state.staffUsersLoadedAt = 0;
       state.staffUsersLoadState = 'idle';
@@ -1062,6 +1066,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (data.staff) state.staff = data.staff;
     if (typeof data.recoveryAcknowledgementRequired === 'boolean') state.recoveryAcknowledgementRequired=data.recoveryAcknowledgementRequired;
     if (data.operationsState) state.operationsState = data.operationsState;
+    if (data.operationsSummary) state.operationsSummary = data.operationsSummary;
     if (Array.isArray(data.accountSessions)) state.accountSessions = data.accountSessions;
     [
       'bookings',
@@ -1244,6 +1249,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       bookings: 'bookings',
       customers: 'customers',
       invoices: 'invoices',
+      notifications: 'notifications',
       marketing: 'marketing',
       organization: 'organization',
       users: 'auth',
@@ -1294,7 +1300,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (!(await ensureActiveSession())) {
         throw new Error('This account is not approved for admin access or the session has expired.');
       }
-      var response = await fetch(ADMIN_ENDPOINT + '?view=' + encodeURIComponent(requestedView), {
+      var response = await fetch(ADMIN_ENDPOINT + '?view=' + encodeURIComponent(requestedView) + '&actionCenter=1', {
         method: 'GET',
         headers: authHeaders(),
         cache: 'no-store',
@@ -6085,12 +6091,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showBookingActionProgress(trigger, payload.action);
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
+      if(state.page==='notifications') state.notificationActionSaved=true;
       if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
       renderPatchedBookingModal(payload, response.result);
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
+      if(state.page==='notifications') { showToast('Action saved.','success');return true; }
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
       if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
       showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Customer communication is queued; delivery is tracked separately.' : successMessageForAction(confirmAction || payload.action), 'success');
@@ -6170,6 +6178,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var local = String(data.get('occurredLocal') || '').split('T');
       payload.occurredAt = vilniusInstant(local[0] || '',local[1] || '',data.get('paymentFold'));
       payload.paymentEntryId = data.get('paymentEntryId') || null;
+      if(action==='correctPayment' && moneyCents(payload.paidAmount,true)===0) {
+        var originalOption=form.elements.paymentEntryId?.selectedOptions[0];
+        payload.occurredAt=originalOption?.dataset.occurredAt || null;
+        payload.paymentMethod=originalOption?.dataset.method || 'unknown';
+      }
       if (!payload.occurredAt || moneyCents(payload.paidAmount,action==='correctPayment') === null) {
         showFieldError(errorEl,'Enter the actual amount and a valid Vilnius date/time. Choose an occurrence if the time repeats.');return;
       }
@@ -6278,6 +6291,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       showBookingActionProgress(form, action);
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
+      if(state.page==='notifications') state.notificationActionSaved=true;
       if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
       if(!ensureModalRoot().contains(form)) form.reset();
       markModalClean();
@@ -6288,6 +6302,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
+      if(state.page==='notifications') { showToast('Action saved.','success');return; }
       if (action === 'createAndSendInvoice' && response.result && response.result.id) {
         navigateToModal('invoice', response.result.id, { force: true });
       } else if (action === 'deleteCustomerProfile') {
@@ -7651,7 +7666,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   async function confirmPageNavigation() {
-    if (!modalIsDirty() && !slotEditorIsDirty()) return true;
+    var notificationContent=$('[data-notifications-content]');
+    if (!modalIsDirty() && !slotEditorIsDirty() && !(notificationContent && actionCenterHasDraft(notificationContent))) return true;
     var discard = await openConfirmDialog({
       title: 'Discard changes?',
       message: 'Leave this page and discard the changes you entered?',
@@ -9060,21 +9076,33 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderOperationalStatus() {
-    var container=$('[data-page-root]');
-    if (!container || state.page === 'marketing') return;
-    var existing = $('[data-operational-panel]', container);
-    if (existing && (modalIsDirty() || existing.contains(document.activeElement) || $all('textarea',existing).some(function(input){return input.value;}))) return;
-    var wasOpen = existing && $('details',existing) && $('details',existing).open;
-    if (!existing) { existing=document.createElement('div'); existing.dataset.operationalPanel=''; container.insertBefore(existing,container.children[1] || null); }
-    existing.innerHTML=operationalPanel(state.operationsState);
-    if (wasOpen && $('details',existing)) $('details',existing).open=true;
-    bindPriceTotals(existing);
-    $all('[data-admin-action-form]',existing).forEach(function(form){form.addEventListener('submit',handleActionSubmit);});
+    var summary=state.operationsSummary || state.operationsState;
+    var count=summary && Number(summary.action_count);
+    var badge=$('[data-admin-notification-badge]');
+    if(badge && Number.isFinite(count)) {
+      badge.textContent=String(count);badge.hidden=count===0;
+      badge.setAttribute('aria-label',count+' actions need attention');
+    }
+    if(state.page!=='notifications') return;
+    var content=$('[data-notifications-content]');
+    var data=state.operationsState;
+    if(!content || !data) return;
+    var label=$('[data-notifications-count]');
+    if(label) label.textContent=(data.action_count || 0)===1 ? '1 action needs attention' : (data.action_count || 0)+' actions need attention';
+    if(!state.notificationActionSaved && (actionCenterHasDraft(content) || content.contains(document.activeElement))) return;
+    state.notificationActionSaved=false;
+    var openIds=$all('[data-review-id][open]',content).map(function(el){return el.dataset.reviewId;});
+    var filter=state.notificationFilter || 'all';
+    if(filter!=='all' && !(data.counts && data.counts[filter]>0)) filter=state.notificationFilter='all';
+    content.innerHTML=renderActionCenter(data,filter);content.removeAttribute('aria-busy');
+    bindActionCenter(content,function(value){state.notificationFilter=value;});
+    applyActionFilter(content,filter);
+    $all('[data-review-id]',content).forEach(function(el){el.open=openIds.includes(el.dataset.reviewId);});
+    $all('[data-admin-action-form]',content).forEach(function(form){form.addEventListener('submit',handleActionSubmit);});
   }
 
   function renderPage() {
     clearPageLoadError();
-    var opsPanel = $('[data-operational-panel]'); if (opsPanel) opsPanel.hidden = state.page === 'marketing';
     if (pageController && typeof pageController.beforeRender === 'function') {
       pageController.beforeRender({ state: state });
     }

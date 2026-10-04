@@ -1,4 +1,4 @@
-import { PATHS } from './routes.js?v=20260823-1';
+import { PATHS } from './routes.js?v=20261004-2';
 import { ICONS } from './icons.js?v=20260802-1';
 
 const groups = [
@@ -7,6 +7,7 @@ const groups = [
     items: [
       { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard },
       { page: 'bookings', label: 'Bookings', href: PATHS.bookings },
+      { page: 'notifications', label: 'Notifications', href: PATHS.notifications },
       { page: 'availability', label: 'Availability', href: PATHS.availability },
       { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access' },
       { page: 'invoices', label: 'Billing', href: PATHS.invoices, accessRight: 'sensitive_data.access' },
@@ -56,7 +57,7 @@ export function renderShell(page) {
                 data-admin-nav="${item.page}"
                 ${item.accessRight ? `data-admin-access="${item.accessRight}" hidden` : ''}
                 ${item.page === page ? 'class="is-active" aria-current="page"' : ''}
-              >${item.label}</a>
+              ><span>${item.label}</span>${item.page==='notifications' ? '<span class="admin-notification-badge" data-admin-notification-badge hidden></span>' : ''}</a>
             `).join('')}
           </section>
         `;
