@@ -6,6 +6,7 @@ export const ICONS = Object.freeze({
   add: icon('plus'),
   alert: icon('alert-circle'),
   back: icon('arrow-left'),
+  bell: icon('bell'),
   booking: icon('calendar-event'),
   check: icon('circle-check'),
   close: icon('x'),

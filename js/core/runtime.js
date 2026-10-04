@@ -6,7 +6,7 @@ import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-2';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-3';
 import { skeletons } from './skeletons.js?v=20260821-2';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -9081,7 +9081,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var badge=$('[data-admin-notification-badge]');
     if(badge && Number.isFinite(count)) {
       badge.textContent=String(count);badge.hidden=count===0;
-      badge.setAttribute('aria-label',count+' actions need attention');
+      var notificationLink=$('[data-admin-nav="notifications"]');
+      if(notificationLink) {
+        notificationLink.setAttribute('aria-label','Notifications, '+count+(count===1 ? ' action needs attention' : ' actions need attention'));
+        notificationLink.setAttribute('title',count ? 'Notifications ('+count+')' : 'Notifications');
+      }
     }
     if(state.page!=='notifications') return;
     var content=$('[data-notifications-content]');

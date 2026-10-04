@@ -1,5 +1,5 @@
 import { PATHS } from './routes.js?v=20261004-2';
-import { ICONS } from './icons.js?v=20260802-1';
+import { ICONS } from './icons.js?v=20261004-3';
 
 const groups = [
   {
@@ -7,7 +7,6 @@ const groups = [
     items: [
       { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard },
       { page: 'bookings', label: 'Bookings', href: PATHS.bookings },
-      { page: 'notifications', label: 'Notifications', href: PATHS.notifications },
       { page: 'availability', label: 'Availability', href: PATHS.availability },
       { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access' },
       { page: 'invoices', label: 'Billing', href: PATHS.invoices, accessRight: 'sensitive_data.access' },
@@ -37,13 +36,16 @@ export function renderShell(page) {
     <aside class="admin-sidebar" id="admin-sidebar" aria-label="Admin navigation">
       <div class="admin-sidebar-header">
         <a class="admin-brand admin-sidebar-brand" href="${PATHS.dashboard}" aria-label="checkauto.lt dashboard">check<span>auto</span>.lt</a>
-        <button
-          class="admin-button admin-button-secondary admin-icon-button admin-sidebar-close"
-          type="button"
-          data-admin-nav-close
-          aria-label="Close navigation"
-          title="Close navigation"
-        >${ICONS.close}</button>
+        <div class="admin-sidebar-header-actions">
+          <a class="admin-button admin-button-ghost admin-icon-button admin-notifications-link${page==='notifications' ? ' is-active' : ''}" href="${PATHS.notifications}" data-admin-nav="notifications" aria-label="Notifications" title="Notifications"${page==='notifications' ? ' aria-current="page"' : ''}>${ICONS.bell}<span class="admin-notification-badge" data-admin-notification-badge aria-hidden="true" hidden></span></a>
+          <button
+            class="admin-button admin-button-secondary admin-icon-button admin-sidebar-close"
+            type="button"
+            data-admin-nav-close
+            aria-label="Close navigation"
+            title="Close navigation"
+          >${ICONS.close}</button>
+        </div>
       </div>
       <nav class="admin-sidebar-nav" aria-label="Primary">
         ${groups.map((group) => {
@@ -57,7 +59,7 @@ export function renderShell(page) {
                 data-admin-nav="${item.page}"
                 ${item.accessRight ? `data-admin-access="${item.accessRight}" hidden` : ''}
                 ${item.page === page ? 'class="is-active" aria-current="page"' : ''}
-              ><span>${item.label}</span>${item.page==='notifications' ? '<span class="admin-notification-badge" data-admin-notification-badge hidden></span>' : ''}</a>
+              ><span>${item.label}</span></a>
             `).join('')}
           </section>
         `;
