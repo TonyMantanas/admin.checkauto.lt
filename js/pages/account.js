@@ -507,7 +507,6 @@ export function renderStaticPage(root) {
 
             <section class="admin-account-section admin-account-security" aria-labelledby="account-security-title">
               <h2 id="account-security-title">Password</h2>
-              <p>We’ll email a reset link to your sign-in address.</p>
               <button
                 class="admin-button admin-button-secondary"
                 type="button"

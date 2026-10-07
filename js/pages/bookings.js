@@ -15,13 +15,13 @@ export function renderStaticPage(root) {
           <div class="admin-workspace-controls">
             <label class="admin-search admin-search-inline admin-search-compact">
               <span>Search bookings</span>
-              <input type="search" data-booking-search placeholder="Reference, customer, vehicle, service" autocomplete="off" disabled>
+              <input type="search" data-booking-search placeholder="Search bookings" autocomplete="off" disabled>
             </label>
             <details class="admin-filter-menu" data-booking-filter-menu>
               <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-booking-filter-count hidden>0</span></summary>
               <div class="admin-filter-popover" aria-label="Booking filters">
                 <header class="admin-filter-popover-header">
-                  <strong>Filter bookings</strong>
+                  <strong>Filters</strong>
                   <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
                 </header>
                 <div class="admin-filter-popover-body">

@@ -9,7 +9,7 @@
   <script src="../js/frame-guard.js?v=20260730-1"></script>
   <script defer src="../js/startup-progress.js?v=20261004-4"></script>
   <title>Reset password · checkauto.lt</title>
-  <link rel="stylesheet" href="../admin.css?v=20261004-4">
+  <link rel="stylesheet" href="../admin.css?v=20261007-1">
   <link rel="icon" type="image/svg+xml" href="../favicon.svg">
 </head>
 <body class="admin-page admin-login-page admin-reset-page" data-admin-page="reset-password">
@@ -49,7 +49,7 @@
                 <select name="factorId"></select>
               </label>
               <label>
-                <span class="admin-field-label">Verification code <span class="admin-required-marker" aria-hidden="true">*</span></span>
+                <span class="admin-field-label">6-digit authenticator code <span class="admin-required-marker" aria-hidden="true">*</span></span>
                 <input
                   name="verificationCode"
                   type="text"
@@ -94,7 +94,7 @@
                 >
               </label>
               <p class="admin-password-guidance" id="reset-password-requirements">
-                Use at least 14 characters. A passphrase or password-manager-generated password works well.
+                At least 14 characters.
               </p>
               <p class="admin-status" data-reset-password-status role="status" aria-live="polite"></p>
               <button class="admin-button admin-button-primary" type="submit">Change password</button>
@@ -110,7 +110,6 @@
           </section>
 
           <section class="admin-reset-result" data-reset-success hidden aria-labelledby="reset-page-title" role="status" aria-live="polite" tabindex="-1">
-            <p>Sign in with your new password.</p>
             <a class="admin-button admin-button-primary" href="../login/">Sign in again</a>
           </section>
 
@@ -119,6 +118,6 @@
     </main>
   </div>
 
-  <script type="module" src="../js/reset-password.js?v=20261004-4"></script>
+  <script type="module" src="../js/reset-password.js?v=20261007-1"></script>
 </body>
 </html>

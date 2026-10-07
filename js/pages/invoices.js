@@ -18,7 +18,7 @@ export function renderStaticPage(root) {
               <input
                 type="search"
                 data-invoice-search
-                placeholder="Number, customer, booking, vehicle"
+                placeholder="Search billing"
                 autocomplete="off"
                 disabled
               >
@@ -27,7 +27,7 @@ export function renderStaticPage(root) {
               <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-invoice-filter-count hidden>0</span></summary>
               <div class="admin-filter-popover" aria-label="Billing filters">
                 <header class="admin-filter-popover-header">
-                  <strong>Filter billing</strong>
+                  <strong>Filters</strong>
                   <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close invoice filters" title="Close">${ICONS.close}</button>
                 </header>
                 <div class="admin-filter-popover-body">
@@ -73,8 +73,8 @@ export function renderStaticPage(root) {
                     <button class="admin-button admin-button-secondary" type="button" data-invoice-range="month">Month to date</button>
                   </div>
                   <div class="admin-filter-amount-grid">
-                    <label>Amount from<input type="text" inputmode="decimal" placeholder="0.00" data-invoice-amount-min></label>
-                    <label>Amount to<input type="text" inputmode="decimal" placeholder="500.00" data-invoice-amount-max></label>
+                    <label>Amount from<input type="text" inputmode="decimal" data-invoice-amount-min></label>
+                    <label>Amount to<input type="text" inputmode="decimal" data-invoice-amount-max></label>
                   </div>
                 </div>
                 <div class="admin-filter-actions">

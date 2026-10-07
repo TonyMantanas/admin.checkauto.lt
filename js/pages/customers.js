@@ -16,7 +16,7 @@ export function renderStaticPage(root) {
             <input
               type="search"
               data-customer-search
-              placeholder="Name, email, phone, or reference"
+              placeholder="Search customers"
               autocomplete="off"
               disabled
             >

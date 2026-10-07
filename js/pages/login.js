@@ -25,7 +25,6 @@ export function renderStaticPage(root) {
 
         <section class="admin-mfa-step" data-admin-temp-password hidden aria-labelledby="admin-temp-password-title">
           <h2 id="admin-temp-password-title">Change temporary password</h2>
-          <p>Replace the temporary password before setting up or verifying your authenticator.</p>
           <form data-admin-temp-password-form novalidate>
             <label>
               <span class="admin-field-label">New password <span class="admin-required-marker" aria-hidden="true">*</span></span>
@@ -54,7 +53,7 @@ export function renderStaticPage(root) {
               >
             </label>
             <p class="admin-password-guidance" id="admin-temp-password-requirements">
-              Use at least 14 characters. A passphrase or password-manager-generated password works well.
+              At least 14 characters.
             </p>
             <p class="admin-status" data-admin-temp-password-status role="status" aria-live="polite"></p>
             <div class="admin-mfa-actions">
@@ -66,11 +65,10 @@ export function renderStaticPage(root) {
 
         <section class="admin-mfa-step" data-admin-mfa-enroll hidden aria-labelledby="admin-mfa-enroll-title">
           <h2 id="admin-mfa-enroll-title">Secure your account</h2>
-          <p>Scan this code with Microsoft Authenticator, Google Authenticator, 1Password, or another TOTP app.</p>
+          <p>Scan with an authenticator app.</p>
           <div class="admin-mfa-qr" data-admin-mfa-qr></div>
           <details class="admin-mfa-manual">
-            <summary>Can’t scan the QR code?</summary>
-            <p>Enter this setup key manually:</p>
+            <summary>Enter a setup key instead</summary>
             <div class="admin-mfa-secret">
               <code data-admin-mfa-secret></code>
               <button class="admin-button admin-button-secondary" type="button" data-admin-mfa-copy>Copy</button>
@@ -78,7 +76,7 @@ export function renderStaticPage(root) {
           </details>
           <form data-admin-mfa-enroll-form novalidate>
             <label>
-              <span class="admin-field-label">6-digit verification code <span class="admin-required-marker" aria-hidden="true">*</span></span>
+              <span class="admin-field-label">6-digit authenticator code <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="verificationCode"
                 type="text"
@@ -96,10 +94,9 @@ export function renderStaticPage(root) {
 
         <section class="admin-mfa-step" data-admin-mfa-challenge hidden aria-labelledby="admin-mfa-challenge-title">
           <h2 id="admin-mfa-challenge-title">Verify it’s you</h2>
-          <p>Enter the current 6-digit code from your authenticator app.</p>
           <form data-admin-mfa-challenge-form novalidate>
             <label>
-              <span class="admin-field-label">Verification code <span class="admin-required-marker" aria-hidden="true">*</span></span>
+              <span class="admin-field-label">6-digit authenticator code <span class="admin-required-marker" aria-hidden="true">*</span></span>
               <input
                 name="verificationCode"
                 type="text"
@@ -124,7 +121,7 @@ export function renderStaticPage(root) {
 
         <section class="admin-mfa-step" data-admin-mfa-recovery hidden aria-labelledby="admin-mfa-recovery-title">
           <h2 id="admin-mfa-recovery-title">Use a recovery code</h2>
-          <p>Enter one unused recovery code. You’ll then sign in again and set up a new authenticator.</p>
+          <p>After recovery, sign in again and set up a new authenticator.</p>
           <form data-admin-mfa-recovery-form novalidate>
             <label>
               <span class="admin-field-label">Recovery code <span class="admin-required-marker" aria-hidden="true">*</span></span>

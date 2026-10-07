@@ -7,22 +7,22 @@ const ROLE_OPTIONS = Object.freeze([
   {
     value: 'owner',
     label: 'Owner',
-    description: 'Full access, including user and organization settings.'
+    description: 'All access and settings'
   },
   {
     value: 'admin',
     label: 'Administrator',
-    description: 'Operations, customer data, invoices, and marketing.'
+    description: 'Operations, customers, billing, marketing'
   },
   {
     value: 'inspector',
     label: 'Inspector',
-    description: 'Bookings, availability, and assigned inspection work.'
+    description: 'Bookings, availability, assigned inspections'
   },
   {
     value: 'viewer',
     label: 'Viewer',
-    description: 'Read-only access to the admin console.'
+    description: 'Read-only access'
   }
 ]);
 
@@ -162,8 +162,7 @@ function unauthorizedHtml() {
     <section class="admin-users-access-state" role="alert" aria-labelledby="users-unauthorized-title">
       <span class="admin-users-access-icon">${ICONS.alert}</span>
       <div>
-        <h2 id="users-unauthorized-title">Unauthorized</h2>
-        <p>Only users with the Owner role can access user management.</p>
+        <h2 id="users-unauthorized-title">Owner access required</h2>
       </div>
     </section>
   `;
@@ -186,7 +185,6 @@ function emptyUsersHtml() {
     <section class="admin-empty-state" role="status">
       <div>
         <h2>No staff accounts</h2>
-        <p>Create the first account that should have access to this admin panel.</p>
       </div>
       <button class="admin-button admin-button-primary" type="button" data-user-create>${ICONS.add} Create user</button>
     </section>
@@ -487,13 +485,13 @@ function createUserModalHtml() {
 
       <fieldset class="admin-user-role-fieldset">
         <legend>Roles</legend>
-        <p>Choose one or more roles. Combined roles grant the access of each selected role.</p>
+        <p>Selected roles combine access.</p>
         <div class="admin-user-role-choices">${roleChoices(['viewer'])}</div>
       </fieldset>
 
       <fieldset class="admin-user-password-fields">
         <legend>Temporary password</legend>
-        <p>The user must change this password immediately when they first sign in, before MFA setup.</p>
+        <p>Change required at first sign-in.</p>
         <div class="admin-user-form-grid">
           <label>
             <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
@@ -506,7 +504,7 @@ function createUserModalHtml() {
         </div>
       </fieldset>
 
-      <p class="admin-detail-note">No email will be sent. Hand the sign-in email and temporary password to the new user through another secure method.</p>
+      <p class="admin-detail-note">No email is sent. Share the sign-in email and temporary password securely.</p>
       <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
       <div class="admin-action-buttons admin-modal-actions">
         <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>
@@ -548,8 +546,8 @@ function editUserModalHtml(user, state) {
       <fieldset class="admin-user-role-fieldset admin-user-modal-section">
         <legend>Roles</legend>
         <p>${isCurrentUser
-          ? 'Your roles are shown here and can be changed by another Owner.'
-          : 'Choose one or more roles. At least one active Owner must remain.'}</p>
+          ? 'Another Owner can change your roles.'
+          : 'Keep at least one active Owner.'}</p>
         <div class="admin-user-role-choices">${roleChoices(user.roles, isCurrentUser)}</div>
       </fieldset>
 
@@ -565,8 +563,8 @@ function editUserModalHtml(user, state) {
         <div>
           <h3 id="user-password-title">Temporary password</h3>
           <p>${isCurrentUser
-            ? 'Your own password is managed from the Account page.'
-            : 'Set a new temporary password and require a change at the user’s next sign-in.'}</p>
+            ? 'Change your password in Account.'
+            : 'Change required at next sign-in.'}</p>
         </div>
         ${user.mustChangePassword
           ? '<span class="admin-status-pill" data-status="warning">Change required</span>'
@@ -593,9 +591,7 @@ function editUserModalHtml(user, state) {
     <section class="admin-user-modal-section admin-user-access-section" aria-labelledby="user-access-title">
       <div>
         <h3 id="user-access-title">Account access</h3>
-        <p>${user.isActive
-          ? 'Disable access without deleting this user or their role assignments.'
-          : 'Enable this account so the user can sign in again.'}</p>
+        ${user.isActive ? '<p>Profile and roles stay saved.</p>' : ''}
       </div>
       <button
         class="admin-button ${user.isActive ? 'admin-button-danger' : 'admin-button-secondary'}"
@@ -629,7 +625,7 @@ function missingUserModalHtml() {
   return `
     ${modalHeader('User not found', '', 'Close user')}
     <div class="admin-empty-state admin-empty-state-compact" role="alert">
-      <p>This user may have been removed or is no longer available.</p>
+      <p>This user is unavailable.</p>
       <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
     </div>
   `;

@@ -1,6 +1,6 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
 import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261004-2';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261004-5';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261007-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -337,10 +337,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
         '<title>Invoice PDF</title><style>' +
         ':root{color-scheme:light;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f5f6f8}' +
-        '*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:clamp(16px,4vw,40px);display:grid;place-items:start center;background:#f5f6f8}' +
-        '.paper{width:min(100%,760px);min-height:920px;padding:clamp(28px,7vw,72px);display:grid;align-content:start;gap:24px;border:1px solid #d9dee7;border-radius:8px;background:#fff;box-shadow:0 16px 44px rgb(16 24 40 / 10%)}' +
-        '.row{display:grid;gap:10px}.split{grid-template-columns:1.15fr .85fr;gap:32px}.line,.block{display:block;border-radius:5px;background:#e5e8ed;animation:pulse 1.9s ease-in-out infinite}.line{height:12px}.short{width:30%}.medium{width:55%}.wide{width:82%}.title{width:44%;height:26px}.block{height:190px;margin-top:20px}' +
-        '@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}@media(max-width:560px){.paper{min-height:780px}.split{grid-template-columns:1fr}}@media(prefers-reduced-motion:reduce){.line,.block{animation:none;opacity:.7}}' +
+        '*{box-sizing:border-box}body{margin:0;min-height:100vh;padding:clamp(16px,3vw,24px);display:grid;place-items:start center;background:#f5f6f8}' +
+        '.paper{width:min(100%,760px);min-height:760px;padding:clamp(24px,5vw,48px);display:grid;align-content:start;gap:18px;border:1px solid #d9dee7;border-radius:10px;background:#fff;box-shadow:0 8px 24px rgb(16 24 40 / 8%)}' +
+        '.row{display:grid;gap:8px}.split{grid-template-columns:1.15fr .85fr;gap:24px}.line,.block{display:block;border-radius:4px;background:#e5e8ed;animation:pulse 1.9s ease-in-out infinite}.line{height:12px}.short{width:30%}.medium{width:55%}.wide{width:82%}.title{width:44%;height:26px}.block{height:160px;margin-top:12px}' +
+        '@keyframes pulse{0%,100%{opacity:.45}50%{opacity:1}}@media(max-width:560px){.paper{min-height:620px}.split{grid-template-columns:1fr}}@media(prefers-color-scheme:dark){:root,body{background:#111315}.paper{border-color:#383d45;box-shadow:0 8px 24px rgb(0 0 0 / 25%)}}@media(prefers-reduced-motion:reduce){.line,.block{animation:none;opacity:.7}}' +
         '</style></head><body><main class="paper" role="status" aria-label="Loading invoice PDF"><div class="row"><span class="line title"></span><span class="line medium"></span></div><div class="split"><div class="row"><span class="line short"></span><span class="line wide"></span><span class="line medium"></span></div><div class="row"><span class="line short"></span><span class="line wide"></span><span class="line medium"></span></div></div><span class="block"></span><div class="row"><span class="line wide"></span><span class="line wide"></span><span class="line medium"></span></div></main></body></html>'
       );
       pdfWindow.document.close();
@@ -379,6 +379,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!pageRoot) return;
     clearPageLoadError();
     pageRoot.dataset.loadState = 'error';
+    // A failed first load replaces the initial placeholders; they must not
+    // continue to imply that the page is still fetching data.
+    $all('[data-organization-invoice-loading], [data-organization-schedule-loading]', pageRoot)
+      .forEach(function (element) { element.hidden = true; });
+    $all('.admin-skeleton-row, .admin-skeleton-mini-item, .admin-calendar-skeleton, .admin-skeleton-stat, .admin-notifications-skeleton-filters', pageRoot)
+      .forEach(function (element) { element.remove(); });
+    $all('.admin-count', pageRoot).forEach(function (element) {
+      if ($('.admin-skeleton', element)) element.textContent = 'Unavailable';
+    });
+    $all('.admin-skeleton', pageRoot).forEach(function (element) { element.remove(); });
     if(state.page==='notifications') {
       var notificationContent=$('[data-notifications-content]');
       if(notificationContent) notificationContent.setAttribute('aria-busy','false');
@@ -2279,7 +2289,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function navigationIsMobile() {
     if (navigationMediaQuery) return Boolean(navigationMediaQuery.matches);
-    return Boolean(window.matchMedia && window.matchMedia('(max-width: 68.75rem)').matches);
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 60rem)').matches);
   }
 
   function setNavOpen(open, options) {
@@ -3520,7 +3530,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function calendarIsCompact() {
     if (calendarMediaQuery) return Boolean(calendarMediaQuery.matches);
-    return Boolean(window.matchMedia && window.matchMedia('(max-width: 820px)').matches);
+    return Boolean(window.matchMedia && window.matchMedia('(max-width: 820px), (pointer: coarse)').matches);
   }
 
   function applyCalendarLayout(calendar) {
@@ -3532,7 +3542,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function setupCalendarMedia() {
     if (!window.matchMedia || calendarMediaQuery) return;
-    calendarMediaQuery = window.matchMedia('(max-width: 820px)');
+    calendarMediaQuery = window.matchMedia('(max-width: 820px), (pointer: coarse)');
     var handleChange = function () {
       if (!viewIsLoaded(adminViewForPage(state.page))) return;
       renderCalendar();
@@ -4203,10 +4213,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     '</form>';
   }
 
-  function renderMarkBookingPaidForm() {
-    return '<p>Record actual receipts and refunds in the permanent payment section above.</p>';
-  }
-
   function renderBookingInvoiceActions(booking) {
     if (booking.status !== 'completed') return '';
     var invoice = activeInvoiceForBooking(booking.id);
@@ -4240,13 +4246,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     return '<div class="admin-detail-section">' +
-      '<h2>Invoice and payment</h2>' +
-      '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a billing action">' +
+      '<h2>Invoice</h2>' +
+      '<div class="admin-booking-decision-choices" role="group" aria-label="Invoice action">' +
         '<button class="admin-button admin-button-primary" type="button" data-booking-billing-choice="invoice" aria-controls="booking-billing-invoice-panel" aria-expanded="false">Create and send invoice</button>' +
-        '<button class="admin-button admin-button-secondary" type="button" data-booking-billing-choice="payment" aria-controls="booking-billing-payment-panel" aria-expanded="false">Payment history</button>' +
       '</div>' +
       '<div class="admin-booking-decision-panel" id="booking-billing-invoice-panel" data-booking-billing-panel="invoice" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
-      '<div class="admin-booking-decision-panel" id="booking-billing-payment-panel" data-booking-billing-panel="payment" hidden>' + renderMarkBookingPaidForm(booking) + '</div>' +
     '</div>';
   }
 
@@ -4832,7 +4836,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<h3 id="admin-customer-details-title">Customer details</h3>' +
         '<div class="admin-customer-overview-grid">' +
           '<div class="admin-customer-contact-list" aria-label="Contact details">' +
-            (contactDetails || '<p class="admin-customer-empty-copy">No phone number or email address is available.</p>') +
+            (contactDetails || '<p class="admin-customer-empty-copy">No contact details.</p>') +
           '</div>' +
           '<div class="admin-detail-list admin-customer-profile-facts">' +
             detailRow('Language', customer.preferred_language) +
@@ -5244,7 +5248,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderCustomerEvents(events) {
-    if (!events.length) return '<p class="admin-customer-empty-copy">No reliable customer activity is available yet.</p>';
+    if (!events.length) return '<p class="admin-customer-empty-copy">No activity yet.</p>';
     return '<ol class="admin-customer-activity-list">' + events.map(function (event) {
       var title = event.title || recordedCustomerEventTitle(event.event_type);
       var actor = event.actor_name ? 'By ' + event.actor_name : '';
@@ -5742,7 +5746,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
                 '<span><strong>' + escapeHtml(recipient.recipient_email) + '</strong></span>' +
                 '<span>' + escapeHtml(recipientStatusText(recipient)) + '</span>' +
               '</div>';
-            }).join('') : '<div class="admin-empty-state admin-empty-state-compact"><p>No recipient records found for this campaign.</p></div>') +
+            }).join('') : '<div class="admin-empty-state admin-empty-state-compact"><p>No recipients recorded.</p></div>') +
           '</div>' +
         '</details>' +
         '<section class="admin-detail-section admin-field-wide">' +
@@ -5785,7 +5789,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<span class="admin-row-meta">' + escapeHtml(campaignDelivery) + '</span>' +
           '</button>';
         }).join('')
-        : emptyState('No marketing campaigns have been sent yet.');
+        : emptyState('No campaigns yet.');
 
       $all('[data-campaign-id]', campaigns).forEach(function (button) {
         button.addEventListener('click', function () {
@@ -8528,7 +8532,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var sidebar = $('#admin-sidebar');
     if (sidebar && !sidebar.hasAttribute('tabindex')) sidebar.setAttribute('tabindex', '-1');
     if (window.matchMedia) {
-      navigationMediaQuery = window.matchMedia('(max-width: 68.75rem)');
+      navigationMediaQuery = window.matchMedia('(max-width: 60rem)');
       var handleNavigationModeChange = function () {
         setNavOpen(false, { focus: false, restoreFocus: false });
       };
