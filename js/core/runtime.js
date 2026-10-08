@@ -1,5 +1,5 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-2';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-3';
 import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
@@ -4035,7 +4035,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
-      paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) +
+      (booking.status === 'confirmed' && !(operations.payment_entries || []).some(function (entry) { return entry.booking_id === booking.id; })
+        ? '' : paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'))) +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
@@ -4073,6 +4074,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
     });
     focusElement($('.admin-preview-close', modal));
+
+    var priceEditToggle = $('[data-price-edit-toggle]', modal);
+    if (priceEditToggle) {
+      var priceEditor = $('#booking-price-editor', modal);
+      priceEditToggle.addEventListener('click', function () {
+        var opening = priceEditor.hidden;
+        if (!opening && priceEditor.contains(document.activeElement)) priceEditToggle.focus();
+        priceEditor.hidden = !opening;
+        priceEditToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (opening) focusElement($('[name="serviceAmount"]', priceEditor));
+      });
+    }
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);

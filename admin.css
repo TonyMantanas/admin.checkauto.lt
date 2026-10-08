@@ -1062,6 +1062,11 @@ fieldset {
   mask-image: url("icons/plus.svg");
 }
 
+.admin-icon-pencil {
+  -webkit-mask-image: url("icons/pencil.svg");
+  mask-image: url("icons/pencil.svg");
+}
+
 .admin-icon-phone {
   -webkit-mask-image: url("icons/phone.svg");
   mask-image: url("icons/phone.svg");
@@ -9664,6 +9669,19 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-email-popover .admin-email-notification-list p { margin:0; color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
 .admin-booking-review-panel .admin-booking-assignee { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); overflow-wrap:anywhere; }
 .admin-booking-review-panel .admin-booking-assignee strong { color:var(--admin-text); font-weight:650; }
+.admin-agreed-price-heading { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+.admin-agreed-price-edit { flex:0 0 auto; border:0; border-radius:var(--admin-control-radius); color:var(--admin-text-secondary); background:transparent; cursor:pointer; }
+.admin-agreed-price-edit:hover, .admin-agreed-price-edit[aria-expanded="true"] { color:var(--admin-accent); background:var(--admin-surface-hover); }
+.admin-agreed-price-edit:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-agreed-price-summary { display:flex; align-items:baseline; flex-wrap:wrap; gap:.25rem .75rem; margin:0; }
+.admin-agreed-price-summary strong { font-size:var(--admin-text-lg); }
+.admin-agreed-price-summary span { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-agreed-price-editor { padding:.875rem; border:1px solid var(--admin-border); border-radius:var(--admin-panel-radius); background:var(--admin-surface-subtle); }
+.admin-agreed-price-editor .admin-action-form { gap:.75rem; }
+.admin-agreed-price-editor .admin-price-agreement { margin:0; }
+.admin-agreed-price-editor [data-price-total] { margin:.5rem 0 0; font-weight:650; }
+.admin-agreed-price-editor .admin-form-error:empty, .admin-agreed-price-editor [data-price-total]:empty { display:none; }
+.admin-agreed-price-editor .admin-action-form > button { justify-self:start; }
 .admin-booking-review-panel .admin-booking-overview-grid { grid-template-columns:minmax(0,1fr); gap:1rem; }
 .admin-booking-review-panel .admin-booking-primary-fact {
   padding:1rem 1.125rem;
