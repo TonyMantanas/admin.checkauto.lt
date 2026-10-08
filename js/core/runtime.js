@@ -4047,13 +4047,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var emailMenu = $('[data-booking-email-menu]', modal);
     var emailToggle = $('[data-booking-email-toggle]', emailMenu);
     var emailPopover = $('[data-booking-email-popover]', emailMenu);
-    var emailPinned = false;
     var showEmailStatus = function () {
       emailPopover.hidden = false;
       emailToggle.setAttribute('aria-expanded', 'true');
     };
     var hideEmailStatus = function () {
-      if (emailPinned) return;
       emailPopover.hidden = true;
       emailToggle.setAttribute('aria-expanded', 'false');
     };
@@ -4063,25 +4061,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     emailMenu.addEventListener('focusout', function (event) {
       if (!emailMenu.contains(event.relatedTarget)) hideEmailStatus();
     });
-    emailToggle.addEventListener('click', function () {
-      emailPinned = !emailPinned;
-      if (emailPinned) showEmailStatus();
-      else {
-        emailPopover.hidden = true;
-        emailToggle.setAttribute('aria-expanded', 'false');
-      }
-    });
+    emailToggle.addEventListener('click', showEmailStatus);
     modal.addEventListener('pointerdown', function (event) {
-      if (!emailMenu.contains(event.target)) {
-        emailPinned = false;
-        hideEmailStatus();
-      }
+      if (!emailMenu.contains(event.target)) hideEmailStatus();
     });
     emailMenu.addEventListener('keydown', function (event) {
       if (event.key === 'Escape' && !emailPopover.hidden) {
         event.preventDefault();
         event.stopPropagation();
-        emailPinned = false;
         hideEmailStatus();
       }
     });
