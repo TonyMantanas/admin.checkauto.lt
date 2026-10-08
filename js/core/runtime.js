@@ -1,5 +1,5 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-4';
+import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-5';
 import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
@@ -3957,6 +3957,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return detail ? detail.data : {...state.operationsState, detail_pending:true};
   }
 
+  function bindPaymentActions(modal) {
+    $all('[data-payment-action-choice]', modal).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var choice = button.dataset.paymentActionChoice;
+        var panel = $('[data-payment-action-panel="' + choice + '"]', modal);
+        var opening = panel.hidden;
+        if (!opening && panel.contains(document.activeElement)) button.focus();
+        $all('[data-payment-action-panel]', modal).forEach(function (item) {
+          item.hidden = !opening || item !== panel;
+        });
+        $all('[data-payment-action-choice]', modal).forEach(function (item) {
+          item.setAttribute('aria-expanded', opening && item === button ? 'true' : 'false');
+        });
+        if (opening) focusElement($('select, input:not([type="hidden"]), textarea, button', panel));
+      });
+    });
+  }
+
   function renderBookingModal(booking) {
     var operations=bookingOperations(booking.id);
     var assigned = staffById(booking.assigned_to_staff_id);
@@ -4042,8 +4060,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
-      (booking.status === 'confirmed' && !(operations.payment_entries || []).some(function (entry) { return entry.booking_id === booking.id; })
-        ? '' : paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true)) +
+      (invoicesForBooking(booking.id).some(function (invoice) { return invoiceDeliveredToClient(invoice, operations); })
+        ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
@@ -4098,21 +4116,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
     }
 
-    $all('[data-payment-action-choice]', modal).forEach(function (button) {
-      button.addEventListener('click', function () {
-        var choice = button.dataset.paymentActionChoice;
-        var panel = $('[data-payment-action-panel="' + choice + '"]', modal);
-        var opening = panel.hidden;
-        if (!opening && panel.contains(document.activeElement)) button.focus();
-        $all('[data-payment-action-panel]', modal).forEach(function (item) {
-          item.hidden = !opening || item !== panel;
-        });
-        $all('[data-payment-action-choice]', modal).forEach(function (item) {
-          item.setAttribute('aria-expanded', opening && item === button ? 'true' : 'false');
-        });
-        if (opening) focusElement($('select, input:not([type="hidden"]), textarea', panel));
-      });
-    });
+    bindPaymentActions(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
@@ -5715,7 +5719,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (invoice.last_email_error
         ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
         : '') +
-      (booking ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) + communicationSection(booking, operations) : '<p>Open the linked booking to review its payment ledger.</p>') +
+      (booking ? (invoiceDeliveredToClient(invoice, operations) ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') + communicationSection(booking, operations) : '<p>Open the linked booking to review its payment ledger.</p>') +
       '<details class="admin-detail-section admin-disclosure">' +
         '<summary>Invoice record details</summary>' +
         '<div class="admin-detail-list">' +
@@ -5739,6 +5743,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var modal = openModal(html, 'lg');
     renderInvoiceList();
+    bindPriceTotals(modal); installTimeChoices(modal); bindPaymentActions(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);

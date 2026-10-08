@@ -1082,6 +1082,11 @@ fieldset {
   mask-image: url("icons/refund.svg");
 }
 
+.admin-icon-history {
+  -webkit-mask-image: url("icons/history.svg");
+  mask-image: url("icons/history.svg");
+}
+
 .admin-icon-send {
   -webkit-mask-image: url("icons/send.svg");
   mask-image: url("icons/send.svg");
@@ -9704,6 +9709,7 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-payment-editor .admin-action-form > button { justify-self:start; }
 .admin-payment-editor .admin-form-error:empty { display:none; }
 .admin-payment-history { margin-block-start:.75rem; }
+.admin-payment-history .admin-mini-item + .admin-mini-item { margin-block-start:.75rem; padding-block-start:.75rem; border-block-start:1px solid var(--admin-border); }
 @media (max-width: 520px) {
   .admin-payment-heading { align-items:flex-start; flex-wrap:wrap; }
   .admin-payment-heading h2 { font-size:var(--admin-text-lg); }
