@@ -1077,6 +1077,11 @@ fieldset {
   mask-image: url("icons/refresh.svg");
 }
 
+.admin-icon-refund {
+  -webkit-mask-image: url("icons/refund.svg");
+  mask-image: url("icons/refund.svg");
+}
+
 .admin-icon-send {
   -webkit-mask-image: url("icons/send.svg");
   mask-image: url("icons/send.svg");
@@ -9682,6 +9687,29 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-agreed-price-editor [data-price-total] { margin:.5rem 0 0; font-weight:650; }
 .admin-agreed-price-editor .admin-form-error:empty, .admin-agreed-price-editor [data-price-total]:empty { display:none; }
 .admin-agreed-price-editor .admin-action-form > button { justify-self:start; }
+.admin-payment-heading { display:flex; align-items:center; justify-content:space-between; gap:.5rem; }
+.admin-payment-heading h2 { margin:0; }
+.admin-payment-actions { display:flex; align-items:center; gap:.125rem; flex:0 0 auto; }
+.admin-payment-action { border:0; border-radius:var(--admin-control-radius); color:var(--admin-text-secondary); background:transparent; cursor:pointer; }
+.admin-payment-action:hover, .admin-payment-action[aria-expanded="true"] { color:var(--admin-accent); background:var(--admin-surface-hover); }
+.admin-payment-action:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-payment-summary { display:flex; flex-wrap:wrap; gap:.35rem 1.25rem; color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-payment-summary span { white-space:nowrap; }
+.admin-payment-summary strong { color:var(--admin-text); }
+.admin-payment-alert { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-payment-editor { padding:.875rem; border:1px solid var(--admin-border); border-radius:var(--admin-panel-radius); background:var(--admin-surface-subtle); }
+.admin-payment-editor[hidden] { display:none; }
+.admin-payment-editor h3 { margin:0 0 .75rem; }
+.admin-payment-editor .admin-action-form { gap:.75rem; }
+.admin-payment-editor .admin-action-form > button { justify-self:start; }
+.admin-payment-editor .admin-form-error:empty { display:none; }
+.admin-payment-history { margin-block-start:.75rem; }
+@media (max-width: 520px) {
+  .admin-payment-heading { align-items:flex-start; flex-wrap:wrap; }
+  .admin-payment-heading h2 { font-size:var(--admin-text-lg); }
+  .admin-payment-actions { margin-inline-start:auto; }
+  .admin-payment-summary span { white-space:normal; }
+}
 .admin-booking-review-panel .admin-booking-overview-grid { grid-template-columns:minmax(0,1fr); gap:1rem; }
 .admin-booking-review-panel .admin-booking-primary-fact {
   position:relative;
