@@ -492,6 +492,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return formatDateTime(start) + ' - ' + formatDateTime(end);
   }
 
+  function formatReviewRange(start, end) {
+    if (!start || !end) return 'Not provided';
+    var friendlyDate = function (value) {
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: TIME_ZONE, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
+      }).format(new Date(value));
+    };
+    return friendlyDate(start) + ' · ' + formatTime(start) + '–' +
+      (formatDate(start) === formatDate(end) ? formatTime(end) : friendlyDate(end) + ' ' + formatTime(end));
+  }
+
   function expiryDurationLabel(remainingMs) {
     if (remainingMs <= 0) return '';
     var totalMinutes = Math.max(1, Math.ceil(remainingMs / (60 * 1000)));
@@ -3950,9 +3961,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var operations=bookingOperations(booking.id);
     var assigned = staffById(booking.assigned_to_staff_id);
     var requested = formatRange(booking.requested_start_at, booking.requested_end_at);
-    var finalTime = booking.final_start_at ? formatRange(booking.final_start_at, booking.final_end_at) : 'Not confirmed yet';
     var reviewTimeLabel = booking.final_start_at ? 'Scheduled time' : 'Requested time';
-    var reviewTime = booking.final_start_at ? finalTime : requested;
+    var reviewTime = booking.final_start_at
+      ? formatReviewRange(booking.final_start_at, booking.final_end_at)
+      : formatReviewRange(booking.requested_start_at, booking.requested_end_at);
     var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(booking.vehicle_location || '');
     var customer = customerForBooking(booking);
     var vehicleActions =
@@ -3962,32 +3974,28 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (booking.listing_url
         ? '<a class="admin-context-action" href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">' + ICON_EXTERNAL + '<span>Open listing</span></a>'
         : '');
-    var customerActions =
+    var customerContact =
       (booking.customer_phone
-        ? '<a class="admin-context-action" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>Call</span></a>'
-        : '') +
+        ? '<a class="admin-booking-contact-link" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(booking.customer_phone) + '</span></a>'
+        : '<span>Phone not provided</span>') +
       (booking.customer_email
-        ? '<a class="admin-context-action" href="mailto:' + escapeHtml(booking.customer_email) + '">' + ICON_EMAIL + '<span>Email</span></a>'
-        : '') +
-      (customer
-        ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
-        : '');
+        ? '<a class="admin-booking-contact-link" href="mailto:' + escapeHtml(booking.customer_email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(booking.customer_email) + '</span></a>'
+        : '<span>Email not provided</span>');
 
     var html =
       '<div class="admin-modal-header">' +
         '<div>' +
           '<div class="admin-booking-modal-title">' +
             '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
-            expiryCountdownHtml(booking, 'header') +
           '</div>' +
           '<div class="admin-modal-status-line">' +
             '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
+            expiryCountdownHtml(booking, 'compact') +
           '</div>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<section class="admin-detail-section admin-booking-overview">' +
-        '<h3>Booking details</h3>' +
+      '<section class="admin-detail-section admin-booking-overview" aria-label="Booking details">' +
         '<div class="admin-booking-overview-grid">' +
           '<div class="admin-booking-primary-fact">' +
             '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
@@ -3996,17 +4004,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</div>' +
           '<div class="admin-booking-key-facts">' +
             '<div class="admin-booking-key-fact">' +
+              '<span>Client</span>' +
+              '<strong>' + escapeHtml(booking.customer_name || 'Not provided') + '</strong>' +
+              '<div class="admin-booking-contact-lines">' + customerContact + '</div>' +
+              (customer ? '<div class="admin-context-actions"><button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>View profile</span></button></div>' : '') +
+            '</div>' +
+            '<div class="admin-booking-key-fact">' +
               '<span>Vehicle</span>' +
               '<strong>' + escapeHtml(booking.vehicle || 'Not provided') + '</strong>' +
               '<span>' + escapeHtml(booking.vehicle_location || 'Location not provided') + '</span>' +
               (vehicleActions ? '<div class="admin-context-actions">' + vehicleActions + '</div>' : '') +
-            '</div>' +
-            '<div class="admin-booking-key-fact">' +
-              '<span>Customer</span>' +
-              '<strong>' + escapeHtml(booking.customer_name || 'Not provided') + '</strong>' +
-              '<span>' + escapeHtml(booking.customer_phone || 'Phone not provided') + '</span>' +
-              '<span>' + escapeHtml(booking.customer_email || 'Email not provided') + '</span>' +
-              (customerActions ? '<div class="admin-context-actions">' + customerActions + '</div>' : '') +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -4016,16 +4023,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           (booking.pending_expires_at && booking.status !== 'pending' ? '<span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
         '</div>' +
       '</section>' +
+      (booking.customer_message
+        ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
+        : '') +
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
       paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
-      (booking.customer_message
-        ? '<div class="admin-detail-section admin-booking-note"><h3>Customer note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
-        : '') +
       (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '') +
       communicationSection(booking, operations);
 
     var modal = openModal(html, 'lg');
+    $('.admin-modal-panel', modal).classList.add('admin-booking-review-panel');
     bindPriceTotals(modal); installTimeChoices(modal);
     updateExpiryCountdowns();
 
