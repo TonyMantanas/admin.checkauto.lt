@@ -4116,6 +4116,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
     }
 
+    var invoiceCreateToggle = $('[data-invoice-create-toggle]', modal);
+    if (invoiceCreateToggle) {
+      var invoiceEditor = $('#booking-invoice-editor', modal);
+      invoiceCreateToggle.addEventListener('click', function () {
+        var opening = invoiceEditor.hidden;
+        if (!opening && invoiceEditor.contains(document.activeElement)) invoiceCreateToggle.focus();
+        invoiceEditor.hidden = !opening;
+        invoiceCreateToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+        if (opening) focusElement($('[name="dueDate"]', invoiceEditor));
+      });
+    }
+
     bindPaymentActions(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
@@ -4137,39 +4149,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         focusElement(activePanel && $('select, input:not([type="hidden"]), textarea, button[type="submit"]', activePanel));
       });
     });
-
-    $all('[data-booking-billing-choice]', modal).forEach(function (button) {
-      button.addEventListener('click', function () {
-        var choice = button.dataset.bookingBillingChoice;
-        $all('[data-booking-billing-choice]', modal).forEach(function (item) {
-          var selected = item === button;
-          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
-          setPressed(item, selected);
-        });
-        $all('[data-booking-billing-panel]', modal).forEach(function (panel) {
-          panel.hidden = panel.dataset.bookingBillingPanel !== choice;
-        });
-        var activePanel = $('[data-booking-billing-panel="' + escapeSelectorValue(choice) + '"]', modal);
-        focusElement(activePanel && $('input:not([type="hidden"]), select, textarea, button[type="submit"]', activePanel));
-      });
-    });
-
-    var optionalDueDate = $('[data-optional-due-date]', modal);
-    if (optionalDueDate) {
-      var dueToggle = $('input[name="hasDueDate"]', optionalDueDate);
-      var dueInput = $('input[name="dueDate"]', optionalDueDate);
-      var dueField = $('[data-due-date-field]', optionalDueDate);
-      var dueRequiredMarker = $('[data-due-date-required]', optionalDueDate);
-      var syncDueDate = function () {
-        if (!dueInput || !dueToggle) return;
-        dueInput.disabled = !dueToggle.checked;
-        dueInput.required = dueToggle.checked;
-        if (dueField) dueField.classList.toggle('is-disabled', !dueToggle.checked);
-        if (dueRequiredMarker) dueRequiredMarker.hidden = !dueToggle.checked;
-      };
-      if (dueToggle) dueToggle.addEventListener('change', syncDueDate);
-      syncDueDate();
-    }
 
     var vatMode = $('select[name="vatMode"]', modal);
     var vatRateField = $('[data-vat-rate-field]', modal);
@@ -4271,6 +4250,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       ? readiness.missing_fields.join(', ')
       : '';
     var canOpenOrganization = staffCanAccessPage(state.staff, 'organization');
+    var invoiceAmount = defaultInvoiceAmount(booking);
     var setupMessage = setupBlocked
       ? '<div class="admin-invoice-settings-warning" role="alert">' +
           '<div><strong>Invoice setup is incomplete</strong>' +
@@ -4282,21 +4262,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       : '';
     return '<form class="admin-action-form admin-invoice-create-form" data-admin-action-form data-action="createAndSendInvoice">' +
       hiddenInput('bookingId', booking.id) +
+      hiddenInput('amount', invoiceAmount) +
       setupMessage +
       (!currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id) ? '<p role="alert">Record the customer agreement first.</p>' : '') +
-      '<div class="admin-action-grid">' +
-        '<label><span class="admin-field-label">Amount <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="amount" type="text" inputmode="decimal" readonly required value="' + escapeHtml(defaultInvoiceAmount(booking)) + '" placeholder="100.00"></label>' +
-        '<div class="admin-optional-date-field" data-optional-due-date>' +
-          '<label class="admin-checkbox-row"><input name="hasDueDate" type="checkbox" checked><span>Include a due date</span></label>' +
-          '<label data-due-date-field><span class="admin-field-label">Due date <span class="admin-required-marker" data-due-date-required aria-hidden="true">*</span></span><input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
-        '</div>' +
+      '<div class="admin-invoice-form-main">' +
+        '<div class="admin-invoice-total"><span>Invoice total</span><strong>' + escapeHtml(invoiceAmount ? formatMoney(Math.round(Number(invoiceAmount) * 100), 'EUR') : '—') + '</strong></div>' +
+        '<label><span class="admin-field-label">Due date <span class="admin-optional-label">(optional)</span></span><input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
       '</div>' +
-      '<div class="admin-action-grid">' +
-        '<label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
-        '<label data-vat-rate-field hidden><span class="admin-field-label">VAT rate % <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label>' +
+      '<div class="admin-invoice-form-fields">' +
+        '<div class="admin-invoice-tax-fields"><label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
+          '<label data-vat-rate-field hidden><span class="admin-field-label">VAT rate % <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label></div>' +
+        '<label>Service description<input name="serviceDescription" type="text" maxlength="300" value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
       '</div>' +
-      '<label>Service description<input name="serviceDescription" type="text" maxlength="300" value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
-      '<label>Customer billing details<textarea name="billingDetails" rows="3" maxlength="1000" placeholder="Billing address, company code, VAT code..."></textarea></label>' +
+      '<details class="admin-disclosure admin-invoice-billing-details"><summary>Billing details <span>(optional)</span></summary><textarea name="billingDetails" rows="2" maxlength="1000" aria-label="Customer billing details" placeholder="Address, company or VAT details"></textarea></details>' +
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit"' + (setupBlocked ? ' disabled title="Complete invoice settings on the Organization page first."' : '') + '>Create and send invoice</button></div>' +
     '</form>';
@@ -4334,13 +4312,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</div>';
     }
 
-    return '<div class="admin-detail-section">' +
-      '<h2>Invoice</h2>' +
-      '<div class="admin-booking-decision-choices" role="group" aria-label="Invoice action">' +
-        '<button class="admin-button admin-button-primary" type="button" data-booking-billing-choice="invoice" aria-controls="booking-billing-invoice-panel" aria-expanded="false">Create and send invoice</button>' +
-      '</div>' +
-      '<div class="admin-booking-decision-panel" id="booking-billing-invoice-panel" data-booking-billing-panel="invoice" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
-    '</div>';
+    return '<section class="admin-detail-section admin-booking-invoice-section">' +
+      '<div class="admin-booking-invoice-heading"><h2>Invoice</h2><button class="admin-icon-button admin-invoice-create-toggle" type="button" data-invoice-create-toggle aria-label="Create invoice" title="Create invoice" aria-expanded="false" aria-controls="booking-invoice-editor"><span class="admin-icon admin-icon-plus" aria-hidden="true"></span></button></div>' +
+      '<div class="admin-invoice-editor" id="booking-invoice-editor" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
+    '</section>';
   }
 
   function renderRequestActions(booking) {
@@ -6338,13 +6313,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (action === 'createAndSendInvoice') {
       var amount = String(data.get('amount') || '').replace(',', '.').trim();
-      var hasDueDate = data.get('hasDueDate') === 'on';
-      var dueDate = hasDueDate ? String(data.get('dueDate') || '').trim() : '';
+      var dueDate = String(data.get('dueDate') || '').trim();
       if (!/^\d+(\.\d{1,2})?$/.test(amount) || Number(amount) <= 0) {
-        showFieldError(errorEl, 'Use a valid amount, for example 100.00.', form.elements.amount);
+        showFieldError(errorEl, 'An invoice needs a positive agreed total.');
         return;
       }
-      if (hasDueDate && (!isValidYmd(dueDate) || compareYmd(dueDate, todayYmd()) < 0)) {
+      if (dueDate && (!isValidYmd(dueDate) || compareYmd(dueDate, todayYmd()) < 0)) {
         showFieldError(errorEl, 'Use a due date in YYYY-MM-DD format. It cannot be in the past.', form.elements.dueDate);
         return;
       }

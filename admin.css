@@ -3465,10 +3465,51 @@ a.admin-dashboard-operation:focus-visible {
 
 .admin-invoice-create-form {
   max-width: 44rem;
+  gap: .75rem;
 }
 
-.admin-invoice-create-form textarea {
-  min-height: 5.25rem;
+.admin-booking-invoice-heading { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+.admin-booking-invoice-heading h2 { margin:0; }
+.admin-invoice-create-toggle { flex:0 0 auto; border:0; border-radius:var(--admin-control-radius); color:var(--admin-text-secondary); background:transparent; cursor:pointer; }
+.admin-invoice-create-toggle:hover, .admin-invoice-create-toggle[aria-expanded="true"] { color:var(--admin-accent); background:var(--admin-surface-hover); }
+.admin-invoice-create-toggle:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-invoice-editor[hidden] { display:none; }
+.admin-invoice-form-main,
+.admin-invoice-form-fields {
+  min-width:0;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:end;
+  gap:.75rem;
+}
+.admin-invoice-form-fields { grid-template-columns:minmax(10rem,.6fr) minmax(0,1.4fr); }
+.admin-invoice-tax-fields { min-width:0; display:grid; gap:.75rem; }
+.admin-invoice-total {
+  min-height:4.1rem;
+  padding:.5rem .75rem;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:.125rem;
+  border:1px solid var(--admin-border);
+  border-radius:var(--admin-control-radius);
+  background:var(--admin-surface-subtle);
+}
+.admin-invoice-total span,
+.admin-optional-label { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); font-weight:500; }
+.admin-invoice-total strong { font-size:var(--admin-text-lg); line-height:1.2; }
+.admin-invoice-billing-details { border-block-start:0; }
+.admin-invoice-billing-details > summary { font-weight:600; }
+.admin-invoice-billing-details > summary span { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); font-weight:500; }
+.admin-invoice-billing-details textarea { margin-block:.5rem .75rem; min-height:4rem; }
+.admin-invoice-create-form .admin-form-error:empty { display:none; }
+.admin-invoice-create-form .admin-action-buttons { margin-block-start:.25rem; justify-content:flex-start; }
+@media (max-width:40rem) {
+  .admin-invoice-form-main,
+  .admin-invoice-form-fields { grid-template-columns:minmax(0,1fr); }
+}
+@media (pointer:coarse) {
+  .admin-invoice-create-toggle { width:2.75rem; min-width:2.75rem; height:2.75rem; min-height:2.75rem; }
 }
 
 .admin-invoice-settings-warning {
@@ -9770,6 +9811,7 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-review-panel .admin-booking-decision-panel { padding:.875rem 1rem; }
 .admin-booking-review-panel .admin-booking-decision-panel .admin-action-form { gap:.625rem; }
 .admin-booking-review-panel .admin-booking-decision-panel .admin-action-buttons { margin-block-start:.25rem; }
+.admin-booking-review-panel .admin-invoice-create-form .admin-action-buttons { margin-block-start:.25rem; }
 .admin-booking-review-panel .admin-booking-decision-panel .admin-form-error:empty { display:none; }
 .admin-booking-time-fields { grid-template-columns:minmax(0,1.35fr) repeat(2,minmax(0,1fr)); gap:.625rem; }
 .admin-booking-confirm-panel .admin-price-agreement { margin:0; }
