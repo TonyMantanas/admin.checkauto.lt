@@ -3960,7 +3960,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderBookingModal(booking) {
     var operations=bookingOperations(booking.id);
     var assigned = staffById(booking.assigned_to_staff_id);
-    var requested = formatRange(booking.requested_start_at, booking.requested_end_at);
+    var timeChanged = booking.status === 'confirmed' && booking.final_start_at && booking.final_end_at &&
+      booking.requested_start_at && booking.requested_end_at &&
+      (new Date(booking.final_start_at).getTime() !== new Date(booking.requested_start_at).getTime() ||
+        new Date(booking.final_end_at).getTime() !== new Date(booking.requested_end_at).getTime());
+    var requested = timeChanged ? formatReviewRange(booking.requested_start_at, booking.requested_end_at) : '';
     var reviewTimeLabel = booking.final_start_at ? 'Scheduled time' : 'Requested time';
     var reviewTime = booking.final_start_at
       ? formatReviewRange(booking.final_start_at, booking.final_end_at)
@@ -4007,7 +4011,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<section class="admin-detail-section admin-booking-overview" aria-label="Booking details">' +
         '<div class="admin-booking-overview-grid">' +
           '<div class="admin-booking-primary-fact">' +
-            '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
+            '<div class="admin-booking-time-heading">' +
+              '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
+              (timeChanged ? '<div class="admin-booking-time-info" data-booking-time-info>' +
+                '<button class="admin-icon-button admin-booking-time-info-toggle" type="button" data-booking-time-toggle aria-label="Originally requested: ' + escapeHtml(requested) + '" aria-expanded="false" aria-controls="booking-original-time">' + ICON_INFO + '</button>' +
+                '<div class="admin-booking-time-popover" id="booking-original-time" data-booking-time-popover hidden><strong>Originally requested</strong><span>' + escapeHtml(requested) + '</span></div>' +
+              '</div>' : '') +
+            '</div>' +
             '<strong>' + escapeHtml(reviewTime) + '</strong>' +
             '<span>' + escapeHtml(serviceNameForBooking(booking)) + '</span>' +
           '</div>' +
@@ -4026,10 +4036,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '</div>' +
           '</div>' +
         '</div>' +
-        ((booking.final_start_at || (booking.pending_expires_at && booking.status !== 'pending')) ? '<div class="admin-booking-overview-meta">' +
-          (booking.final_start_at ? '<span>Originally requested: <strong>' + escapeHtml(requested) + '</strong></span>' : '') +
-          (booking.pending_expires_at && booking.status !== 'pending' ? '<span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
-        '</div>' : '') +
+        (booking.pending_expires_at && booking.status !== 'pending' ? '<div class="admin-booking-overview-meta"><span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span></div>' : '') +
       '</section>' +
       (booking.customer_message
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
@@ -4045,34 +4052,38 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     bindPriceTotals(modal); installTimeChoices(modal);
     updateExpiryCountdowns();
 
+    var bindHoverInfo = function (menu, toggle, popover) {
+      if (!menu || !toggle || !popover) return;
+      var show = function () {
+        popover.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+      };
+      var hide = function () {
+        popover.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+      };
+      menu.addEventListener('mouseenter', show);
+      menu.addEventListener('mouseleave', hide);
+      menu.addEventListener('focusin', show);
+      menu.addEventListener('focusout', function (event) {
+        if (!menu.contains(event.relatedTarget)) hide();
+      });
+      toggle.addEventListener('click', show);
+      modal.addEventListener('pointerdown', function (event) {
+        if (!menu.contains(event.target)) hide();
+      });
+      menu.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !popover.hidden) {
+          event.preventDefault();
+          event.stopPropagation();
+          hide();
+        }
+      });
+    };
     var emailMenu = $('[data-booking-email-menu]', modal);
-    var emailToggle = $('[data-booking-email-toggle]', emailMenu);
-    var emailPopover = $('[data-booking-email-popover]', emailMenu);
-    var showEmailStatus = function () {
-      emailPopover.hidden = false;
-      emailToggle.setAttribute('aria-expanded', 'true');
-    };
-    var hideEmailStatus = function () {
-      emailPopover.hidden = true;
-      emailToggle.setAttribute('aria-expanded', 'false');
-    };
-    emailMenu.addEventListener('mouseenter', showEmailStatus);
-    emailMenu.addEventListener('mouseleave', hideEmailStatus);
-    emailMenu.addEventListener('focusin', showEmailStatus);
-    emailMenu.addEventListener('focusout', function (event) {
-      if (!emailMenu.contains(event.relatedTarget)) hideEmailStatus();
-    });
-    emailToggle.addEventListener('click', showEmailStatus);
-    modal.addEventListener('pointerdown', function (event) {
-      if (!emailMenu.contains(event.target)) hideEmailStatus();
-    });
-    emailMenu.addEventListener('keydown', function (event) {
-      if (event.key === 'Escape' && !emailPopover.hidden) {
-        event.preventDefault();
-        event.stopPropagation();
-        hideEmailStatus();
-      }
-    });
+    bindHoverInfo(emailMenu, $('[data-booking-email-toggle]', emailMenu), $('[data-booking-email-popover]', emailMenu));
+    var timeInfo = $('[data-booking-time-info]', modal);
+    if (timeInfo) bindHoverInfo(timeInfo, $('[data-booking-time-toggle]', timeInfo), $('[data-booking-time-popover]', timeInfo));
     focusElement($('.admin-preview-close', modal));
 
     var priceEditToggle = $('[data-price-edit-toggle]', modal);
@@ -4363,16 +4374,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (booking.status === 'confirmed') {
       return '<div class="admin-detail-section admin-booking-decision">' +
-        '<h2>Actions</h2>' +
         '<div class="admin-action-buttons">' +
           '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>' +
           '<button class="admin-button admin-button-secondary" type="button" data-booking-cancellation-open>Cancel booking</button>' +
         '</div>' +
-        '<div class="admin-booking-cancellation-panel" data-booking-cancellation-panel hidden>' +
+        '<div class="admin-booking-cancellation-panel admin-booking-reject-panel" data-booking-cancellation-panel hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
             hiddenInput('bookingId', booking.id) +
-            '<label>Customer-visible cancellation reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label>Reason sent to client (optional)<textarea name="customerReason" maxlength="700"></textarea></label>' +
+            '<details class="admin-booking-optional-note"><summary>Private staff note <span>(optional)</span></summary><label>Private staff note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Confirm cancellation</button></div>' +
           '</form>' +

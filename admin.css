@@ -9684,9 +9684,19 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-agreed-price-editor .admin-action-form > button { justify-self:start; }
 .admin-booking-review-panel .admin-booking-overview-grid { grid-template-columns:minmax(0,1fr); gap:1rem; }
 .admin-booking-review-panel .admin-booking-primary-fact {
+  position:relative;
   padding:1rem 1.125rem;
   gap:.3rem;
 }
+.admin-booking-time-heading { display:flex; align-items:center; gap:.35rem; }
+.admin-booking-time-heading > span { color:var(--admin-text-tertiary); font-size:.6875rem; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+.admin-booking-time-info-toggle { width:2rem; min-width:2rem; height:2rem; min-height:2rem; border:0; border-radius:var(--admin-control-radius); color:var(--admin-text-tertiary); background:transparent; cursor:pointer; }
+.admin-booking-time-info-toggle:hover, .admin-booking-time-info-toggle[aria-expanded="true"] { color:var(--admin-text); }
+.admin-booking-time-info-toggle:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-booking-time-popover { position:absolute; z-index:3; inset-block-start:2.75rem; inset-inline-start:.75rem; width:max-content; max-width:calc(100% - 1.5rem); padding:.625rem .75rem; border:1px solid var(--admin-border); border-radius:var(--admin-control-radius); background:var(--admin-surface); box-shadow:var(--admin-shadow-popover); }
+.admin-booking-time-popover > * { display:block; overflow-wrap:anywhere; }
+.admin-booking-time-popover strong { margin-block-end:.2rem; font-size:var(--admin-text-xs); }
+.admin-booking-time-popover span { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
 .admin-booking-review-panel .admin-booking-primary-fact > strong { font-size:clamp(1.125rem,2.2vw,1.4rem); }
 .admin-booking-review-panel .admin-booking-primary-fact > span:last-child { font-weight:500; }
 .admin-booking-review-panel .admin-booking-key-facts { gap:1rem; }
@@ -9715,6 +9725,11 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-review-panel .admin-context-action:hover { border:0; background:transparent; text-decoration:underline; }
 .admin-booking-review-panel .admin-booking-overview-meta { margin-block-start:1rem; padding-block-start:.75rem; border-block-start:1px solid var(--admin-border); }
 .admin-booking-review-panel .admin-booking-decision { margin-inline:0; padding-inline:0; }
+.admin-booking-review-panel .admin-booking-decision > .admin-action-buttons { margin-block-start:0; }
+.admin-booking-review-panel .admin-booking-cancellation-panel { margin-block-start:.625rem; padding:.875rem 1rem; }
+.admin-booking-cancellation-panel .admin-action-form { gap:.625rem; }
+.admin-booking-cancellation-panel .admin-form-error:empty { display:none; }
+.admin-booking-review-panel .admin-booking-cancellation-panel .admin-action-buttons { margin-block-start:.25rem; }
 .admin-booking-review-panel .admin-booking-decision-choices { margin-block:.5rem .625rem; }
 .admin-booking-review-panel [data-booking-decision-choice][aria-pressed="true"] { color:var(--admin-on-accent); background:var(--admin-accent); border-color:var(--admin-accent); }
 .admin-booking-review-panel [data-booking-decision-choice="reject"][aria-pressed="true"] { color:var(--admin-danger); background:var(--admin-danger-soft); border-color:var(--admin-danger); }
@@ -9754,4 +9769,8 @@ details.admin-dashboard-staff[open] > summary::after {
 @media (max-width:30rem) {
   .admin-booking-time-fields { grid-template-columns:minmax(0,1fr); }
   .admin-booking-time-fields > :first-child { grid-column:auto; }
+}
+
+@media (pointer:coarse) {
+  .admin-booking-time-info-toggle { width:2.75rem; min-width:2.75rem; height:2.75rem; min-height:2.75rem; }
 }
