@@ -1,5 +1,5 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261008-1';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261009-1';
 import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
@@ -4271,20 +4271,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-controls="booking-decision-change-panel" aria-expanded="false">Change time</button>' +
           '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false">Reject</button>' +
         '</div>' +
-        '<div class="admin-booking-decision-panel" id="booking-decision-requested-panel" data-booking-decision-panel="requested" hidden>' +
+        '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-requested-panel" data-booking-decision-panel="requested" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
             hiddenInput('bookingId', booking.id) +
             hiddenInput('date', dateInputValue(booking.requested_start_at)) +
             hiddenInput('startTime', timeInputValue(booking.requested_start_at)) +
             hiddenInput('endTime', timeInputValue(booking.requested_end_at)) +
             '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id)) +
-            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id), false, true) +
+            '<details class="admin-booking-optional-note"><summary>Internal note <span>(optional)</span></summary><label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm requested time</button></div>' +
           '</form>' +
         '</div>' +
-        '<div class="admin-booking-decision-panel" id="booking-decision-change-panel" data-booking-decision-panel="change" hidden>' +
+        '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-change-panel" data-booking-decision-panel="change" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
             hiddenInput('bookingId', booking.id) +
             '<div class="admin-action-grid">' +
@@ -4293,8 +4293,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
               '<label><span class="admin-field-label">End <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
             '</div>' +
             '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id)) +
-            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id), false, true) +
+            '<details class="admin-booking-optional-note"><summary>Internal note <span>(optional)</span></summary><label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
           '</form>' +

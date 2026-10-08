@@ -9690,6 +9690,19 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-review-panel .admin-booking-overview-meta { margin-block-start:1rem; padding-block-start:.75rem; border-block-start:1px solid var(--admin-border); }
 .admin-booking-review-panel .admin-booking-decision { margin-inline:0; padding-inline:0; }
 .admin-booking-review-panel .admin-booking-decision-choices { margin-block:.75rem .25rem; }
+.admin-booking-review-panel .admin-booking-confirm-panel { padding:1rem; }
+.admin-booking-confirm-panel .admin-action-form { gap:.75rem; }
+.admin-booking-confirm-panel .admin-price-agreement { margin:0; }
+.admin-booking-confirm-panel .admin-price-agreement legend { margin-block-end:.625rem; }
+.admin-booking-confirm-panel [data-price-total] { margin:.5rem 0 0; font-weight:650; }
+.admin-booking-confirm-panel [data-price-total]:empty { display:none; }
+.admin-booking-confirm-panel .admin-checkbox-row { margin-block-start:.625rem; min-height:2.75rem; }
+.admin-booking-confirm-panel .admin-form-error:empty { display:none; }
+.admin-booking-optional-note > summary { min-height:2.75rem; display:flex; align-items:center; gap:.25rem; color:var(--admin-accent); cursor:pointer; }
+.admin-booking-optional-note > summary:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; border-radius:var(--admin-control-radius); }
+.admin-booking-optional-note > summary span { color:var(--admin-text-secondary); }
+.admin-booking-optional-note > label { margin-block-start:.5rem; }
+.admin-booking-confirm-panel .admin-booking-optional-note textarea { min-height:4rem; }
 .admin-booking-review-panel .admin-email-notifications { padding-block:.5rem; }
 
 @media (max-width:48rem) {
