@@ -4267,9 +4267,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<div class="admin-detail-section admin-booking-decision">' +
         '<h2>Review decision</h2>' +
         '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a booking decision">' +
-          '<button class="admin-button admin-button-primary" type="button" data-booking-decision-choice="requested" aria-controls="booking-decision-requested-panel" aria-expanded="false">Confirm requested time</button>' +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-controls="booking-decision-change-panel" aria-expanded="false">Change time</button>' +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false">Reject</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="requested" aria-controls="booking-decision-requested-panel" aria-expanded="false" aria-pressed="false">Confirm requested time</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-controls="booking-decision-change-panel" aria-expanded="false" aria-pressed="false">Change time</button>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false" aria-pressed="false">Reject</button>' +
         '</div>' +
         '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-requested-panel" data-booking-decision-panel="requested" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
@@ -4287,10 +4287,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-change-panel" data-booking-decision-panel="change" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
             hiddenInput('bookingId', booking.id) +
-            '<div class="admin-action-grid">' +
-              '<label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label><span class="admin-field-label">Start <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label><span class="admin-field-label">End <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
+            '<div class="admin-action-grid admin-booking-time-fields">' +
+              '<label><span class="admin-field-label">New date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label><span class="admin-field-label">From <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
+              '<label><span class="admin-field-label">To <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
             '</div>' +
             '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
             priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id), false, true) +
@@ -4299,11 +4299,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
           '</form>' +
         '</div>' +
-        '<div class="admin-booking-decision-panel" id="booking-decision-reject-panel" data-booking-decision-panel="reject" hidden>' +
+        '<div class="admin-booking-decision-panel admin-booking-reject-panel" id="booking-decision-reject-panel" data-booking-decision-panel="reject" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
             hiddenInput('bookingId', booking.id) +
-            '<label>Customer-visible reason<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+            '<label>Reason sent to client (optional)<textarea name="customerReason" maxlength="700"></textarea></label>' +
+            '<details class="admin-booking-optional-note"><summary>Private staff note <span>(optional)</span></summary><label>Private staff note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
             '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
             '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Reject booking</button></div>' +
           '</form>' +
