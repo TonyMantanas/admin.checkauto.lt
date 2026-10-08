@@ -9578,6 +9578,13 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-price-agreement legend { font-weight: 600; margin-bottom: .5rem; }
 .admin-price-agreement small, [data-dst-choice] small { display: block; line-height: 1.5; color: var(--admin-text-secondary); }
 .admin-detail-section .admin-disclosure .admin-action-form { padding-top: .75rem; }
+.admin-email-notifications { margin-block-start: .5rem; }
+.admin-email-notification-list { display:grid; gap:.5rem; padding:.125rem 0 .75rem; }
+.admin-email-notification { display:flex; align-items:center; justify-content:space-between; gap:.75rem; font-size:.875rem; }
+.admin-email-notification .admin-status-pill { text-transform:capitalize; }
+.admin-email-notification .admin-status-pill[data-status="success"] { color:var(--admin-success); background:var(--admin-success-soft); border-color:color-mix(in srgb, var(--admin-success) 26%, var(--admin-border)); }
+.admin-email-notification .admin-status-pill[data-status="warning"] { color:var(--admin-warning); background:var(--admin-warning-soft); border-color:color-mix(in srgb, var(--admin-warning) 26%, var(--admin-border)); }
+.admin-email-notification .admin-status-pill[data-status="error"] { color:var(--admin-danger); background:var(--admin-danger-soft); border-color:color-mix(in srgb, var(--admin-danger) 26%, var(--admin-border)); }
 .admin-notification-badge { margin-inline-start:auto; min-width:1.5rem; height:1.5rem; display:inline-grid; place-items:center; border-radius:999px; background:var(--admin-accent); color:var(--admin-on-accent); font-size:.75rem; font-weight:750; padding-inline:.375rem; }
 .admin-notifications-workspace { max-width:72rem; margin-inline:auto; }
 .admin-notifications-workspace > .admin-panel-header { padding:.5rem 0 .75rem; background:transparent; border:0; }

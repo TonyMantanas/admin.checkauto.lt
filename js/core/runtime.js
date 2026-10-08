@@ -1,6 +1,6 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261004-2';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261007-1';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261008-1';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -4017,13 +4017,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
       '</section>' +
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
-      communicationSection(booking, operations) +
       paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (booking.customer_message
         ? '<div class="admin-detail-section admin-booking-note"><h3>Customer note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
-      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
+      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '') +
+      communicationSection(booking, operations);
 
     var modal = openModal(html, 'lg');
     bindPriceTotals(modal); installTimeChoices(modal);
@@ -6182,11 +6182,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (['confirmBooking','recordAgreedPrice'].includes(action)) {
       payload.serviceAmountCents = moneyCents(data.get('serviceAmount'));
-      payload.travelAmountCents = moneyCents(data.get('travelAmount'));
+      payload.travelAmountCents = moneyCents(String(data.get('travelAmount') || '').trim() || '0');
       payload.customerAgreed = data.get('customerAgreed') === 'on';
       payload.priceReason = data.get('priceReason') || null;
       if (payload.serviceAmountCents === null || payload.travelAmountCents === null || !payload.customerAgreed) {
-        showFieldError(errorEl,'Enter both agreed amounts, including 0 travel, and confirm customer agreement.'); return;
+        showFieldError(errorEl,'Enter a valid service amount and optional travel fee, then confirm customer agreement.'); return;
       }
     }
     if (['recordPayment','recordRefund','correctPayment'].includes(action)) {

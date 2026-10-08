@@ -1,4 +1,4 @@
-import { esc, bindPriceTotals } from './reliability-ui.js?v=20261004-2';
+import { esc, bindPriceTotals } from './reliability-ui.js?v=20261008-1';
 import { PATHS } from './routes.js?v=20261004-2';
 import { ICONS } from './icons.js?v=20260802-1';
 
