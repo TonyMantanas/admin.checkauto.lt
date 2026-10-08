@@ -1,5 +1,5 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261009-1';
+import { currentAgreement, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-2';
 import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
@@ -3994,7 +3994,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</div>' +
           '<div class="admin-booking-assignee">Assigned to <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></div>' +
         '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
+        '<div class="admin-booking-header-actions">' +
+          '<div class="admin-booking-email-menu" data-booking-email-menu>' +
+            '<button class="admin-icon-button admin-booking-email-toggle" type="button" data-booking-email-toggle aria-label="Email notifications" aria-expanded="false" aria-controls="booking-email-status">' + ICON_EMAIL + '</button>' +
+            '<div class="admin-booking-email-popover" id="booking-email-status" data-booking-email-popover hidden>' +
+              '<strong>Email notifications</strong>' + communicationStatusList(booking, operations) +
+            '</div>' +
+          '</div>' +
+          '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
+        '</div>' +
       '</div>' +
       '<section class="admin-detail-section admin-booking-overview" aria-label="Booking details">' +
         '<div class="admin-booking-overview-grid">' +
@@ -4029,13 +4037,55 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
       paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage')) +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
-      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '') +
-      communicationSection(booking, operations);
+      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
     var modal = openModal(html, 'lg');
     $('.admin-modal-panel', modal).classList.add('admin-booking-review-panel');
     bindPriceTotals(modal); installTimeChoices(modal);
     updateExpiryCountdowns();
+
+    var emailMenu = $('[data-booking-email-menu]', modal);
+    var emailToggle = $('[data-booking-email-toggle]', emailMenu);
+    var emailPopover = $('[data-booking-email-popover]', emailMenu);
+    var emailPinned = false;
+    var showEmailStatus = function () {
+      emailPopover.hidden = false;
+      emailToggle.setAttribute('aria-expanded', 'true');
+    };
+    var hideEmailStatus = function () {
+      if (emailPinned) return;
+      emailPopover.hidden = true;
+      emailToggle.setAttribute('aria-expanded', 'false');
+    };
+    emailMenu.addEventListener('mouseenter', showEmailStatus);
+    emailMenu.addEventListener('mouseleave', hideEmailStatus);
+    emailMenu.addEventListener('focusin', showEmailStatus);
+    emailMenu.addEventListener('focusout', function (event) {
+      if (!emailMenu.contains(event.relatedTarget)) hideEmailStatus();
+    });
+    emailToggle.addEventListener('click', function () {
+      emailPinned = !emailPinned;
+      if (emailPinned) showEmailStatus();
+      else {
+        emailPopover.hidden = true;
+        emailToggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+    modal.addEventListener('pointerdown', function (event) {
+      if (!emailMenu.contains(event.target)) {
+        emailPinned = false;
+        hideEmailStatus();
+      }
+    });
+    emailMenu.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' && !emailPopover.hidden) {
+        event.preventDefault();
+        event.stopPropagation();
+        emailPinned = false;
+        hideEmailStatus();
+      }
+    });
+    focusElement($('.admin-preview-close', modal));
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);

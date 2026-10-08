@@ -9653,13 +9653,21 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-review-panel .admin-modal-header { margin-block-end:1rem; }
 .admin-booking-review-panel .admin-modal-header > div { gap:.4rem; }
 .admin-booking-review-panel .admin-modal-status-line { gap:.75rem; }
+.admin-booking-review-panel .admin-booking-header-actions { display:flex; align-items:flex-start; gap:.5rem; flex:0 0 auto; }
+.admin-booking-email-menu { position:relative; }
+.admin-booking-email-toggle { border:1px solid var(--admin-border); border-radius:var(--admin-control-radius); color:var(--admin-text-secondary); background:var(--admin-surface); cursor:pointer; }
+.admin-booking-email-toggle:hover, .admin-booking-email-toggle[aria-expanded="true"] { color:var(--admin-text); background:var(--admin-surface-hover); }
+.admin-booking-email-toggle:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-booking-email-popover { position:absolute; z-index:2; inset-block-start:calc(100% + .5rem); inset-inline-end:calc(-1 * (var(--admin-control-height) + .5rem)); width:min(18rem,calc(100vw - 3rem)); padding:.875rem; border:1px solid var(--admin-border); border-radius:var(--admin-panel-radius); background:var(--admin-surface); box-shadow:var(--admin-shadow-popover); }
+.admin-booking-email-popover > strong { display:block; margin-block-end:.625rem; font-size:var(--admin-text-sm); }
+.admin-booking-email-popover .admin-email-notification-list { padding:0; }
+.admin-booking-email-popover .admin-email-notification-list p { margin:0; color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
 .admin-booking-review-panel .admin-booking-assignee { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); overflow-wrap:anywhere; }
 .admin-booking-review-panel .admin-booking-assignee strong { color:var(--admin-text); font-weight:650; }
 .admin-booking-review-panel .admin-booking-overview-grid { grid-template-columns:minmax(0,1fr); gap:1rem; }
 .admin-booking-review-panel .admin-booking-primary-fact {
   padding:1rem 1.125rem;
   gap:.3rem;
-  border-inline-start:3px solid var(--admin-accent);
 }
 .admin-booking-review-panel .admin-booking-primary-fact > strong { font-size:clamp(1.125rem,2.2vw,1.4rem); }
 .admin-booking-review-panel .admin-booking-primary-fact > span:last-child { font-weight:500; }
@@ -9708,7 +9716,6 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-optional-note > label { margin-block-start:.5rem; }
 .admin-booking-review-panel .admin-booking-optional-note textarea { min-height:4rem; }
 .admin-booking-reject-panel > .admin-action-form > label textarea { min-height:4.5rem; }
-.admin-booking-review-panel .admin-email-notifications { padding-block:.5rem; }
 
 @media (max-width:48rem) {
   .admin-booking-review-panel .admin-booking-key-facts { grid-template-columns:minmax(0,1fr); gap:.875rem; }
