@@ -3992,6 +3992,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
             expiryCountdownHtml(booking, 'compact') +
           '</div>' +
+          '<div class="admin-booking-assignee">Assigned to <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></div>' +
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
@@ -4017,11 +4018,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="admin-booking-overview-meta">' +
-          '<span>Assigned to: <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></span>' +
+        ((booking.final_start_at || (booking.pending_expires_at && booking.status !== 'pending')) ? '<div class="admin-booking-overview-meta">' +
           (booking.final_start_at ? '<span>Originally requested: <strong>' + escapeHtml(requested) + '</strong></span>' : '') +
           (booking.pending_expires_at && booking.status !== 'pending' ? '<span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span>' : '') +
-        '</div>' +
+        '</div>' : '') +
       '</section>' +
       (booking.customer_message
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'

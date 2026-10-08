@@ -9653,6 +9653,8 @@ details.admin-dashboard-staff[open] > summary::after {
 .admin-booking-review-panel .admin-modal-header { margin-block-end:1rem; }
 .admin-booking-review-panel .admin-modal-header > div { gap:.4rem; }
 .admin-booking-review-panel .admin-modal-status-line { gap:.75rem; }
+.admin-booking-review-panel .admin-booking-assignee { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); overflow-wrap:anywhere; }
+.admin-booking-review-panel .admin-booking-assignee strong { color:var(--admin-text); font-weight:650; }
 .admin-booking-review-panel .admin-booking-overview-grid { grid-template-columns:minmax(0,1fr); gap:1rem; }
 .admin-booking-review-panel .admin-booking-primary-fact {
   padding:1rem 1.125rem;
