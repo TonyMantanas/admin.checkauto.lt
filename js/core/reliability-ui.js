@@ -34,10 +34,10 @@ export function bindPriceTotals(root) {
     form.addEventListener('input',update);update();
   });
 }
-export function priceSection(booking,operations,canManage) {
+export function priceSection(booking,operations,canManage,hasInvoice=false) {
   if (booking.status === 'pending') return '';
   const quotes=(operations?.quotes || []).filter(q=>q.booking_id===booking.id).sort((a,b)=>b.revision-a.revision), agreement=quotes[0];
-  const canEdit=canManage && !operations?.detail_pending && ['confirmed','completed'].includes(booking.status);
+  const canEdit=canManage && !hasInvoice && !operations?.detail_pending && ['confirmed','completed'].includes(booking.status);
   return `<section class="admin-detail-section admin-agreed-price-section">
     <div class="admin-agreed-price-heading"><h2>Agreed price</h2>${canEdit ? `<button class="admin-icon-button admin-agreed-price-edit" type="button" data-price-edit-toggle aria-label="${agreement ? 'Edit agreed price' : 'Set agreed price'}" aria-expanded="false" aria-controls="booking-price-editor" title="${agreement ? 'Edit agreed price' : 'Set agreed price'}"><span class="admin-icon admin-icon-pencil" aria-hidden="true"></span></button>` : ''}</div>
     ${agreement ? `<p class="admin-agreed-price-summary"><strong>${money(agreement.total_amount_cents)}</strong><span>Service ${money(agreement.service_amount_cents)} · travel ${money(agreement.travel_amount_cents)}</span></p>` : (operations?.detail_pending ? '<p role="status">Loading agreed price…</p>' : '<p>No agreed price recorded.</p>')}

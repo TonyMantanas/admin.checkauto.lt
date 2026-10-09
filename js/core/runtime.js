@@ -1,5 +1,5 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-5';
+import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-6';
 import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
@@ -4059,7 +4059,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (booking.customer_message
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
-      priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage')) +
+      priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage'), invoicesForBooking(booking.id).some(function (invoice) { return invoice.invoice_status !== 'payment'; })) +
       (invoicesForBooking(booking.id).some(function (invoice) { return invoiceDeliveredToClient(invoice, operations); })
         ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
