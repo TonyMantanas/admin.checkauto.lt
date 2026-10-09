@@ -10000,3 +10000,61 @@ details.admin-dashboard-staff[open] > summary::after {
   .admin-day-schedule-core-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-day-schedule-core-fields > :first-child { grid-column:1 / -1; }
 }
+
+/* Customer details stay close to the name; records read as one quiet list. */
+.admin-customer-modal-header { align-items:center; }
+.admin-customer-modal-header > .admin-customer-header-primary { min-width:0; display:flex; align-items:center; flex-wrap:wrap; gap:.25rem .5rem; }
+.admin-customer-header-contact,
+.admin-customer-header-utility { display:flex; align-items:center; gap:.25rem; flex:0 0 auto; }
+.admin-customer-modal-header > .admin-customer-header-utility { display:flex; align-items:center; gap:.5rem; }
+.admin-customer-header-icon { width:2.25rem; min-width:2.25rem; height:2.25rem; min-height:2.25rem; border:0; color:var(--admin-text-secondary); background:transparent; }
+.admin-customer-header-icon:hover { color:var(--admin-text); background:var(--admin-surface-hover); }
+.admin-customer-header-icon:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-customer-profile-menu { position:relative; }
+.admin-customer-profile-popover { position:absolute; z-index:5; inset-block-start:calc(100% + .5rem); inset-inline-end:0; width:min(19rem,calc(100vw - 3rem)); padding:.75rem; display:none; border:1px solid var(--admin-border); border-radius:var(--admin-panel-radius); background:var(--admin-surface); box-shadow:var(--admin-shadow-popover); }
+.admin-customer-profile-menu:hover .admin-customer-profile-popover,
+.admin-customer-profile-toggle:focus-visible + .admin-customer-profile-popover { display:block; }
+.admin-customer-profile-popover > strong { display:block; margin-block-end:.625rem; font-size:var(--admin-text-sm); }
+.admin-customer-profile-popover .admin-detail-list { grid-template-columns:minmax(0,1fr); gap:.4rem; }
+.admin-customer-modal > .admin-detail-section { padding-block:.375rem; border:0; border-block-end:1px solid var(--admin-border); }
+.admin-customer-modal > .admin-customer-bookings-section { padding-block:.25rem .625rem; }
+.admin-customer-bookings-section .admin-mini-item:last-child,
+.admin-customer-invoices-section .admin-mini-item:last-child { border-block-end:0; }
+.admin-customer-modal > .admin-disclosure > summary { min-height:2.75rem; margin:0; padding:.375rem 0; }
+.admin-customer-invoices-section > summary span { margin-inline-start:.5rem; color:var(--admin-text-tertiary); font-size:var(--admin-text-xs); font-weight:650; }
+.admin-customer-invoices-section > .admin-mini-list { padding-block:0 .5rem; gap:0; }
+.admin-customer-invoices-section .admin-mini-item { background:transparent; }
+.admin-customer-modal button.admin-mini-item:hover,
+.admin-customer-modal button.admin-mini-item:focus-visible { border-color:transparent; border-block-end-color:var(--admin-border); background:var(--admin-surface-hover); }
+.admin-customer-modal button.admin-mini-item:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
+.admin-customer-modal .admin-privacy-overview { gap:.25rem; padding-block:.25rem .75rem; }
+.admin-customer-modal .admin-privacy-status-grid { grid-template-columns:minmax(0,1fr); gap:0; }
+.admin-customer-modal .admin-privacy-status-card { min-height:2.5rem; padding:.5rem 0; display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:.25rem 1rem; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-customer-modal .admin-privacy-status-card > span:first-child { font-size:var(--admin-text-xs); letter-spacing:0; text-transform:none; }
+.admin-customer-modal .admin-privacy-status-card strong { font-size:var(--admin-text-xs); font-weight:650; }
+.admin-customer-modal .admin-privacy-marketing-card .admin-action-form { width:100%; margin-block-start:.25rem; }
+.admin-customer-modal .admin-privacy-record-details,
+.admin-customer-modal .admin-privacy-actions-disclosure { border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-customer-modal .admin-privacy-actions-disclosure { border-block-end:0; }
+.admin-customer-modal .admin-privacy-record-details > summary,
+.admin-customer-modal .admin-privacy-actions-disclosure > summary { min-height:2.5rem; padding:.375rem 0; }
+.admin-customer-modal .admin-privacy-record-details > .admin-detail-list { padding:.5rem 0 .75rem; }
+.admin-customer-modal .admin-privacy-action-list { gap:0; }
+.admin-customer-modal .admin-privacy-action-card { padding:.75rem 0; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-customer-modal .admin-privacy-action-card:last-child { border-block-end:0; }
+.admin-customer-modal .admin-privacy-action-card[data-tone="danger"] { background:transparent; }
+.admin-customer-modal .admin-customer-activity-section > summary { display:flex; align-items:center; gap:.5rem; }
+.admin-customer-modal .admin-customer-activity-section > summary::after { margin-inline-start:0; }
+.admin-customer-modal [data-customer-activity-panel] { padding-block:.375rem .75rem; }
+.admin-customer-modal .admin-customer-activity-list { gap:0; }
+.admin-customer-modal .admin-customer-activity-list > li > :is(div,button) { padding:.625rem 0; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-customer-modal .admin-customer-activity-list > li:last-child > :is(div,button) { border-block-end:0; }
+.admin-customer-modal .admin-customer-activity-state { padding:.625rem 0; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+@media (hover:none) {
+  .admin-customer-profile-menu:focus-within .admin-customer-profile-popover { display:block; }
+}
+@media (max-width:30rem) {
+  .admin-customer-modal-header { align-items:flex-start; }
+  .admin-customer-modal-header > .admin-customer-header-primary { align-items:flex-start; }
+  .admin-customer-modal .admin-privacy-status-card { display:grid; gap:.15rem; }
+}

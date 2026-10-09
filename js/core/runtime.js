@@ -4513,18 +4513,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }[status] || 'No marketing consent';
   }
 
-  function customerContactItem(kind, value) {
-    if (!value) return '';
-    var isPhone = kind === 'phone';
-    var action = isPhone ? 'Call' : 'Email';
-    var href = (isPhone ? 'tel:' : 'mailto:') + value;
-    var icon = isPhone ? ICON_PHONE : ICON_EMAIL;
-    return '<a class="admin-customer-contact-item" href="' + escapeHtml(href) + '" aria-label="' + escapeHtml(action + ' ' + value) + '">' +
-      '<span class="admin-customer-contact-icon" aria-hidden="true">' + icon + '</span>' +
-      '<span class="admin-customer-contact-copy"><strong>' + escapeHtml(value) + '</strong></span>' +
-    '</a>';
-  }
-
   function customerActivityCacheEntry(customerId) {
     if (!state.customerActivityCache || typeof state.customerActivityCache !== 'object') {
       state.customerActivityCache = Object.create(null);
@@ -4873,64 +4861,64 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var holdStatus = holdActive
       ? 'Active until ' + formatDateTime(customer.legal_hold_until)
       : 'No active legal hold';
-    var holdDescription = holdActive
-      ? 'Redaction and deletion are blocked until this hold is released or expires.'
-      : 'Eligible personal data actions are not being blocked by a customer-level hold.';
     var profileStatus = customer.pii_redacted_at
       ? 'Redacted ' + formatDateTime(customer.pii_redacted_at)
       : 'Personal data present';
-    var profileDescription = customer.pii_redacted_at
-      ? 'Direct identifiers have been removed from the profile.'
-      : 'The profile still contains identifying contact information.';
-    var contactDetails =
-      customerContactItem('email', customer.email) +
-      customerContactItem('phone', customer.phone);
 
     var html =
-      '<div class="admin-modal-header" data-customer-modal="' + escapeHtml(customer.id) + '">' +
-        '<div>' +
+      '<div class="admin-modal-header admin-customer-modal-header" data-customer-modal="' + escapeHtml(customer.id) + '">' +
+        '<div class="admin-customer-header-primary">' +
           '<h2>' + escapeHtml(customer.display_name || 'Unnamed customer') + '</h2>' +
-        '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
-      '</div>' +
-      '<section class="admin-detail-section admin-customer-details-section" aria-label="Contact and profile">' +
-        '<div class="admin-customer-overview-grid">' +
-          '<div class="admin-customer-contact-list" aria-label="Contact details">' +
-            (contactDetails || '<p class="admin-customer-empty-copy">No contact details.</p>') +
+          '<div class="admin-customer-header-contact" aria-label="Contact customer">' +
+            (customer.phone ? '<a class="admin-icon-button admin-customer-header-icon" href="tel:' + escapeHtml(customer.phone) + '" aria-label="Call ' + escapeHtml(customer.phone) + '" title="Call ' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '</a>' : '') +
+            (customer.email ? '<a class="admin-icon-button admin-customer-header-icon" href="mailto:' + escapeHtml(customer.email) + '" aria-label="Email ' + escapeHtml(customer.email) + '" title="Email ' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '</a>' : '') +
           '</div>' +
         '</div>' +
-      '</section>' +
+        '<div class="admin-customer-header-utility">' +
+          '<div class="admin-customer-profile-menu">' +
+            '<button class="admin-icon-button admin-customer-header-icon admin-customer-profile-toggle" type="button" aria-label="Profile details" aria-describedby="admin-customer-profile-tooltip">' + ICON_INFO + '</button>' +
+            '<div class="admin-customer-profile-popover" id="admin-customer-profile-tooltip" role="tooltip">' +
+              '<strong>Profile details</strong>' +
+              '<div class="admin-detail-list">' +
+                detailRow('Language', customer.preferred_language) +
+                detailRow('Customer since', customer.created_at ? formatDateTime(customer.created_at) : '') +
+                detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
+                detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
+        '</div>' +
+      '</div>' +
       '<section class="admin-detail-section admin-customer-bookings-section" aria-labelledby="admin-customer-bookings-title">' +
         '<h3 id="admin-customer-bookings-title">Bookings (' + escapeHtml(String(bookings.length)) + ')</h3>' +
         renderCustomerBookings(bookings) +
-        '<details class="admin-customer-related-group admin-customer-related-disclosure admin-disclosure" data-disclosure-key="customer-invoices">' +
-          '<summary>Invoices <span>' + escapeHtml(String(invoices.length)) + '</span></summary>' +
-          renderCustomerInvoices(invoices) +
-        '</details>' +
       '</section>' +
-      '<details class="admin-detail-section admin-disclosure admin-customer-profile-details">' +
-        '<summary>Profile details</summary>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Language', customer.preferred_language) +
-          detailRow('Customer since', customer.created_at ? formatDateTime(customer.created_at) : '') +
-          detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
-          detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
+      '<details class="admin-detail-section admin-disclosure admin-customer-invoices-section" data-disclosure-key="customer-invoices">' +
+        '<summary>Invoices <span>' + escapeHtml(String(invoices.length)) + '</span></summary>' +
+        renderCustomerInvoices(invoices) +
+      '</details>' +
+      '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure data-disclosure-key="customer-activity">' +
+        '<summary id="admin-customer-activity-title"><span>Customer activity</span><span class="admin-customer-disclosure-meta" data-customer-activity-summary>' +
+          (activityCache.status === 'loading'
+            ? skeletons.block('admin-skeleton-line admin-skeleton-count')
+            : escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length))) +
+        '</span></summary>' +
+        '<div role="region" aria-labelledby="admin-customer-activity-title" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
+          (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
         '</div>' +
       '</details>' +
       '<details class="admin-detail-section admin-disclosure admin-privacy-controls" data-disclosure-key="privacy-controls">' +
         '<summary>Privacy and records</summary>' +
         '<div class="admin-privacy-overview">' +
-          '<div>' +
-            '<h3>Current data status</h3>' +
-            '<div class="admin-privacy-status-grid">' +
-              '<div class="admin-privacy-status-card"><span>Legal retention</span><strong>' + escapeHtml(holdStatus) + '</strong><p>' + escapeHtml(holdDescription) + '</p></div>' +
-              '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong><p>' + escapeHtml(profileDescription) + '</p></div>' +
+          '<div class="admin-privacy-status-grid">' +
+              '<div class="admin-privacy-status-card"><span>Legal hold</span><strong>' + escapeHtml(holdStatus) + '</strong></div>' +
+              '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong></div>' +
               '<div class="admin-privacy-status-card admin-privacy-marketing-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong>' +
                 (customer.marketing_consent_status === 'opted_in'
                   ? renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw permission', 'admin-button-secondary', { customerId: customer.id })
                   : '') +
               '</div>' +
-            '</div>' +
           '</div>' +
           '<details class="admin-privacy-record-details admin-disclosure" data-disclosure-key="consent-dates">' +
             '<summary>View consent and retention dates</summary>' +
@@ -4946,8 +4934,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
               detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
             '</div>' +
           '</details>' +
-          '<div>' +
-            '<h3>Available actions</h3>' +
+          '<details class="admin-disclosure admin-privacy-actions-disclosure">' +
+            '<summary>Data controls</summary>' +
             '<div class="admin-privacy-action-list">' +
               '<div class="admin-privacy-action-card">' +
                 '<div class="admin-privacy-action-heading"><h4>' + (holdActive ? 'Release legal hold' : 'Start a legal hold') + '</h4><p>' +
@@ -4968,21 +4956,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
                 (deleteDisabled ? '<p class="admin-action-meta" data-tone="warning">' + escapeHtml(deleteBlockText) + '</p>' : '') +
               '</div>' +
             '</div>' +
-          '</div>' +
-        '</div>' +
-      '</details>' +
-      '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure data-disclosure-key="customer-activity">' +
-        '<summary id="admin-customer-activity-title"><span>Customer activity</span><span class="admin-customer-disclosure-meta" data-customer-activity-summary>' +
-          (activityCache.status === 'loading'
-            ? skeletons.block('admin-skeleton-line admin-skeleton-count')
-            : escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length))) +
-        '</span></summary>' +
-        '<div role="region" aria-labelledby="admin-customer-activity-title" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
-          (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
+          '</details>' +
         '</div>' +
       '</details>';
 
     var modal = openModal(html, 'lg');
+    $('.admin-modal-panel', modal).classList.add('admin-customer-modal');
     renderCustomerList();
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
@@ -5072,13 +5051,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<div class="admin-mini-list">' + invoices.map(function (invoice) {
       var invoiceLabel = invoiceStatusLabel(invoice);
       var amount = formatMoney(invoice.amount_cents, invoice.currency);
-      var issued = invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued';
+      var issued = invoice.issued_at ? 'Issued ' + formatDateTime(invoice.issued_at) : 'Not issued';
       var emailState = emailStatusLabel(invoice.email_status);
       var openInvoiceLabel = [invoice.invoice_number, amount, invoiceLabel, issued, emailState].join(', ');
       return '<button class="admin-mini-item admin-customer-invoice" type="button" aria-label="' + escapeHtml('Open invoice: ' + openInvoiceLabel) + '" data-open-invoice="' + escapeHtml(invoice.id) + '">' +
         '<span class="admin-customer-invoice-main"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(amount) + '</span></span>' +
         '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
-        '<span class="admin-customer-invoice-meta">Issued ' + escapeHtml(issued) + ' · ' + escapeHtml(emailState) + '</span>' +
+        '<span class="admin-customer-invoice-meta">' + escapeHtml(issued) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }
