@@ -558,18 +558,16 @@ function editUserModalHtml(user, state) {
       </div>
     </form>
 
-    <section class="admin-user-modal-section admin-user-security-section" aria-labelledby="user-password-title">
-      <div class="admin-user-section-heading">
+    <details class="admin-user-modal-section admin-user-security-section admin-disclosure"${isCurrentUser ? ' hidden' : ''}>
+      <summary class="admin-user-section-heading">
         <div>
           <h3 id="user-password-title">Temporary password</h3>
-          <p>${isCurrentUser
-            ? 'Change your password in Account.'
-            : 'Change required at next sign-in.'}</p>
+          <p>Change required at next sign-in.</p>
         </div>
         ${user.mustChangePassword
           ? '<span class="admin-status-pill" data-status="warning">Change required</span>'
           : ''}
-      </div>
+      </summary>
       <form class="admin-action-form admin-user-temp-form" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
         <div class="admin-user-form-grid">
           <label>
@@ -586,7 +584,7 @@ function editUserModalHtml(user, state) {
           <button class="admin-button admin-button-secondary" type="submit"${disabledAttribute}>Set temporary password</button>
         </div>
       </form>
-    </section>
+    </details>
 
     <section class="admin-user-modal-section admin-user-access-section" aria-labelledby="user-access-title">
       <div>

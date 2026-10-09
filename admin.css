@@ -9850,3 +9850,56 @@ details.admin-dashboard-staff[open] > summary::after {
 @media (pointer:coarse) {
   .admin-booking-time-info-toggle { width:2.75rem; min-width:2.75rem; height:2.75rem; min-height:2.75rem; }
 }
+
+/* Keep detail dialogs as focused as the booking review. */
+.admin-modal-panel[data-size="lg"]:not(.admin-confirm-panel):not(.admin-booking-review-panel) {
+  width:min(100%,46rem);
+  --admin-modal-padding:1.5rem;
+}
+.admin-invoice-overview-grid { grid-template-columns:minmax(0,1fr); gap:.5rem; }
+.admin-invoice-overview .admin-invoice-context-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 1rem; }
+.admin-invoice-primary-fact { gap:.35rem; }
+.admin-invoice-document-actions { margin-block:0 .75rem; padding:0; border:0; background:transparent; }
+.admin-invoice-document-actions .admin-button { min-height:2.5rem; }
+.admin-customer-overview-grid { grid-template-columns:minmax(0,1fr); gap:.75rem; }
+.admin-customer-contact-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem 1rem; border:0; background:transparent; }
+.admin-customer-contact-item { min-height:2.5rem; padding:.25rem 0; }
+.admin-customer-contact-item + .admin-customer-contact-item { border-block-start:0; }
+.admin-customer-profile-facts { display:flex; flex-wrap:wrap; gap:.375rem 1.25rem; }
+.admin-customer-profile-facts > span { flex:0 1 auto; }
+.admin-customer-bookings-section > h3 { margin-block-end:.5rem; }
+.admin-campaign-layout { grid-template-columns:minmax(0,1fr); }
+.admin-campaign-summary { padding-block-start:0; }
+.admin-campaign-preview { padding-block:.75rem; }
+.admin-campaign-preview h3 { margin-block-end:.5rem; }
+.admin-confirmation-schedule-form,
+.admin-day-schedule-form { gap:.875rem; }
+.admin-confirmation-week { gap:0; }
+.admin-confirmation-day { padding:.5rem 0; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-confirmation-day:first-of-type { border-block-start:1px solid var(--admin-border); }
+.admin-day-schedule-core-fields { grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; }
+.admin-day-schedule-inspector { grid-column:1 / -1; }
+.admin-day-schedule-advanced > div { gap:.75rem; }
+.admin-user-security-section { display:block; }
+.admin-user-security-section[hidden] { display:none; }
+.admin-user-security-section > summary { cursor:pointer; }
+.admin-user-security-section > summary::after { align-self:center; }
+.admin-user-security-section .admin-user-temp-form { margin-block-start:.75rem; }
+.admin-slot-editor-panel { --admin-modal-padding:1.25rem; }
+.admin-slot-form { gap:.75rem; }
+.admin-slot-form-time-grid { grid-column:1 / -1; min-width:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
+.admin-slot-form-time-grid > :first-child { grid-column:1 / -1; }
+.admin-slot-form-time-grid > label { min-width:0; display:grid; gap:.35rem; color:var(--admin-text); font-size:var(--admin-text-xs); font-weight:700; }
+.admin-slot-form-time-grid input { width:100%; min-height:var(--admin-control-height); padding:.45rem .6rem; border:1px solid var(--admin-border-strong); border-radius:var(--admin-control-radius); color:var(--admin-text); background:var(--admin-surface); }
+.admin-slot-form .admin-repeat { padding:.5rem 0; border:0; border-block-start:1px solid var(--admin-border); border-radius:0; background:transparent; }
+@media (max-width:40rem) {
+  .admin-invoice-overview .admin-invoice-context-grid,
+  .admin-customer-contact-list { grid-template-columns:minmax(0,1fr); }
+  .admin-day-schedule-core-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .admin-day-schedule-core-fields > :first-child { grid-column:1 / -1; }
+  .admin-confirmation-day { grid-template-columns:minmax(0,1fr) repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:28rem) {
+  .admin-confirmation-day { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .admin-confirmation-day > :first-child { grid-column:1 / -1; }
+}

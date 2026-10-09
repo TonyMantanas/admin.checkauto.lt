@@ -4895,8 +4895,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<section class="admin-detail-section admin-customer-details-section" aria-labelledby="admin-customer-details-title">' +
-        '<h3 id="admin-customer-details-title">Customer details</h3>' +
+      '<section class="admin-detail-section admin-customer-details-section" aria-label="Contact and profile">' +
         '<div class="admin-customer-overview-grid">' +
           '<div class="admin-customer-contact-list" aria-label="Contact details">' +
             (contactDetails || '<p class="admin-customer-empty-copy">No contact details.</p>') +
@@ -4918,7 +4917,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</details>' +
       '</section>' +
       '<details class="admin-detail-section admin-disclosure admin-privacy-controls" data-disclosure-key="privacy-controls">' +
-        '<summary>Privacy consent and legal controls</summary>' +
+        '<summary>Privacy and records</summary>' +
         '<div class="admin-privacy-overview">' +
           '<div>' +
             '<h3>Current data status</h3>' +
@@ -5658,8 +5657,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close invoice" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<section class="admin-detail-section admin-invoice-overview">' +
-        '<h3>Invoice details</h3>' +
+      '<section class="admin-detail-section admin-invoice-overview" aria-label="Invoice overview">' +
         '<div class="admin-invoice-overview-grid">' +
           '<div class="admin-invoice-primary-fact">' +
             '<span>' + escapeHtml(amountLabel) + '</span>' +
@@ -5682,14 +5680,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '</div>' +
           '</div>' +
         '</div>' +
-        '<div class="admin-invoice-overview-meta">' +
-          '<span>' + (isPaymentOnly ? 'Recorded' : 'Issued') + ': <strong>' + escapeHtml(isPaymentOnly ? formatDateTime(invoice.paid_at || invoice.created_at) : (invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued')) + '</strong></span>' +
-          (!isPaymentOnly ? '<span>Email: <strong>' + escapeHtml(emailStatusLabel(invoice.email_status)) + '</strong></span>' : '') +
-          (invoice.last_sent_at ? '<span>Last sent: <strong>' + escapeHtml(formatDateTime(invoice.last_sent_at)) + '</strong></span>' : '') +
-        '</div>' +
       '</section>' +
       (documentActions
-        ? '<div class="admin-modal-toolbar"><span class="admin-modal-toolbar-label">Invoice document</span>' + documentActions + '</div>'
+        ? '<div class="admin-modal-toolbar admin-invoice-document-actions" aria-label="Invoice document actions">' + documentActions + '</div>'
         : '') +
       (invoice.last_email_error
         ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
@@ -5706,6 +5699,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           detailRow('VAT', formatMoney(invoice.tax_cents, invoice.currency)) +
           detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
           detailRow('Retention until', invoice.retention_hold_until) +
+          (invoice.last_sent_at ? detailRow('Last sent', formatDateTime(invoice.last_sent_at)) : '') +
         '</div>' +
       '</details>' +
       (invoice.invoice_status !== 'void'
@@ -5793,8 +5787,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close campaign" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<div class="admin-campaign-layout">' +
-        '<section class="admin-detail-section">' +
-          '<h3>Summary</h3>' +
+        '<section class="admin-detail-section admin-campaign-summary" aria-label="Campaign summary">' +
           '<div class="admin-detail-list">' +
             detailRow('Created', formatDateTime(campaign.created_at)) +
             detailRow('Sent', campaign.sent_at ? formatDateTime(campaign.sent_at) : '') +
@@ -5802,7 +5795,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             detailRow('Delivery', Number(campaign.sent_count || 0) + ' sent / ' + Number(campaign.failed_count || 0) + ' failed') +
           '</div>' +
         '</section>' +
-        '<details class="admin-detail-section admin-disclosure">' +
+        '<section class="admin-detail-section admin-campaign-preview">' +
+          '<h3>Email preview</h3>' +
+          emailPreviewFrame('Campaign email preview', 'data-campaign-preview') +
+        '</section>' +
+        '<details class="admin-detail-section admin-disclosure admin-campaign-recipients">' +
           '<summary>Recipients (' + recipients.length + ')</summary>' +
           '<div class="admin-mini-list admin-recipient-list">' +
             (recipients.length ? recipients.map(function (recipient) {
@@ -5813,10 +5810,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             }).join('') : '<div class="admin-empty-state admin-empty-state-compact"><p>No recipients recorded.</p></div>') +
           '</div>' +
         '</details>' +
-        '<section class="admin-detail-section admin-field-wide">' +
-          '<h3>Email preview</h3>' +
-          emailPreviewFrame('Campaign email preview', 'data-campaign-preview') +
-        '</section>' +
       '</div>',
       'lg'
     );
@@ -7070,11 +7063,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<form class="admin-day-schedule-form" data-admin-day-schedule-form novalidate>' +
         '<div class="admin-day-schedule-core-fields">' +
           '<label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
-          '<div class="admin-day-schedule-time-grid">' +
-            '<label><span class="admin-field-label">Start time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
-            '<label><span class="admin-field-label">End time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
-          '</div>' +
-          '<label><span class="admin-field-label">Inspector <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
+          '<label><span class="admin-field-label">Start time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
+          '<label><span class="admin-field-label">End time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
+          '<label class="admin-day-schedule-inspector"><span class="admin-field-label">Inspector <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
           (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
         '</div>' +
         '<details class="admin-disclosure admin-day-schedule-advanced">' +
