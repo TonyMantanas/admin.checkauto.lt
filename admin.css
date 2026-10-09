@@ -9903,3 +9903,100 @@ details.admin-dashboard-staff[open] > summary::after {
   .admin-confirmation-day { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-confirmation-day > :first-child { grid-column:1 / -1; }
 }
+
+/* Task-first customer, invoice, staff, and availability dialogs. */
+.admin-modal-panel[data-size="lg"]:not(.admin-confirm-panel):not(.admin-booking-review-panel) { width:min(100%,42rem); }
+.admin-customer-details-section { padding-block:0 .75rem; }
+.admin-customer-overview-grid { gap:0; }
+.admin-customer-contact-list { gap:.25rem 1rem; }
+.admin-customer-contact-item { min-height:2.5rem; padding:.25rem 0; grid-template-columns:1rem minmax(0,1fr); gap:.5rem; }
+.admin-customer-contact-copy strong { font-size:var(--admin-text-sm); font-weight:650; }
+.admin-customer-bookings-section { padding-block:.75rem; }
+.admin-customer-bookings-section > h3 { margin-block-end:.5rem; }
+.admin-customer-bookings-section .admin-mini-list { gap:0; }
+.admin-customer-booking,
+.admin-customer-invoice { min-height:0; padding:.625rem 2rem .625rem 0; gap:.2rem .5rem; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-customer-booking-main { display:flex; flex-wrap:wrap; align-items:baseline; gap:.125rem .625rem; }
+.admin-customer-booking-main strong,
+.admin-customer-invoice-main strong { font-size:var(--admin-text-sm); }
+.admin-customer-booking-time { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); font-weight:500; }
+.admin-customer-booking-meta { grid-column:1 / -1; color:var(--admin-text-tertiary); font-size:var(--admin-text-xs); }
+.admin-customer-booking > .admin-status-pill,
+.admin-customer-invoice > .admin-status-pill { margin-inline-end:0; }
+.admin-customer-related-group { margin-block-start:.75rem; padding-block-start:.375rem; }
+.admin-customer-profile-details,
+.admin-privacy-controls,
+.admin-customer-activity-section { padding-block:.35rem; }
+.admin-customer-profile-details .admin-detail-list { padding-block:.5rem .75rem; }
+.admin-customer-profile-details > summary,
+.admin-privacy-controls > summary,
+.admin-customer-activity-section > summary { min-height:2.75rem; }
+.admin-invoice-overview { padding-block:0 .75rem; }
+.admin-invoice-overview-grid { gap:.5rem; }
+.admin-invoice-primary-fact { padding:.25rem 0 .75rem; gap:.2rem; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
+.admin-invoice-primary-fact > strong { font-size:1.65rem; }
+.admin-invoice-context-card { padding:.5rem 0; gap:.2rem; border:0; }
+.admin-invoice-context-card strong { font-size:var(--admin-text-sm); }
+.admin-invoice-contact-link { max-width:100%; overflow-wrap:anywhere; color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-invoice-context-card .admin-context-actions { margin-block-start:0; padding-block-start:.25rem; }
+.admin-invoice-context-card .admin-context-action { min-height:2.25rem; padding:.25rem 0; border:0; background:transparent; color:var(--admin-accent); }
+.admin-invoice-document-actions { margin-block:0 .25rem; }
+.admin-invoice-document-actions .admin-button { min-height:2.4rem; }
+.admin-user-form { gap:.75rem; }
+.admin-user-form-grid { gap:.625rem .75rem; }
+.admin-user-profile-section { padding-block:0; border:0; }
+.admin-user-profile-section > .admin-user-form-grid { grid-template-columns:minmax(0,1fr); }
+.admin-user-optional-fields { border-block:1px solid var(--admin-border); }
+.admin-user-optional-fields > summary { min-height:2.5rem; color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-user-optional-fields > summary span { color:var(--admin-text-tertiary); font-weight:500; }
+.admin-user-optional-fields > .admin-user-form-grid { padding-block:.25rem .75rem; }
+.admin-user-role-fieldset,
+.admin-user-password-fields { gap:.5rem; }
+.admin-user-role-fieldset > legend,
+.admin-user-password-fields > legend { margin-block-end:.25rem; }
+.admin-user-role-choices { gap:.5rem; }
+.admin-action-form .admin-user-role-choice { min-height:2.5rem; padding:.45rem .625rem; align-items:center; background:transparent; }
+.admin-action-form .admin-user-role-choice:has(input:checked) { border-color:var(--admin-accent); background:var(--admin-accent-soft); }
+.admin-user-role-choice input { margin:0; }
+.admin-user-role-choice strong { font-size:var(--admin-text-xs); }
+.admin-user-invite-note { color:var(--admin-text-secondary); font-size:var(--admin-text-xs); }
+.admin-user-modal-section { padding-block:.75rem; gap:.75rem; }
+.admin-user-security-section > summary { min-height:2.75rem; }
+.admin-user-security-section > summary h3 { font-size:var(--admin-text-sm); }
+.admin-user-security-section .admin-user-temp-form { margin-block-start:.375rem; padding:.75rem 0 0; border:0; background:transparent; }
+.admin-user-access-section h3 { font-size:var(--admin-text-sm); }
+.admin-user-form .admin-modal-actions { margin-block-start:.25rem; }
+.admin-user-form .admin-form-error:empty,
+.admin-day-schedule-form .admin-form-error:empty,
+.admin-slot-form .admin-form-error:empty { display:none; }
+.admin-day-schedule-form { gap:.625rem; }
+.admin-day-schedule-core-fields { gap:.625rem; }
+.admin-day-schedule-advanced > summary { min-height:2.5rem; }
+.admin-day-schedule-preview { padding:0; gap:0; border:0; border-radius:0; background:transparent; }
+.admin-day-schedule-preview > details { border-block:1px solid var(--admin-border); }
+.admin-day-schedule-preview summary { min-height:2.5rem; display:flex; align-items:center; gap:.75rem; cursor:pointer; }
+.admin-day-schedule-preview summary > span { margin-inline-start:auto; color:var(--admin-text-secondary); font-variant-numeric:tabular-nums; }
+.admin-day-schedule-preview ol { padding-block:.375rem .75rem; display:flex; flex-wrap:wrap; gap:.25rem .75rem; }
+.admin-day-schedule-preview li { padding:0; display:flex; gap:.25rem; border:0; background:transparent; color:var(--admin-text-secondary); }
+.admin-day-schedule-preview li time:last-child { text-align:start; }
+.admin-day-schedule-preview[data-tone="warning"] { padding:.5rem .75rem; }
+.admin-day-schedule-form > .admin-modal-actions { margin-block-start:.25rem; }
+.admin-slot-editor-panel { width:min(100%,28rem); }
+.admin-slot-form { gap:.625rem; }
+.admin-slot-form-time-grid { gap:.625rem; }
+.admin-slot-form .admin-repeat { display:flex; align-items:center; gap:.75rem; padding:.375rem 0 0; }
+.admin-slot-form .admin-repeat-toggle { min-height:2.5rem; padding:.25rem 0; border:0; background:transparent; }
+.admin-slot-form [data-admin-repeat-weeks-wrap][hidden] { display:none; }
+.admin-slot-form [data-admin-repeat-weeks-wrap] { flex:1; }
+.admin-slot-form > .admin-action-buttons { margin-block-start:.25rem; }
+@media (max-width:40rem) {
+  .admin-customer-booking-main { display:grid; }
+  .admin-customer-booking-meta { grid-column:1 / -1; }
+  .admin-invoice-overview .admin-invoice-context-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:30rem) {
+  .admin-invoice-overview .admin-invoice-context-grid,
+  .admin-user-form-grid { grid-template-columns:minmax(0,1fr); }
+  .admin-day-schedule-core-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .admin-day-schedule-core-fields > :first-child { grid-column:1 / -1; }
+}

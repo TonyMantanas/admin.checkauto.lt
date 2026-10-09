@@ -132,12 +132,9 @@ function roleChoices(selectedRoles, disabled = false) {
     const checked = selectedRoles.includes(option.value) ? ' checked' : '';
     const disabledAttribute = disabled ? ' disabled' : '';
     return `
-      <label class="admin-user-role-choice">
-        <input type="checkbox" name="roles" value="${option.value}"${checked}${disabledAttribute}>
-        <span>
-          <strong>${escapeHtml(option.label)}</strong>
-          <small>${escapeHtml(option.description)}</small>
-        </span>
+      <label class="admin-user-role-choice" title="${escapeHtml(option.description)}">
+        <input type="checkbox" name="roles" value="${option.value}" aria-label="${escapeHtml(option.label + ': ' + option.description)}"${checked}${disabledAttribute}>
+        <strong>${escapeHtml(option.label)}</strong>
       </label>
     `;
   }).join('');
@@ -473,25 +470,23 @@ function createUserModalHtml() {
           <span class="admin-field-label">Sign-in email <span class="admin-required-marker" aria-hidden="true">*</span></span>
           <input type="email" name="email" autocomplete="off" inputmode="email" maxlength="254" required>
         </label>
-        <label>
-          Phone
-          <input type="tel" name="phone" autocomplete="tel" maxlength="40">
-        </label>
-        <label>
-          Calendar email
-          <input type="email" name="calendarEmail" autocomplete="off" inputmode="email" maxlength="254">
-        </label>
       </div>
 
+      <details class="admin-user-optional-fields admin-disclosure">
+        <summary>Contact details <span>(optional)</span></summary>
+        <div class="admin-user-form-grid">
+          <label>Phone<input type="tel" name="phone" autocomplete="tel" maxlength="40"></label>
+          <label>Calendar email<input type="email" name="calendarEmail" autocomplete="off" inputmode="email" maxlength="254"></label>
+        </div>
+      </details>
+
       <fieldset class="admin-user-role-fieldset">
-        <legend>Roles</legend>
-        <p>Selected roles combine access.</p>
+        <legend>Roles <span class="admin-required-marker" aria-hidden="true">*</span></legend>
         <div class="admin-user-role-choices">${roleChoices(['viewer'])}</div>
       </fieldset>
 
       <fieldset class="admin-user-password-fields">
         <legend>Temporary password</legend>
-        <p>Change required at first sign-in.</p>
         <div class="admin-user-form-grid">
           <label>
             <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
@@ -504,7 +499,7 @@ function createUserModalHtml() {
         </div>
       </fieldset>
 
-      <p class="admin-detail-note">No email is sent. Share the sign-in email and temporary password securely.</p>
+      <p class="admin-user-invite-note">No invite email is sent. Share the sign-in details securely.</p>
       <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
       <div class="admin-action-buttons admin-modal-actions">
         <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>
@@ -521,33 +516,25 @@ function editUserModalHtml(user, state) {
   return `
     ${modalHeader(user.displayName || 'Edit user', user.email, 'Close edit user', isCurrentUser ? 'You' : '')}
     <form class="admin-action-form admin-user-form" data-user-edit-form data-user-id="${escapeHtml(user.id)}" novalidate>
-      <section class="admin-user-modal-section" aria-labelledby="user-profile-title">
-        <h3 id="user-profile-title">Profile</h3>
+      <section class="admin-user-modal-section admin-user-profile-section" aria-label="User profile">
         <div class="admin-user-form-grid">
           <label>
             <span class="admin-field-label">Name <span class="admin-required-marker" aria-hidden="true">*</span></span>
             <input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required${readOnlyAttribute}${isCurrentUser ? '' : ' autofocus'}>
           </label>
-          <div class="admin-user-readonly-field">
-            <span>Sign-in email</span>
-            <strong>${escapeHtml(user.email)}</strong>
-          </div>
-          <label>
-            Phone
-            <input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40"${readOnlyAttribute}>
-          </label>
-          <label>
-            Calendar email
-            <input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254"${readOnlyAttribute}>
-          </label>
         </div>
+        <details class="admin-user-optional-fields admin-disclosure"${user.phone || user.calendarEmail ? ' open' : ''}>
+          <summary>Contact details <span>(optional)</span></summary>
+          <div class="admin-user-form-grid">
+            <label>Phone<input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40"${readOnlyAttribute}></label>
+            <label>Calendar email<input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254"${readOnlyAttribute}></label>
+          </div>
+        </details>
       </section>
 
       <fieldset class="admin-user-role-fieldset admin-user-modal-section">
-        <legend>Roles</legend>
-        <p>${isCurrentUser
-          ? 'Another Owner can change your roles.'
-          : 'Keep at least one active Owner.'}</p>
+        <legend>Roles${isCurrentUser ? '' : ' <span class="admin-required-marker" aria-hidden="true">*</span>'}</legend>
+        ${isCurrentUser ? '<p>Another Owner can change your roles.</p>' : ''}
         <div class="admin-user-role-choices">${roleChoices(user.roles, isCurrentUser)}</div>
       </fieldset>
 
@@ -562,7 +549,6 @@ function editUserModalHtml(user, state) {
       <summary class="admin-user-section-heading">
         <div>
           <h3 id="user-password-title">Temporary password</h3>
-          <p>Change required at next sign-in.</p>
         </div>
         ${user.mustChangePassword
           ? '<span class="admin-status-pill" data-status="warning">Change required</span>'
@@ -589,7 +575,6 @@ function editUserModalHtml(user, state) {
     <section class="admin-user-modal-section admin-user-access-section" aria-labelledby="user-access-title">
       <div>
         <h3 id="user-access-title">Account access</h3>
-        ${user.isActive ? '<p>Profile and roles stay saved.</p>' : ''}
       </div>
       <button
         class="admin-button ${user.isActive ? 'admin-button-danger' : 'admin-button-secondary'}"

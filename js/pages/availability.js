@@ -105,7 +105,7 @@ export function renderStaticPage(root) {
               <input type="checkbox" name="repeatWeekly" data-admin-repeat-toggle>
               <span>Repeat weekly</span>
             </label>
-            <label data-admin-repeat-weeks-wrap>Weeks<span class="admin-select-wrap"><select name="repeatWeeks" data-admin-repeat-weeks disabled>
+            <label data-admin-repeat-weeks-wrap hidden>Weeks<span class="admin-select-wrap"><select name="repeatWeeks" data-admin-repeat-weeks disabled>
               <option value="2">2 weeks</option>
               <option value="3">3 weeks</option>
               <option value="4" selected>4 weeks</option>

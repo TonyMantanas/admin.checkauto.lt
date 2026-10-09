@@ -4516,14 +4516,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function customerContactItem(kind, value) {
     if (!value) return '';
     var isPhone = kind === 'phone';
-    var label = isPhone ? 'Phone' : 'Email';
     var action = isPhone ? 'Call' : 'Email';
     var href = (isPhone ? 'tel:' : 'mailto:') + value;
     var icon = isPhone ? ICON_PHONE : ICON_EMAIL;
     return '<a class="admin-customer-contact-item" href="' + escapeHtml(href) + '" aria-label="' + escapeHtml(action + ' ' + value) + '">' +
       '<span class="admin-customer-contact-icon" aria-hidden="true">' + icon + '</span>' +
-      '<span class="admin-customer-contact-copy"><span>' + label + '</span><strong>' + escapeHtml(value) + '</strong></span>' +
-      '<span class="admin-customer-contact-action">' + action + '</span>' +
+      '<span class="admin-customer-contact-copy"><strong>' + escapeHtml(value) + '</strong></span>' +
     '</a>';
   }
 
@@ -4900,12 +4898,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<div class="admin-customer-contact-list" aria-label="Contact details">' +
             (contactDetails || '<p class="admin-customer-empty-copy">No contact details.</p>') +
           '</div>' +
-          '<div class="admin-detail-list admin-customer-profile-facts">' +
-            detailRow('Language', customer.preferred_language) +
-            detailRow('Customer since', customer.created_at ? formatDateTime(customer.created_at) : '') +
-            detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
-            detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
-          '</div>' +
         '</div>' +
       '</section>' +
       '<section class="admin-detail-section admin-customer-bookings-section" aria-labelledby="admin-customer-bookings-title">' +
@@ -4916,6 +4908,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           renderCustomerInvoices(invoices) +
         '</details>' +
       '</section>' +
+      '<details class="admin-detail-section admin-disclosure admin-customer-profile-details">' +
+        '<summary>Profile details</summary>' +
+        '<div class="admin-detail-list">' +
+          detailRow('Language', customer.preferred_language) +
+          detailRow('Customer since', customer.created_at ? formatDateTime(customer.created_at) : '') +
+          detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
+          detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
+        '</div>' +
+      '</details>' +
       '<details class="admin-detail-section admin-disclosure admin-privacy-controls" data-disclosure-key="privacy-controls">' +
         '<summary>Privacy and records</summary>' +
         '<div class="admin-privacy-overview">' +
@@ -5061,8 +5062,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<span class="admin-customer-booking-time">' + escapeHtml(time) + '</span>' +
         '</span>' +
         '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(status) + '</span>' +
-        '<span class="admin-customer-booking-vehicle">' + escapeHtml(vehicle) + '</span>' +
-        '<span class="admin-customer-booking-meta">' + escapeHtml(booking.public_reference) + ' · ' + escapeHtml(payment) + ' · ' + escapeHtml(invoiceStatus) + '</span>' +
+        '<span class="admin-customer-booking-meta">' + escapeHtml(vehicle) + ' · ' + escapeHtml(booking.public_reference) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }
@@ -5626,19 +5626,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var amountLabel = isPaid ? 'Amount paid' : (isUnpaidIssued ? 'Amount due' : 'Invoice amount');
     var dueSummary = invoice.invoice_status === 'void'
       ? 'Document voided; recorded money remains in the ledger'
-      : (invoice.payment_status === 'paid' ? 'Payment recorded' : 'Due ' + (invoice.due_date || 'date not set'));
+      : (invoice.payment_status === 'paid' ? '' : 'Due ' + (invoice.due_date || 'date not set'));
     var customerActions =
-      (invoice.customer_phone
-        ? '<a class="admin-context-action" href="tel:' + escapeHtml(invoice.customer_phone) + '">' + ICON_PHONE + '<span>Call</span></a>'
-        : '') +
-      (invoice.customer_email
-        ? '<a class="admin-context-action" href="mailto:' + escapeHtml(invoice.customer_email) + '">' + ICON_EMAIL + '<span>Email</span></a>'
-        : '') +
       (customer
         ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
         : '');
     var bookingActions = booking
-      ? '<button class="admin-context-action" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' + ICON_BOOKING + '<span>Booking details</span></button>'
+      ? '<button class="admin-context-action" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' + ICON_BOOKING + '<span>Open booking</span></button>'
       : '';
     var documentActions =
       (invoice.pdf_path
@@ -5662,14 +5656,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<div class="admin-invoice-primary-fact">' +
             '<span>' + escapeHtml(amountLabel) + '</span>' +
             '<strong>' + escapeHtml(isPaid ? paidAmount : (isUnpaidIssued ? amountDue : invoiceAmount)) + '</strong>' +
-            (isPaid && !isPaymentOnly ? '<span class="admin-invoice-original-amount">Invoice amount ' + escapeHtml(invoiceAmount) + '</span>' : '') +
-            '<span>' + escapeHtml(dueSummary) + '</span>' +
+            (isPaid && !isPaymentOnly && paidAmount !== invoiceAmount ? '<span class="admin-invoice-original-amount">Invoice amount ' + escapeHtml(invoiceAmount) + '</span>' : '') +
+            (dueSummary ? '<span>' + escapeHtml(dueSummary) + '</span>' : '') +
           '</div>' +
           '<div class="admin-invoice-context-grid">' +
             '<div class="admin-invoice-context-card">' +
               '<span>Customer</span>' +
               '<strong>' + escapeHtml(customerName || 'Not provided') + '</strong>' +
-              '<span>' + escapeHtml(invoice.customer_email || invoice.customer_phone || 'Contact not provided') + '</span>' +
+              (invoice.customer_email
+                ? '<a class="admin-invoice-contact-link" href="mailto:' + escapeHtml(invoice.customer_email) + '">' + escapeHtml(invoice.customer_email) + '</a>'
+                : (invoice.customer_phone ? '<a class="admin-invoice-contact-link" href="tel:' + escapeHtml(invoice.customer_phone) + '">' + escapeHtml(invoice.customer_phone) + '</a>' : '<span>Contact not provided</span>')) +
               (customerActions ? '<div class="admin-context-actions">' + customerActions + '</div>' : '') +
             '</div>' +
             '<div class="admin-invoice-context-card">' +
@@ -7116,9 +7112,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<li><time>' + escapeHtml(range.start) + '</time><span aria-hidden="true">→</span><time>' + escapeHtml(range.end) + '</time></li>';
     }).join('');
     preview.dataset.tone = 'neutral';
-    preview.innerHTML = '<strong>' + ranges.length + (ranges.length === 1 ? ' bookable slot' : ' bookable slots') + '</strong>' +
+    preview.innerHTML = '<details class="admin-disclosure"><summary><strong>' + ranges.length + (ranges.length === 1 ? ' bookable slot' : ' bookable slots') + '</strong>' +
+      '<span>' + escapeHtml(ranges[0].start + '–' + ranges[ranges.length - 1].end) + '</span></summary>' +
       '<ol>' + visibleRanges + '</ol>' +
-      (ranges.length > 8 ? '<span>+' + (ranges.length - 8) + ' more</span>' : '');
+      (ranges.length > 8 ? '<span>+' + (ranges.length - 8) + ' more</span>' : '') + '</details>';
   }
 
   function renderDayScheduleModal() {
@@ -7274,7 +7271,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var repeatWrap = $('[data-admin-repeat-weeks-wrap]', form);
     if (repeatWeeks) repeatWeeks.disabled = !enabled || !(repeatToggle && repeatToggle.checked);
-    if (repeatWrap) repeatWrap.classList.toggle('is-disabled', !enabled || !(repeatToggle && repeatToggle.checked));
+    if (repeatWrap) repeatWrap.hidden = !enabled || !(repeatToggle && repeatToggle.checked);
     if (repeatToggle) repeatToggle.disabled = !enabled;
   }
 
