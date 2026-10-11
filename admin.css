@@ -2102,6 +2102,11 @@ fieldset {
   background: var(--admin-surface);
 }
 
+.admin-bookings-workbench .admin-list-panel,
+.admin-invoices-workbench .admin-list-panel {
+  overflow: visible;
+}
+
 .admin-panel-full {
   width: 100%;
 }

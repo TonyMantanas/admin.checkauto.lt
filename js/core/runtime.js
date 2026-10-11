@@ -4418,8 +4418,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
         : '') +
       priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage'), invoicesForBooking(booking.id).some(function (invoice) { return invoice.invoice_status !== 'payment'; })) +
-      (invoicesForBooking(booking.id).some(function (invoice) { return invoiceDeliveredToClient(invoice, operations); })
-        ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') +
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
@@ -6020,7 +6018,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (invoice.last_email_error
         ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
         : '') +
-      (booking ? (invoiceDeliveredToClient(invoice, operations) ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') + communicationSection(booking, operations) : '<p>Open the linked booking to review its payment ledger.</p>') +
+      (booking ? (invoiceDeliveredToClient(invoice, operations) ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') + communicationSection(booking, operations) : '<p>Payment details are unavailable for this record.</p>') +
       '<details class="admin-detail-section admin-disclosure">' +
         '<summary>Invoice record details</summary>' +
         '<div class="admin-detail-list">' +
