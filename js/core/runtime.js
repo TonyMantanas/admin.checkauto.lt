@@ -150,6 +150,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function staffCanAccessPage(staff, page) {
+    if (page === 'marketing') return false;
     var accessRight = PAGE_ACCESS_RIGHTS[page];
     if (!accessRight) return true;
     if (!staff) return false;
@@ -5721,6 +5722,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       count.textContent = String(activeCount);
       count.hidden = activeCount === 0;
     }
+    var more = $('[data-invoice-filter-more]');
+    var moreCount = $('[data-invoice-filter-more-count]');
+    var extraCount = state.invoiceEmailStatuses.length + Number(Boolean(state.invoiceAmountMin)) + Number(Boolean(state.invoiceAmountMax));
+    if (more && !more.dataset.initialized) {
+      more.open = extraCount > 0;
+      more.dataset.initialized = 'true';
+    }
+    if (moreCount) {
+      moreCount.textContent = String(extraCount);
+      moreCount.hidden = extraCount === 0;
+    }
     $all('[data-invoice-sort]').forEach(function (button) {
       setPressed(button, button.dataset.invoiceSort === state.invoiceSort);
     });
@@ -6502,8 +6514,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if(state.page==='notifications') { showToast('Action saved.','success');return true; }
+      var currentRoute = modalRouteFromUrl();
       if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
-      if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
+      else if (payload.bookingId && currentRoute && currentRoute.type === 'invoice' && invoiceById(currentRoute.id)?.booking_id === payload.bookingId) navigateToModal('invoice', currentRoute.id, { force: true });
+      else if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
       showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Customer communication is queued; delivery is tracked separately.' : successMessageForAction(confirmAction || payload.action), 'success');
       return true;
     } catch (error) {
@@ -6705,6 +6719,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if(state.page==='notifications') { showToast('Action saved.','success');return; }
+      var activeRoute = modalRouteFromUrl();
       if (action === 'createAndSendInvoice' && response.result && response.result.id) {
         navigateToModal('invoice', response.result.id, { force: true });
       } else if (action === 'deleteCustomerProfile') {
@@ -6713,6 +6728,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         return;
       } else if (payload.invoiceId && invoiceById(payload.invoiceId)) {
         navigateToModal('invoice', payload.invoiceId, { force: true });
+      } else if (payload.bookingId && activeRoute && activeRoute.type === 'invoice' && invoiceById(activeRoute.id)?.booking_id === payload.bookingId) {
+        navigateToModal('invoice', activeRoute.id, { force: true });
       } else if (payload.bookingId && bookingById(payload.bookingId)) {
         navigateToModal('booking', payload.bookingId, { force: true });
       } else if (payload.customerId && customerById(payload.customerId)) {

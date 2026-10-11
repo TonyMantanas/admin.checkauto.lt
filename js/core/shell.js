@@ -53,7 +53,15 @@ export function renderShell(page) {
           return `
           <section class="admin-nav-group"${startsHidden ? ' hidden' : ''}>
             <p class="admin-nav-group-label">${group.label}</p>
-            ${group.items.map((item) => `
+            ${group.items.map((item) => item.page === 'marketing' ? `
+              <div class="admin-nav-unavailable" data-admin-access="${item.accessRight}" hidden>
+                <button class="admin-nav-unavailable-label" type="button" disabled>Marketing</button>
+                <span class="admin-nav-info-wrap">
+                  <button class="admin-nav-info" type="button" aria-label="Marketing is coming soon" aria-describedby="admin-marketing-coming-soon">${ICONS.info}</button>
+                  <span class="admin-nav-info-tip" id="admin-marketing-coming-soon" role="tooltip">Coming soon</span>
+                </span>
+              </div>
+            ` : `
               <a
                 href="${item.href}"
                 data-admin-nav="${item.page}"

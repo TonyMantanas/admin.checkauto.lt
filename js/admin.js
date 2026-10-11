@@ -7,18 +7,18 @@ import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
 import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20261004-2';
-import { initAdminRuntime } from './core/runtime.js?v=20261011-4';
-import { renderShell } from './core/shell.js?v=20261004-3';
+import { initAdminRuntime } from './core/runtime.js?v=20261011-5';
+import { renderShell } from './core/shell.js?v=20261011-1';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
 import { validators } from './core/validation.js?v=20260727-3';
 
 const pageControllers = {
   dashboard: () => import('./pages/dashboard.js?v=20261004-2'),
-  bookings: () => import('./pages/bookings.js?v=20261007-1'),
+  bookings: () => import('./pages/bookings.js?v=20261011-1'),
   availability: () => import('./pages/availability.js?v=20261009-2'),
   customers: () => import('./pages/customers.js?v=20261007-1'),
-  invoices: () => import('./pages/invoices.js?v=20261007-1'),
+  invoices: () => import('./pages/invoices.js?v=20261011-1'),
   notifications: () => import('./pages/notifications.js?v=20261007-1'),
   marketing: () => import('./pages/marketing.js?v=20261007-1'),
   organization: () => import('./pages/organization.js?v=20261004-2'),
@@ -108,6 +108,11 @@ function renderBootstrapError(error) {
 async function boot() {
   window.CheckAutoStartup?.advance(.18);
   const page = document.body.dataset.adminPage || 'dashboard';
+
+  if (page === 'marketing') {
+    window.location.replace(PATHS.dashboard);
+    return;
+  }
 
   renderShell(page);
   const controller = await mountPage(page, null, state);

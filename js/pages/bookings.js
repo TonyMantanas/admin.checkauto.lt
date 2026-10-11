@@ -22,7 +22,10 @@ export function renderStaticPage(root) {
               <div class="admin-filter-popover" aria-label="Booking filters">
                 <header class="admin-filter-popover-header">
                   <strong>Filters</strong>
-                  <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
+                  <div class="admin-filter-header-actions">
+                    <button class="admin-filter-reset" type="button" data-booking-filters-reset>Reset</button>
+                    <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
+                  </div>
                 </header>
                 <div class="admin-filter-popover-body">
                   <fieldset class="admin-filter-statuses">
@@ -37,7 +40,7 @@ export function renderStaticPage(root) {
                     </div>
                   </fieldset>
                   <div class="admin-filter-date-grid">
-                    <label>Date event<span class="admin-select-wrap"><select data-booking-date-field>
+                    <label><span>Date event</span><span class="admin-select-wrap"><select data-booking-date-field>
                       <option value="received">Booking received</option>
                       <option value="inspection">Inspection date</option>
                       <option value="confirmed">Confirmed date</option>
@@ -46,17 +49,13 @@ export function renderStaticPage(root) {
                       <option value="cancelled">Cancelled date</option>
                       <option value="expired">Expired date</option>
                     </select></span></label>
-                    <label>From<input type="date" data-booking-date-from></label>
-                    <label>To<input type="date" data-booking-date-to></label>
+                    <label><span>From</span><input type="date" data-booking-date-from></label>
+                    <label><span>To</span><input type="date" data-booking-date-to></label>
                   </div>
                   <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
                     <button class="admin-button admin-button-secondary" type="button" data-booking-range="today">Today</button>
                     <button class="admin-button admin-button-secondary" type="button" data-booking-range="month">Month to date</button>
                   </div>
-                </div>
-                <div class="admin-filter-actions">
-                  <button class="admin-button admin-button-ghost" type="button" data-booking-filters-reset>Reset</button>
-                  <button class="admin-button admin-button-secondary" type="button" data-filter-close>Close</button>
                 </div>
               </div>
             </details>
