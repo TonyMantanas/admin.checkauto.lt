@@ -306,13 +306,10 @@ async function loadUsers(state, options = {}) {
       state.staffUsersAccessDenied = false;
       if (!pageDestroyed && state.page === 'users') {
         renderUsersPage(state);
-        if (
-          typeof modals.renderCurrent === 'function' &&
-          !(typeof modals.isDirty === 'function' && modals.isDirty()) &&
-          (!(typeof modals.isOpen === 'function' && modals.isOpen()) ||
-            Boolean(target('[data-admin-modal-root]:not([hidden]) .admin-user-modal-loading')))
-        ) {
-          modals.renderCurrent();
+        if (target('[data-admin-modal-root]:not([hidden]) .admin-user-modal-loading')) {
+          modals.renderCurrent?.();
+        } else if (modals.isOpen?.()) {
+          modals.reconcile?.();
         }
       }
       return true;

@@ -7,7 +7,7 @@ import { formatters } from './core/formatting.js?v=20260727-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
 import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20261004-2';
-import { initAdminRuntime } from './core/runtime.js?v=20261011-2';
+import { initAdminRuntime } from './core/runtime.js?v=20261011-3';
 import { renderShell } from './core/shell.js?v=20261004-3';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
@@ -22,7 +22,7 @@ const pageControllers = {
   notifications: () => import('./pages/notifications.js?v=20261007-1'),
   marketing: () => import('./pages/marketing.js?v=20261007-1'),
   organization: () => import('./pages/organization.js?v=20261004-2'),
-  users: () => import('./pages/users.js?v=20261011-2'),
+  users: () => import('./pages/users.js?v=20261011-3'),
   account: () => import('./pages/account.js?v=20261007-1'),
   login: () => import('./pages/login.js?v=20261007-1')
 };

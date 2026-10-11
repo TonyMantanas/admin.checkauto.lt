@@ -5278,6 +5278,27 @@ button.admin-mini-item::after {
   margin-block: 0 var(--admin-space-4);
 }
 
+.admin-live-conflict {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--admin-space-3);
+  margin-block: 0 var(--admin-space-4);
+  padding: var(--admin-space-3);
+  border: 1px solid var(--admin-warning);
+  border-radius: var(--admin-control-radius);
+  color: var(--admin-text-primary);
+  background: var(--admin-warning-soft);
+  font-size: var(--admin-text-sm);
+}
+
+.admin-live-conflict .admin-button { flex: none; }
+.admin-stale-draft { margin-block-start: var(--admin-space-3); }
+
+@media (max-width: 640px) {
+  .admin-live-conflict { align-items: stretch; flex-direction: column; }
+}
+
 .admin-booking-note {
   padding-block-end: var(--admin-space-4);
 }

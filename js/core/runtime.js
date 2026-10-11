@@ -763,7 +763,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function invoicesForBooking(bookingId) {
-    return state.invoices.filter(function (invoice) { return invoice.booking_id === bookingId; });
+    var records = state.invoices.filter(function (invoice) { return invoice.booking_id === bookingId; });
+    if (selectedModalRecords.invoice?.booking_id === bookingId && !records.some(function (invoice) { return invoice.id === selectedModalRecords.invoice.id; })) {
+      records.push(selectedModalRecords.invoice);
+    }
+    return records;
   }
 
   function activeInvoiceForBooking(bookingId) {
@@ -771,15 +775,41 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function invoicesForCustomer(customerId) {
-    return state.invoices.filter(function (invoice) { return invoice.customer_id === customerId; });
+    var records = state.invoices.filter(function (invoice) { return invoice.customer_id === customerId; });
+    if (selectedModalRecords.invoice?.customer_id === customerId && !records.some(function (invoice) { return invoice.id === selectedModalRecords.invoice.id; })) {
+      records.push(selectedModalRecords.invoice);
+    }
+    return records;
   }
 
+  var selectedModalRecords = { booking: null, invoice: null };
+
   function invoiceById(id) {
-    return state.invoices.find(function (invoice) { return invoice.id === id; }) || null;
+    return state.invoices.find(function (invoice) { return invoice.id === id; }) ||
+      (selectedModalRecords.invoice?.id === id ? selectedModalRecords.invoice : null);
   }
 
   function bookingById(id) {
-    return state.bookings.find(function (booking) { return booking.id === id; }) || null;
+    return state.bookings.find(function (booking) { return booking.id === id; }) ||
+      (selectedModalRecords.booking?.id === id ? selectedModalRecords.booking : null);
+  }
+
+  async function loadSelectedModalRecord(route, activityId) {
+    if (!route || !['booking', 'invoice'].includes(route.type)) return true;
+    var view = route.type === 'booking' ? 'bookings_query' : 'invoices_query';
+    var query = new URLSearchParams({ view: view, search: route.id, limit: '25' });
+    var response = await fetch(ADMIN_ENDPOINT + '?' + query, { headers: authHeaders(), cache: 'no-store' });
+    var data = await response.json().catch(function () { return {}; });
+    if (!response.ok) throw new Error(data.error || 'The open record could not be refreshed.');
+    if (activityId !== refreshActivityId) return false;
+    var rows = data[route.type === 'booking' ? 'bookingQuery' : 'invoiceQuery']?.rows || [];
+    var record = rows.find(function (item) { return item.id === route.id; });
+    if (!record) throw new Error('The open record is no longer available. Its draft has been kept.');
+    selectedModalRecords[route.type] = record;
+    var list = route.type === 'booking' ? state.bookings : state.invoices;
+    var index = list.findIndex(function (item) { return item.id === route.id; });
+    if (index >= 0) list[index] = record;
+    return true;
   }
 
   function slotById(id) {
@@ -795,15 +825,23 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function bookingsForCustomer(customerId) {
-    return state.bookings.filter(function (booking) {
+    var records = state.bookings.filter(function (booking) {
       return booking.customer_id === customerId && !booking.pii_redacted_at;
     });
+    if (selectedModalRecords.booking?.customer_id === customerId && !selectedModalRecords.booking.pii_redacted_at && !records.some(function (booking) { return booking.id === selectedModalRecords.booking.id; })) {
+      records.push(selectedModalRecords.booking);
+    }
+    return records;
   }
 
   function allBookingsForCustomer(customerId) {
-    return state.bookings.filter(function (booking) {
+    var records = state.bookings.filter(function (booking) {
       return booking.customer_id === customerId;
     });
+    if (selectedModalRecords.booking?.customer_id === customerId && !records.some(function (booking) { return booking.id === selectedModalRecords.booking.id; })) {
+      records.push(selectedModalRecords.booking);
+    }
+    return records;
   }
 
   function eventsForCustomer(customerId) {
@@ -1657,8 +1695,71 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return Boolean(root && !root.hidden && $('.admin-modal-panel', root));
   }
 
+  function modalRecordData(route) {
+    if (!route) return null;
+    if (route.type === 'booking' || route.type === 'invoice') {
+      var invoice = route.type === 'invoice' ? invoiceById(route.id) : null;
+      var bookingId = route.type === 'booking' ? route.id : invoice?.booking_id;
+      var booking = bookingId ? bookingById(bookingId) : null;
+      var operations = bookingId && state.bookingOperations?.[bookingId]?.data;
+      return {
+        booking: booking,
+        invoices: route.type === 'booking' ? invoicesForBooking(bookingId) : invoice,
+        customer: booking ? customerForBooking(booking) : (invoice ? customerById(invoice.customer_id) : null),
+        assignee: booking ? staffById(booking.assigned_to_staff_id) : null,
+        operations: operations ? {
+          quotes: operations.quotes,
+          payment_entries: operations.payment_entries,
+          payment_summaries: operations.payment_summaries,
+          notifications: operations.notifications
+        } : null
+      };
+    }
+    if (route.type === 'customer') return {
+      customer: customerById(route.id),
+      bookings: bookingsForCustomer(route.id),
+      invoices: invoicesForCustomer(route.id),
+      events: state.customerEvents?.filter(function (event) { return event.customer_id === route.id; })
+    };
+    if (route.type === 'staff') return state.staffUsers?.find(function (user) { return user.id === route.id; }) || null;
+    if (route.type === 'campaign') return campaignById(route.id);
+    if (route.type === 'daySchedule') return { slots: state.slots, staff: state.staffList };
+    if (route.type === 'confirmationSchedule') return state.confirmationSettings;
+    return null;
+  }
+
+  function modalDataSignature(route) {
+    return JSON.stringify(modalRecordData(route));
+  }
+
+  function modalConflictSignature(route) {
+    if (!route) return '';
+    if (route.type === 'invoice') {
+      var invoice = invoiceById(route.id);
+      return JSON.stringify(invoice && [invoice.id, invoice.invoice_status, invoice.payment_status, invoice.amount_cents, invoice.paid_amount_cents, invoice.updated_at]);
+    }
+    if (route.type === 'booking') {
+      var bookingId = route.id;
+      var operations = state.bookingOperations?.[bookingId]?.data;
+      return JSON.stringify({
+        booking: bookingById(bookingId),
+        invoices: invoicesForBooking(bookingId).map(function (item) {
+          return [item.id, item.invoice_status, item.payment_status, item.amount_cents, item.paid_amount_cents];
+        }),
+        detailsReady: Boolean(operations),
+        quote: operations ? currentAgreement(operations, bookingId) : null,
+        payments: operations?.payment_entries || null
+      });
+    }
+    if (route.type === 'customer' || route.type === 'staff') return JSON.stringify(modalRecordData(route));
+    return '';
+  }
+
   function markModalClean() {
-    ensureModalRoot().dataset.dirty = 'false';
+    var root = ensureModalRoot();
+    root.dataset.dirty = 'false';
+    root._adminDraftBaseline = null;
+    root._adminDraftConflict = false;
   }
 
   function rememberModalReturnFocus(element) {
@@ -1673,6 +1774,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     root.hidden = true;
     root.innerHTML = '';
     root.dataset.dirty = 'false';
+    root._adminDataSignature = null;
+    root._adminDraftBaseline = null;
+    root._adminDraftConflict = false;
     if (ensureConfirmRoot().hidden) {
       document.body.classList.remove('admin-modal-open');
       setPageInteractionBlocked(false);
@@ -1854,6 +1958,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       focus: active && panel.contains(active) ? {
         id: active.id || '',
         name: active.getAttribute('name') || '',
+        formKey: active.form ? modalFormKey(active.form, panel) : '',
+        controlIndex: active.form ? $all('input, select, textarea, button', active.form).indexOf(active) : -1,
+        selectionStart: typeof active.selectionStart === 'number' ? active.selectionStart : -1,
+        selectionEnd: typeof active.selectionEnd === 'number' ? active.selectionEnd : -1,
         marker: focusedMarker || '',
         markerValue: focusedMarker ? active.getAttribute(focusedMarker) : '',
         summaryIndex: active.tagName === 'SUMMARY' && focusedDetails ? $all('details', panel).indexOf(focusedDetails) : -1,
@@ -1941,9 +2049,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var focusTarget = focus.id ? document.getElementById(focus.id) : null;
       if (focusTarget && !panel.contains(focusTarget)) focusTarget = null;
       if (!focusTarget && focus.name) {
-        focusTarget = $all('[name="' + escapeSelectorValue(focus.name) + '"]', panel).find(function (item) {
+        var focusForm = focus.formKey ? findModalForm(panel, focus.formKey) : null;
+        focusTarget = $all('[name="' + escapeSelectorValue(focus.name) + '"]', focusForm || panel).find(function (item) {
           return !item.closest('[hidden]');
         }) || null;
+      }
+      if (!focusTarget && focus.formKey && focus.controlIndex >= 0) {
+        var indexedForm = findModalForm(panel, focus.formKey);
+        focusTarget = indexedForm && $all('input, select, textarea, button', indexedForm)[focus.controlIndex];
       }
       if (!focusTarget && focus.marker) {
         var markerSelector = '[' + focus.marker + (focus.markerValue ? '="' + escapeSelectorValue(focus.markerValue) + '"' : '') + ']';
@@ -1953,7 +2066,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         focusTarget = detailsList[focus.summaryIndex] && detailsList[focus.summaryIndex].querySelector('summary');
       }
       if (!focusTarget && focus.close) focusTarget = $('[data-admin-modal-close]', panel);
-      if (focusTarget) focusElement(focusTarget);
+      if (focusTarget) {
+        focusElement(focusTarget);
+        if (focus.selectionStart >= 0 && typeof focusTarget.setSelectionRange === 'function') {
+          try { focusTarget.setSelectionRange(focus.selectionStart, focus.selectionEnd); } catch (_) {}
+        }
+      }
     }
     var activityDisclosure = $('[data-customer-activity-disclosure]', panel);
     if (
@@ -1964,6 +2082,128 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     ) {
       loadCustomerActivity(route.id).catch(function () {});
     }
+  }
+
+  function modalFormKey(form, panel) {
+    var forms = $all('form', panel);
+    var kind = form.dataset.action || (form.hasAttribute('data-user-create-form') ? 'user-create' :
+      form.hasAttribute('data-user-edit-form') ? 'user-edit' :
+      form.hasAttribute('data-user-temp-password-form') ? 'user-password' : form.id || 'form');
+    return kind + ':' + forms.filter(function (item) {
+      return (item.dataset.action || (item.hasAttribute('data-user-create-form') ? 'user-create' :
+        item.hasAttribute('data-user-edit-form') ? 'user-edit' :
+        item.hasAttribute('data-user-temp-password-form') ? 'user-password' : item.id || 'form')) === kind;
+    }).indexOf(form);
+  }
+
+  function findModalForm(panel, key) {
+    return $all('form', panel).find(function (form) { return modalFormKey(form, panel) === key; }) || null;
+  }
+
+  function captureModalDraft(panel) {
+    return $all('form', panel).map(function (form) {
+      return {
+        key: modalFormKey(form, panel),
+        html: form.outerHTML,
+        fields: $all('input, select, textarea', form).map(function (field) {
+          var value = field.type === 'checkbox' || field.type === 'radio' ? field.checked : field.value;
+          var changed = field.type === 'checkbox' || field.type === 'radio'
+            ? field.checked !== field.defaultChecked
+            : field.tagName === 'SELECT'
+              ? field.value !== ($all('option', field).find(function (option) { return option.defaultSelected; }) || field.options[0])?.value
+              : field.value !== field.defaultValue;
+          return {
+            value: value,
+            changed: changed,
+            optionLabel: field.tagName === 'SELECT' ? field.selectedOptions[0]?.textContent || '' : ''
+          };
+        })
+      };
+    });
+  }
+
+  function restoreModalDraft(panel, draft) {
+    var missing = false;
+    draft.forEach(function (entry) {
+      var form = findModalForm(panel, entry.key);
+      var fallback = false;
+      if (!form && entry.fields.some(function (field) { return field.changed; })) {
+        var section = document.createElement('section');
+        section.className = 'admin-detail-section admin-stale-draft';
+        section.innerHTML = '<h2>Unsaved draft</h2>' + entry.html;
+        panel.appendChild(section);
+        form = $('form', section);
+        fallback = true;
+        missing = true;
+      }
+      if (!form) return;
+      $all('input, select, textarea', form).forEach(function (field, index) {
+        var saved = entry.fields[index];
+        if (!saved || (!saved.changed && !fallback) || field.type === 'hidden') return;
+        if (field.type === 'checkbox' || field.type === 'radio') field.checked = Boolean(saved.value);
+        else if (field.tagName === 'SELECT') {
+          if (!$all('option', field).some(function (option) { return option.value === saved.value; })) {
+            field.add(new Option(saved.optionLabel || saved.value, saved.value));
+          }
+          field.value = saved.value;
+        } else field.value = saved.value;
+      });
+      if (fallback) {
+        $all('button[type="submit"]', form).forEach(function (button) { button.disabled = true; });
+      }
+    });
+    bindPriceTotals(panel);
+    installTimeChoices(panel);
+    return missing;
+  }
+
+  function reconcileOpenModal() {
+    var route = modalRouteFromUrl();
+    var root = ensureModalRoot();
+    var panel = $('.admin-modal-panel', root);
+    if (!route || root.hidden || !panel) return;
+    var nextSignature = modalDataSignature(route);
+    if (nextSignature === root._adminDataSignature) return;
+    var saved = captureModalViewState();
+    var dirty = modalIsDirty();
+    var draft = dirty ? captureModalDraft(panel) : null;
+    var baseline = root._adminDraftBaseline;
+    var currentConflictSignature = modalConflictSignature(route);
+    if (dirty && baseline && route.type === 'booking') {
+      var original = JSON.parse(baseline);
+      var latest = JSON.parse(currentConflictSignature);
+      if (!original.detailsReady && latest.detailsReady) {
+        original.detailsReady = true;
+        original.quote = latest.quote;
+        original.payments = latest.payments;
+        baseline = JSON.stringify(original);
+      }
+    }
+    var conflict = Boolean(root._adminDraftConflict || (dirty && baseline && baseline !== currentConflictSignature));
+    renderModalFromCurrentUrl();
+    root = ensureModalRoot();
+    panel = $('.admin-modal-panel', root);
+    if (!panel) return;
+    if (draft) {
+      conflict = restoreModalDraft(panel, draft) || conflict;
+      root.dataset.dirty = 'true';
+      root._adminDraftBaseline = baseline;
+    }
+    root._adminDraftConflict = conflict;
+    if (conflict) {
+      var notice = document.createElement('div');
+      notice.className = 'admin-live-conflict';
+      notice.setAttribute('role', 'alert');
+      notice.innerHTML = 'This record changed while you were editing. Your draft is preserved. <button type="button" class="admin-button admin-button-secondary" data-admin-draft-reload>Discard draft and use latest</button>';
+      var header = $('.admin-modal-header', panel);
+      if (header) header.insertAdjacentElement('afterend', notice);
+      else panel.prepend(notice);
+      $('[data-admin-draft-reload]', notice).addEventListener('click', function () {
+        markModalClean();
+        renderModalFromCurrentUrl();
+      });
+    }
+    restoreModalViewState(saved);
   }
 
   function applyUrlModalState() {
@@ -2045,6 +2285,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     document.body.classList.add('admin-modal-open');
     setPageInteractionBlocked(true);
     root.dataset.dirty = 'false';
+    root._adminDataSignature = modalDataSignature(route);
+    root._adminRenderedConflictSignature = modalConflictSignature(route);
+    root._adminDraftBaseline = null;
+    root._adminDraftConflict = false;
     var panel = $('.admin-modal-panel', root);
     labelDialog(panel, 'Admin details');
     installTimeChoices(root); bindPriceTotals(root);
@@ -2062,11 +2306,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (root._adminDirtyInput) root.removeEventListener('input', root._adminDirtyInput);
     if (root._adminDirtyChange) root.removeEventListener('change', root._adminDirtyChange);
     root._adminDirtyInput = function (event) {
-      if (event.target && event.target.closest('form')) root.dataset.dirty = 'true';
+      if (event.target && event.target.closest('form')) {
+        if (root.dataset.dirty !== 'true') root._adminDraftBaseline = root._adminRenderedConflictSignature;
+        root.dataset.dirty = 'true';
+      }
     };
     root._adminDirtyChange = root._adminDirtyInput;
     root.addEventListener('input', root._adminDirtyInput);
     root.addEventListener('change', root._adminDirtyChange);
+    if (!root._adminStaleSubmit) {
+      root._adminStaleSubmit = function (event) {
+        if (!root._adminDraftConflict) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        var error = $('[data-action-error]', event.target);
+        if (error) error.textContent = 'This record changed. Discard the draft to use the latest version.';
+      };
+      root.addEventListener('submit', root._adminStaleSubmit, true);
+    }
     bindDialogKeyboard(root, function () {
       closeModalRoute();
     });
@@ -4022,22 +4279,35 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   var bookingOperationsLoads=Object.create(null);
-  async function loadBookingOperations(bookingId) {
-    if(bookingOperationsLoads[bookingId]) return;
-    bookingOperationsLoads[bookingId]=true;
-    try {
-      if(!(await ensureActiveSession())) return;
-      var response=await fetch(ADMIN_ENDPOINT+'?view=booking_operations&bookingId='+encodeURIComponent(bookingId),{headers:authHeaders(),cache:'no-store'});
-      var data=await response.json(); if(!response.ok) throw new Error(data.error || 'Booking history could not be loaded.');
-      state.bookingOperations=state.bookingOperations || {};
-      state.bookingOperations[bookingId]={data:data.bookingOperations,at:Date.now()};
-      var route=modalRouteFromUrl();
-      if(route && (route.id===bookingId || route.type==='invoice' && invoiceById(route.id)?.booking_id===bookingId) && !modalIsDirty()) {
-        var modalViewState = captureModalViewState();
-        if(route.type==='booking') renderBookingModal(bookingById(bookingId)); else renderInvoiceModal(route.id);
-        restoreModalViewState(modalViewState);
+  function loadBookingOperations(bookingId, options) {
+    var opts = options || {};
+    if (bookingOperationsLoads[bookingId]) {
+      return opts.force
+        ? bookingOperationsLoads[bookingId].then(function () { return loadBookingOperations(bookingId, { render: opts.render }); })
+        : bookingOperationsLoads[bookingId];
+    }
+    var pending = (async function () {
+      try {
+        if (!(await ensureActiveSession())) return false;
+        var response = await fetch(ADMIN_ENDPOINT + '?view=booking_operations&bookingId=' + encodeURIComponent(bookingId), { headers: authHeaders(), cache: 'no-store' });
+        var data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'Booking history could not be loaded.');
+        state.bookingOperations = state.bookingOperations || {};
+        state.bookingOperations[bookingId] = { data: data.bookingOperations, at: Date.now() };
+        var route = modalRouteFromUrl();
+        if (opts.render !== false && route && (route.type === 'booking' && route.id === bookingId || route.type === 'invoice' && invoiceById(route.id)?.booking_id === bookingId)) {
+          reconcileOpenModal();
+        }
+        return true;
+      } catch (error) {
+        showToast(error.message, 'error');
+        return false;
+      } finally {
+        delete bookingOperationsLoads[bookingId];
       }
-    } catch(error) {showToast(error.message,'error');} finally {delete bookingOperationsLoads[bookingId];}
+    })();
+    bookingOperationsLoads[bookingId] = pending;
+    return pending;
   }
   function bookingOperations(bookingId) {
     var detail=state.bookingOperations && state.bookingOperations[bookingId];
@@ -9184,14 +9454,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ) return false;
       }
       restoreSlotEditorDraft(slotEditorDraft);
-      // Background data can change while a dialog is open; keep that dialog's DOM stable.
-      if (!opts.background && !modalIsDirty()) {
-        var currentModalRoute = modalRouteFromUrl();
-        if ((initialModalRoute && currentModalRoute && initialModalRoute.type === currentModalRoute.type && initialModalRoute.id === currentModalRoute.id) || (!initialModalRoute && !currentModalRoute)) {
-          var modalViewState = captureModalViewState();
-          renderModalFromCurrentUrl();
-          restoreModalViewState(modalViewState);
+      var currentModalRoute = modalRouteFromUrl();
+      if (currentModalRoute && (currentModalRoute.type === 'booking' || currentModalRoute.type === 'invoice')) {
+        if (!(await loadSelectedModalRecord(currentModalRoute, activityId))) return false;
+        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+        var detailBookingId = currentModalRoute.type === 'booking' ? currentModalRoute.id : invoiceById(currentModalRoute.id)?.booking_id;
+        if (detailBookingId && !(await loadBookingOperations(detailBookingId, { render: false, force: true }))) {
+          throw new Error('Booking details could not be refreshed. Previously loaded details are retained.');
         }
+        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+      }
+      currentModalRoute = modalRouteFromUrl();
+      if ((initialModalRoute && currentModalRoute && initialModalRoute.type === currentModalRoute.type && initialModalRoute.id === currentModalRoute.id) || (!initialModalRoute && !currentModalRoute)) {
+        if (currentModalRoute && modalIsOpen()) reconcileOpenModal();
+        else if (!opts.background && !modalIsDirty()) renderModalFromCurrentUrl();
       }
       state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
@@ -9419,7 +9695,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     markClean: markModalClean,
     navigate: navigateToModal,
     open: openModal,
-    renderCurrent: renderModalFromCurrentUrl
+    renderCurrent: renderModalFromCurrentUrl,
+    reconcile: reconcileOpenModal
   });
   Object.assign(toast, { show: showToast });
 
