@@ -1652,6 +1652,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return !root.hidden && root.dataset.dirty === 'true';
   }
 
+  function modalIsOpen() {
+    var root = $('[data-admin-modal-root]');
+    return Boolean(root && !root.hidden && $('.admin-modal-panel', root));
+  }
+
   function markModalClean() {
     ensureModalRoot().dataset.dirty = 'false';
   }
@@ -1837,11 +1842,30 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var root = ensureModalRoot();
     var panel = $('.admin-modal-panel', root);
     if (!route || root.hidden || !panel) return null;
+    var active = document.activeElement;
+    var focusedDetails = active && active.closest && active.closest('details');
+    var focusMarkers = ['data-booking-decision-choice', 'data-payment-action-choice', 'data-price-edit-toggle', 'data-invoice-create-toggle', 'data-booking-cancellation-open'];
+    var focusedMarker = active && focusMarkers.find(function (name) { return active.hasAttribute && active.hasAttribute(name); });
     return {
       routeType: route.type,
       routeId: route.id,
       panelScrollTop: panel.scrollTop,
       activityScrollTop: Number(($('[data-customer-activity-panel]', root) || {}).scrollTop || 0),
+      focus: active && panel.contains(active) ? {
+        id: active.id || '',
+        name: active.getAttribute('name') || '',
+        marker: focusedMarker || '',
+        markerValue: focusedMarker ? active.getAttribute(focusedMarker) : '',
+        summaryIndex: active.tagName === 'SUMMARY' && focusedDetails ? $all('details', panel).indexOf(focusedDetails) : -1,
+        close: active.matches('[data-admin-modal-close]')
+      } : null,
+      bookingPanels: route.type === 'booking' ? {
+        decision: ($('[data-booking-decision-panel]:not([hidden])', panel) || {}).dataset?.bookingDecisionPanel || '',
+        payment: ($('[data-payment-action-panel]:not([hidden])', panel) || {}).dataset?.paymentActionPanel || '',
+        priceEditor: Boolean($('#booking-price-editor:not([hidden])', panel)),
+        invoiceEditor: Boolean($('#booking-invoice-editor:not([hidden])', panel)),
+        cancellation: Boolean($('[data-booking-cancellation-panel]:not([hidden])', panel))
+      } : null,
       disclosures: $all('details', panel).map(function (details, index) {
         return {
           key: details.dataset.disclosureKey || '',
@@ -1866,9 +1890,71 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         : detailsList[entry.index];
       if (details) details.open = Boolean(entry.open);
     });
+    if (saved.bookingPanels) {
+      var bookingPanels = saved.bookingPanels;
+      if (bookingPanels.decision && $('[data-booking-decision-choice="' + escapeSelectorValue(bookingPanels.decision) + '"]', panel)) {
+        $all('[data-booking-decision-panel]', panel).forEach(function (item) {
+          item.hidden = item.dataset.bookingDecisionPanel !== bookingPanels.decision;
+        });
+        $all('[data-booking-decision-choice]', panel).forEach(function (item) {
+          var selected = item.dataset.bookingDecisionChoice === bookingPanels.decision;
+          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
+          setPressed(item, selected);
+        });
+      }
+      if (bookingPanels.payment && $('[data-payment-action-choice="' + escapeSelectorValue(bookingPanels.payment) + '"]', panel)) {
+        $all('[data-payment-action-panel]', panel).forEach(function (item) {
+          item.hidden = item.dataset.paymentActionPanel !== bookingPanels.payment;
+        });
+        $all('[data-payment-action-choice]', panel).forEach(function (item) {
+          item.setAttribute('aria-expanded', item.dataset.paymentActionChoice === bookingPanels.payment ? 'true' : 'false');
+        });
+      }
+      if (bookingPanels.priceEditor) {
+        var priceEditor = $('#booking-price-editor', panel);
+        var priceToggle = $('[data-price-edit-toggle]', panel);
+        if (priceEditor && priceToggle) {
+          priceEditor.hidden = false;
+          priceToggle.setAttribute('aria-expanded', 'true');
+        }
+      }
+      if (bookingPanels.invoiceEditor) {
+        var invoiceEditor = $('#booking-invoice-editor', panel);
+        var invoiceToggle = $('[data-invoice-create-toggle]', panel);
+        if (invoiceEditor && invoiceToggle) {
+          invoiceEditor.hidden = false;
+          invoiceToggle.setAttribute('aria-expanded', 'true');
+        }
+      }
+      if (bookingPanels.cancellation) {
+        var cancellationPanel = $('[data-booking-cancellation-panel]', panel);
+        var cancellationButton = $('[data-booking-cancellation-open]', panel);
+        if (cancellationPanel) cancellationPanel.hidden = false;
+        if (cancellationButton) cancellationButton.hidden = true;
+      }
+    }
     panel.scrollTop = Math.max(0, Number(saved.panelScrollTop || 0));
     var activityPanel = $('[data-customer-activity-panel]', panel);
     if (activityPanel) activityPanel.scrollTop = Math.max(0, Number(saved.activityScrollTop || 0));
+    if (saved.focus) {
+      var focus = saved.focus;
+      var focusTarget = focus.id ? document.getElementById(focus.id) : null;
+      if (focusTarget && !panel.contains(focusTarget)) focusTarget = null;
+      if (!focusTarget && focus.name) {
+        focusTarget = $all('[name="' + escapeSelectorValue(focus.name) + '"]', panel).find(function (item) {
+          return !item.closest('[hidden]');
+        }) || null;
+      }
+      if (!focusTarget && focus.marker) {
+        var markerSelector = '[' + focus.marker + (focus.markerValue ? '="' + escapeSelectorValue(focus.markerValue) + '"' : '') + ']';
+        focusTarget = $(markerSelector, panel);
+      }
+      if (!focusTarget && focus.summaryIndex >= 0) {
+        focusTarget = detailsList[focus.summaryIndex] && detailsList[focus.summaryIndex].querySelector('summary');
+      }
+      if (!focusTarget && focus.close) focusTarget = $('[data-admin-modal-close]', panel);
+      if (focusTarget) focusElement(focusTarget);
+    }
     var activityDisclosure = $('[data-customer-activity-disclosure]', panel);
     if (
       route.type === 'customer' &&
@@ -3947,7 +4033,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       state.bookingOperations[bookingId]={data:data.bookingOperations,at:Date.now()};
       var route=modalRouteFromUrl();
       if(route && (route.id===bookingId || route.type==='invoice' && invoiceById(route.id)?.booking_id===bookingId) && !modalIsDirty()) {
+        var modalViewState = captureModalViewState();
         if(route.type==='booking') renderBookingModal(bookingById(bookingId)); else renderInvoiceModal(route.id);
+        restoreModalViewState(modalViewState);
       }
     } catch(error) {showToast(error.message,'error');} finally {delete bookingOperationsLoads[bookingId];}
   }
@@ -9047,9 +9135,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     refreshActivityId = activityId;
     var requestedView = opts.view || adminViewForPage(state.page);
     var hadLoadedView = viewIsLoaded(requestedView);
-    var preserveDirtyModal = modalIsDirty();
-    var modalViewState = captureModalViewState();
-    var slotEditorDraft = captureSlotEditorDraft();
+    var initialModalRoute = modalRouteFromUrl();
     state.isRefreshing = true;
     if (!hadLoadedView) clearPageLoadError();
     setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
@@ -9065,12 +9151,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       clearPageLoadError();
       setUserLabel();
       setActiveNav();
+      var slotEditorDraft = !opts.background && state.page === 'availability' ? captureSlotEditorDraft() : null;
       var bookingQueryWasPopulated = state.page === 'bookings' && Boolean(state.bookingQuerySignature);
       var invoiceQueryWasPopulated = state.page === 'invoices' && Boolean(state.invoiceQuerySignature);
-      if (state.page !== 'bookings' && state.page !== 'invoices') {
-        renderPage();
+      // Reconcile data behind an active editor without resetting its controls.
+      if (opts.background && state.page === 'availability' && state.slotEditorOpen) {
+        renderCalendar();
+      } else if (state.page !== 'bookings' && state.page !== 'invoices') {
+        if (opts.background) renderPagePreservingDisclosures();
+        else renderPage();
       } else if (bookingQueryWasPopulated || invoiceQueryWasPopulated) {
-        renderPage();
+        if (opts.background) renderPagePreservingDisclosures();
+        else renderPage();
       }
       if (state.page === 'bookings') {
         if (!(await loadBookingQuery({ force: true, silent: bookingQueryWasPopulated, preservePages: true }))) throw new Error('Bookings could not be refreshed. Previously loaded records are retained.');
@@ -9092,9 +9184,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ) return false;
       }
       restoreSlotEditorDraft(slotEditorDraft);
-      if (!preserveDirtyModal) {
-        renderModalFromCurrentUrl();
-        restoreModalViewState(modalViewState);
+      // Background data can change while a dialog is open; keep that dialog's DOM stable.
+      if (!opts.background && !modalIsDirty()) {
+        var currentModalRoute = modalRouteFromUrl();
+        if ((initialModalRoute && currentModalRoute && initialModalRoute.type === currentModalRoute.type && initialModalRoute.id === currentModalRoute.id) || (!initialModalRoute && !currentModalRoute)) {
+          var modalViewState = captureModalViewState();
+          renderModalFromCurrentUrl();
+          restoreModalViewState(modalViewState);
+        }
       }
       state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
@@ -9166,6 +9263,38 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (state.page === 'invoices') renderInvoicesPage();
     if (state.page === 'marketing') renderMarketingPage();
     if (state.page === 'organization') renderOrganizationPage();
+  }
+
+  function renderPagePreservingDisclosures() {
+    var pageRoot = $('[data-page-root]');
+    var before = pageRoot ? $all('details', pageRoot) : [];
+    var focusedIndex = before.findIndex(function (details) {
+      return details.querySelector('summary') === document.activeElement;
+    });
+    var disclosures = before.map(function (details) {
+      return {
+        open: details.open,
+        key: details.dataset.disclosureKey || '',
+        className: details.className
+      };
+    });
+    renderPage();
+    if (!disclosures.length || !pageRoot) return;
+    var after = $all('details', pageRoot);
+    disclosures.forEach(function (saved, index) {
+      var details = saved.key
+        ? $('[data-disclosure-key="' + escapeSelectorValue(saved.key) + '"]', pageRoot)
+        : after[index];
+      if (details && (saved.key || details.className === saved.className)) {
+        details.open = saved.open;
+      }
+    });
+    if (focusedIndex >= 0 && before[focusedIndex] && !before[focusedIndex].isConnected) {
+      var replacement = after[focusedIndex];
+      var summary = replacement && replacement.className === disclosures[focusedIndex].className
+        ? replacement.querySelector('summary') : null;
+      if (summary) summary.focus({ preventScroll: true });
+    }
   }
 
   async function init() {
@@ -9286,6 +9415,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     closeRoute: closeModalRoute,
     confirm: openConfirmDialog,
     isDirty: modalIsDirty,
+    isOpen: modalIsOpen,
     markClean: markModalClean,
     navigate: navigateToModal,
     open: openModal,

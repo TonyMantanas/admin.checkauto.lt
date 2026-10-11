@@ -308,7 +308,9 @@ async function loadUsers(state, options = {}) {
         renderUsersPage(state);
         if (
           typeof modals.renderCurrent === 'function' &&
-          !(typeof modals.isDirty === 'function' && modals.isDirty())
+          !(typeof modals.isDirty === 'function' && modals.isDirty()) &&
+          (!(typeof modals.isOpen === 'function' && modals.isOpen()) ||
+            Boolean(target('[data-admin-modal-root]:not([hidden]) .admin-user-modal-loading')))
         ) {
           modals.renderCurrent();
         }
