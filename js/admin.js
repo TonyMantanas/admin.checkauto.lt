@@ -21,8 +21,8 @@ const pageControllers = {
   invoices: () => import('./pages/invoices.js?v=20261105-3'),
   notifications: () => import('./pages/notifications.js?v=20261105-3'),
   marketing: () => import('./pages/marketing.js?v=20261007-1'),
-  organization: () => import('./pages/organization.js?v=20261105-5'),
-  users: () => import('./pages/users.js?v=20261105-3'),
+  organization: () => import('./pages/organization.js?v=20261105-6'),
+  users: () => import('./pages/users.js?v=20261105-6'),
   account: () => import('./pages/account.js?v=20261105-3'),
   login: () => import('./pages/login.js?v=20261007-1')
 };

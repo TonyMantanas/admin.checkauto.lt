@@ -2,7 +2,7 @@ import { api } from '../core/api.js?v=20260804-1';
 import { ICONS } from '../core/icons.js?v=20260802-1';
 import { modals } from '../core/modals.js?v=20260804-1';
 import { toast } from '../core/toast.js?v=20260804-1';
-import { formatDateTime } from '../core/formatting.js?v=20261105-3';
+import { relativeDateTime } from '../core/formatting.js?v=20261105-3';
 
 const ROLE_OPTIONS = Object.freeze([
   {
@@ -108,117 +108,115 @@ function userById(state, id) {
     .find((user) => user.id === id) || null;
 }
 
-function formatDate(value) {
-  if (!value || Number.isNaN(Date.parse(value))) return '';
-  return formatDateTime(value);
-}
-
 function roleLabel(role) {
   const option = ROLE_OPTIONS.find((item) => item.value === role);
   return option ? option.label : role;
 }
 
-function roleChips(roles) {
-  if (!roles.length) return '<span class="admin-user-role-empty">No role</span>';
-  return roles.map((role) => (
-    `<span class="admin-user-role-chip">${escapeHtml(roleLabel(role))}</span>`
-  )).join('');
+function rolesText(roles) {
+  return roles.map(roleLabel).join(' · ');
 }
 
+function initials(user) {
+  const parts = String(user.displayName || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length) return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  return String(user.email || '?').charAt(0).toUpperCase();
+}
+
+function isCurrent(user, state) {
+  return Boolean(user && user.id === String(state.staff && state.staff.id || ''));
+}
+
+// Each role shows what it allows, instead of hiding that in a tooltip.
 function roleChoices(selectedRoles, disabled = false) {
   return ROLE_OPTIONS.map((option) => {
     const checked = selectedRoles.includes(option.value) ? ' checked' : '';
     const disabledAttribute = disabled ? ' disabled' : '';
     return `
-      <label class="admin-user-role-choice" title="${escapeHtml(option.description)}">
-        <input type="checkbox" name="roles" value="${option.value}" aria-label="${escapeHtml(option.label + ': ' + option.description)}"${checked}${disabledAttribute}>
-        <strong>${escapeHtml(option.label)}</strong>
+      <label class="admin-user-role-choice">
+        <input type="checkbox" name="roles" value="${option.value}"${checked}${disabledAttribute}>
+        <span><strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(option.description)}</span></span>
       </label>
     `;
   }).join('');
 }
 
 function userListSkeleton() {
-  return Array.from({ length: 4 }, (_, index) => `
-    <div class="admin-user-row admin-user-row-skeleton" aria-hidden="true" style="--admin-skeleton-delay: ${index * 70}ms">
-      <div class="admin-user-primary">
+  return `<div class="admin-row-list" aria-hidden="true">${Array.from({ length: 4 }, (_, index) => `
+    <div class="admin-row-item admin-user-row-skeleton" style="--admin-skeleton-delay: ${index * 70}ms">
+      <span class="admin-skeleton admin-avatar"></span>
+      <span class="admin-row-text">
         <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span>
         <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span>
-      </div>
-      <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
-      <span class="admin-skeleton admin-skeleton-pill"></span>
-      <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
+      </span>
     </div>
-  `).join('');
+  `).join('')}</div>`;
+}
+
+function stateHtml({ tone = '', icon = ICONS.info, title, text = '', action = '', role = 'status' }) {
+  return `
+    <div class="admin-state"${tone ? ` data-tone="${tone}"` : ''} role="${role}">
+      <span class="admin-state-icon" aria-hidden="true">${icon}</span>
+      <div class="admin-state-text"><strong>${escapeHtml(title)}</strong>${text ? `<span>${escapeHtml(text)}</span>` : ''}</div>
+      ${action}
+    </div>
+  `;
 }
 
 function unauthorizedHtml() {
-  return `
-    <section class="admin-users-access-state" role="alert" aria-labelledby="users-unauthorized-title">
-      <span class="admin-users-access-icon">${ICONS.alert}</span>
-      <div>
-        <h2 id="users-unauthorized-title">Owner access required</h2>
-      </div>
-    </section>
-  `;
+  return stateHtml({ tone: 'danger', icon: ICONS.alert, title: 'Only the owner can manage users.', role: 'alert' });
 }
 
 function listErrorHtml(message) {
-  return `
-    <section class="admin-empty-state" role="alert">
-      <div>
-        <h2>Users could not be loaded</h2>
-        <p>${escapeHtml(message || 'Try loading the user list again.')}</p>
-      </div>
-      <button class="admin-button admin-button-secondary" type="button" data-users-retry>Try again</button>
-    </section>
-  `;
+  return stateHtml({
+    tone: 'danger',
+    icon: ICONS.alert,
+    title: 'Users could not be loaded.',
+    text: message || '',
+    role: 'alert',
+    action: '<button class="admin-button admin-button-secondary" type="button" data-users-retry>Try again</button>'
+  });
 }
 
 function emptyUsersHtml() {
-  return `
-    <section class="admin-empty-state" role="status">
-      <div>
-        <h2>No staff accounts</h2>
-      </div>
-      <button class="admin-button admin-button-primary" type="button" data-user-create>${ICONS.add} Create user</button>
-    </section>
-  `;
+  return stateHtml({
+    icon: ICONS.user,
+    title: 'No users yet.',
+    action: `<button class="admin-button admin-button-primary" type="button" data-user-create>${ICONS.add} Add user</button>`
+  });
 }
 
 function userRow(user, state) {
-  const isCurrentUser = user.id === String(state.staff && state.staff.id || '');
-  const activity = formatDate(user.lastSignInAt);
-  const status = user.isActive ? 'active' : 'cancelled';
-  const statusText = user.isActive ? 'Active' : 'Disabled';
+  const current = isCurrent(user, state);
+  const name = user.displayName || user.email || 'Unnamed user';
+  const signedIn = user.lastSignInAt ? 'Signed in ' + relativeDateTime(user.lastSignInAt) : 'Never signed in';
+  const roles = rolesText(user.roles);
+  const chips = [
+    current ? '<span class="admin-chip">You</span>' : '',
+    !user.roles.length ? '<span class="admin-chip" data-tone="warning">No role</span>' : '',
+    user.mustChangePassword ? '<span class="admin-chip" data-tone="warning">Needs password change</span>' : '',
+    !user.isActive ? '<span class="admin-chip">Disabled</span>' : ''
+  ].join('');
+  const label = [
+    name,
+    roles || 'no role',
+    current ? 'you' : '',
+    user.isActive ? '' : 'disabled',
+    user.mustChangePassword ? 'needs password change' : '',
+    signedIn.toLowerCase()
+  ].filter(Boolean).join(', ');
   return `
-    <article class="admin-user-row${user.isActive ? '' : ' is-disabled'}" role="listitem" data-user-id="${escapeHtml(user.id)}">
-      <div class="admin-user-primary">
-        <strong>${escapeHtml(user.displayName || 'Unnamed user')}</strong>
-        <span>${escapeHtml(user.email || 'No sign-in email')}</span>
-      </div>
-      <div class="admin-user-roles" aria-label="Roles">${roleChips(user.roles)}</div>
-      <div class="admin-user-statuses">
-        <span class="admin-status-pill" data-status="${status}">${statusText}</span>
-        ${user.mustChangePassword
-          ? '<span class="admin-status-pill" data-status="warning">Password change required</span>'
-          : ''}
-        ${isCurrentUser
-          ? '<span class="admin-status-pill" aria-label="Current user">You</span>'
-          : ''}
-      </div>
-      <div class="admin-user-activity">
-        <span>${activity ? `Last sign-in ${escapeHtml(activity)}` : 'Never signed in'}</span>
-      </div>
-      <button
-        class="admin-button admin-button-secondary"
-        type="button"
-        data-user-edit="${escapeHtml(user.id)}"
-        aria-label="${isCurrentUser
-          ? 'View current user account'
-          : `Edit ${escapeHtml(user.displayName || user.email || 'user')}`}"
-      >${isCurrentUser ? 'View' : 'Edit'}</button>
-    </article>
+    <li>
+      <button class="admin-row-item admin-user-row" type="button" data-user-edit="${escapeHtml(user.id)}" data-user-id="${escapeHtml(user.id)}" aria-label="${escapeHtml(label)}">
+        <span class="admin-avatar"${user.isActive ? '' : ' data-tone="muted"'} aria-hidden="true">${escapeHtml(initials(user))}</span>
+        <span class="admin-row-text">
+          <strong>${escapeHtml(name)}</strong>
+          <span>${escapeHtml([user.email, roles].filter(Boolean).join(' · '))}</span>
+        </span>
+        <span class="admin-row-meta-group">${chips}<span class="admin-user-signin">${escapeHtml(signedIn)}</span></span>
+        <span class="admin-row-go" aria-hidden="true">${ICONS.next}</span>
+      </button>
+    </li>
   `;
 }
 
@@ -239,7 +237,7 @@ function renderUsersPage(state) {
   }
 
   if (!state.staff) {
-    content.innerHTML = `<div class="admin-user-list" aria-hidden="true">${userListSkeleton()}</div>`;
+    content.innerHTML = userListSkeleton();
     if (count) count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     if (addButton) addButton.hidden = true;
     if (refreshButton) refreshButton.hidden = true;
@@ -247,9 +245,9 @@ function renderUsersPage(state) {
   }
 
   if (addButton) addButton.hidden = false;
-  if (refreshButton) refreshButton.hidden = false;
   if (refreshButton) {
     const loading = state.staffUsersLoadState === 'loading';
+    refreshButton.hidden = false;
     refreshButton.disabled = loading;
     refreshButton.classList.toggle('is-loading', loading);
     refreshButton.setAttribute('aria-busy', loading ? 'true' : 'false');
@@ -262,16 +260,28 @@ function renderUsersPage(state) {
   }
 
   if (!state.staffUsersLoadedAt) {
-    content.innerHTML = `<div class="admin-user-list" aria-hidden="true">${userListSkeleton()}</div>`;
+    content.innerHTML = userListSkeleton();
     if (count) count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     return;
   }
 
   const users = Array.isArray(state.staffUsers) ? state.staffUsers : [];
-  if (count) count.textContent = `${users.length} ${users.length === 1 ? 'user' : 'users'}`;
-  content.innerHTML = users.length
-    ? `<div class="admin-user-list" role="list">${users.map((user) => userRow(user, state)).join('')}</div>`
-    : emptyUsersHtml();
+  const active = users.filter((user) => user.isActive);
+  const disabled = users.filter((user) => !user.isActive);
+  if (count) {
+    count.textContent = `${users.length} ${users.length === 1 ? 'user' : 'users'}` +
+      (disabled.length ? ` · ${disabled.length} disabled` : '');
+  }
+  if (!users.length) {
+    content.innerHTML = emptyUsersHtml();
+    return;
+  }
+  content.innerHTML =
+    (active.length ? `<ul class="admin-row-list" aria-label="Active users">${active.map((user) => userRow(user, state)).join('')}</ul>` : '') +
+    (disabled.length
+      ? `<h2 class="admin-row-group-label" id="users-disabled-title">Disabled</h2>
+         <ul class="admin-row-list" aria-labelledby="users-disabled-title">${disabled.map((user) => userRow(user, state)).join('')}</ul>`
+      : '');
 }
 
 function isAccessError(error) {
@@ -388,33 +398,32 @@ function tempPasswordValues(form, email) {
     return { error: 'Enter a temporary password.', input: form.elements.tempPassword };
   }
   if (Array.from(password).length < 14) {
-    return { error: 'Use at least 14 characters for the temporary password.', input: form.elements.tempPassword };
+    return { error: 'Use at least 14 characters.', input: form.elements.tempPassword };
   }
   if (new TextEncoder().encode(password).length > 72) {
-    return { error: 'The temporary password must be no more than 72 bytes.', input: form.elements.tempPassword };
+    return { error: 'That password is too long. Use fewer characters.', input: form.elements.tempPassword };
   }
   if (!/\S/u.test(password) || /[\x00-\x1f\x7f]/u.test(password)) {
-    return { error: 'Use a password with visible characters and no control characters.', input: form.elements.tempPassword };
+    return { error: 'The password can’t contain line breaks or other hidden characters.', input: form.elements.tempPassword };
   }
   if (email && password.toLocaleLowerCase() === String(email).trim().toLocaleLowerCase()) {
-    return { error: 'The temporary password cannot match the sign-in email.', input: form.elements.tempPassword };
+    return { error: 'The password can’t be the same as their email.', input: form.elements.tempPassword };
   }
   if (password !== confirmation) {
-    return { error: 'The temporary passwords do not match.', input: form.elements.confirmPassword };
+    return { error: 'The passwords don’t match.', input: form.elements.confirmPassword };
   }
   return { password };
 }
 
-function mutationErrorMessage(error) {
-  if (!error) return 'The user could not be updated.';
-  const fallback = error instanceof Error ? error.message : 'The user could not be updated.';
+function mutationErrorMessage(error, fallback = 'That didn’t work. Try again.') {
+  if (!error) return fallback;
   return {
-    self_management_not_allowed: 'You cannot disable your current account or remove its Owner role.',
-    last_owner_protected: 'At least one active Owner must remain.',
-    email_already_exists: 'An admin account already uses this email address.',
-    invalid_password: 'This temporary password is not valid.',
-    weak_password: 'Choose a stronger temporary password.'
-  }[error.code] || fallback;
+    self_management_not_allowed: 'You can’t disable your own account or remove your Owner role.',
+    last_owner_protected: 'There must always be at least one active owner.',
+    email_already_exists: 'Another user already has this email.',
+    invalid_password: 'This password can’t be used. Choose another.',
+    weak_password: 'Choose a stronger password.'
+  }[error.code] || (error instanceof Error && error.message) || fallback;
 }
 
 async function refreshAfterMutation(state) {
@@ -436,154 +445,149 @@ async function runMutation(state, payload) {
   }
 }
 
-function modalHeader(title, subtitle, closeLabel, badge = '') {
+function closeButton(label) {
+  return `<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="${escapeHtml(label)}" title="Close">${ICONS.close}</button>`;
+}
+
+function modalHeader(title, closeLabel) {
   return `
     <header class="admin-modal-header">
-      <div>
-        <h2>${escapeHtml(title)}${badge ? ` <span class="admin-status-pill">${escapeHtml(badge)}</span>` : ''}</h2>
-        ${subtitle ? `<p>${escapeHtml(subtitle)}</p>` : ''}
-      </div>
-      <button
-        class="admin-preview-close admin-icon-button"
-        type="button"
-        data-admin-modal-close
-        aria-label="${escapeHtml(closeLabel)}"
-        title="Close"
-      >${ICONS.close}</button>
+      <div><h2>${escapeHtml(title)}</h2></div>
+      ${closeButton(closeLabel)}
     </header>
+  `;
+}
+
+const optional = '<span class="admin-optional">(optional)</span>';
+
+function textField(label, input, { hint = '', optionalField = false } = {}) {
+  return `
+    <label>
+      <span class="admin-field-label">${label}${optionalField ? ' ' + optional : ' <span class="admin-required-marker" aria-hidden="true">*</span>'}</span>
+      ${input}
+      ${hint ? `<span class="admin-field-hint">${hint}</span>` : ''}
+    </label>
+  `;
+}
+
+function contactFields(user, readOnly) {
+  const attribute = readOnly ? ' readonly' : '';
+  return `
+    ${textField('Phone', `<input type="tel" name="phone" value="${escapeHtml(user ? user.phone : '')}" autocomplete="tel" maxlength="40"${attribute}>`, { optionalField: true })}
+    ${textField('Calendar email', `<input type="email" name="calendarEmail" value="${escapeHtml(user ? user.calendarEmail : '')}" autocomplete="off" inputmode="email" maxlength="254"${attribute}>`, { optionalField: true })}
+  `;
+}
+
+function passwordFields(disabled = false) {
+  const attribute = disabled ? ' disabled' : '';
+  return `
+    ${textField('Temporary password', `<input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${attribute}>`)}
+    ${textField('Repeat password', `<input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required${attribute}>`)}
   `;
 }
 
 function createUserModalHtml() {
   return `
-    ${modalHeader('Create user', '', 'Close create user')}
-    <form class="admin-action-form admin-user-form" data-user-create-form novalidate>
-      <div class="admin-user-form-grid">
-        <label>
-          <span class="admin-field-label">Name <span class="admin-required-marker" aria-hidden="true">*</span></span>
-          <input type="text" name="displayName" autocomplete="name" maxlength="120" required autofocus>
-        </label>
-        <label>
-          <span class="admin-field-label">Sign-in email <span class="admin-required-marker" aria-hidden="true">*</span></span>
-          <input type="email" name="email" autocomplete="off" inputmode="email" maxlength="254" required>
-        </label>
-      </div>
-
-      <details class="admin-user-optional-fields admin-disclosure">
-        <summary>Contact details <span>(optional)</span></summary>
-        <div class="admin-user-form-grid">
-          <label>Phone<input type="tel" name="phone" autocomplete="tel" maxlength="40"></label>
-          <label>Calendar email<input type="email" name="calendarEmail" autocomplete="off" inputmode="email" maxlength="254"></label>
-        </div>
-      </details>
-
-      <fieldset class="admin-user-role-fieldset">
-        <legend>Roles <span class="admin-required-marker" aria-hidden="true">*</span></legend>
-        <div class="admin-user-role-choices">${roleChoices(['viewer'])}</div>
+    ${modalHeader('Add user', 'Close add user')}
+    <form class="admin-action-form admin-user-form admin-form-plain" data-user-create-form novalidate>
+      <fieldset class="admin-form-group">
+        <legend>Details</legend>
+        ${textField('Name', '<input type="text" name="displayName" autocomplete="name" maxlength="120" required autofocus>')}
+        ${textField('Email', '<input type="email" name="email" autocomplete="off" inputmode="email" maxlength="254" required>', { hint: 'Used to sign in.' })}
+        ${contactFields(null, false)}
       </fieldset>
 
-      <fieldset class="admin-user-password-fields">
+      <fieldset class="admin-form-group">
+        <legend>Roles</legend>
+        <div class="admin-user-role-choices admin-form-wide">${roleChoices(['viewer'])}</div>
+      </fieldset>
+
+      <fieldset class="admin-form-group">
         <legend>Temporary password</legend>
-        <div class="admin-user-form-grid">
-          <label>
-            <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
-            <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required>
-          </label>
-          <label>
-            <span class="admin-field-label">Confirm password <span class="admin-required-marker" aria-hidden="true">*</span></span>
-            <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required>
-          </label>
-        </div>
+        ${passwordFields()}
+        <p class="admin-field-hint admin-form-wide">At least 14 characters. No email is sent, so share it with them yourself.</p>
       </fieldset>
 
-      <p class="admin-user-invite-note">No invite email is sent. Share the sign-in details securely.</p>
-      <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
-      <div class="admin-action-buttons admin-modal-actions">
+      <div class="admin-modal-footer">
+        <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
         <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>
-        <button class="admin-button admin-button-primary" type="submit">Create user</button>
+        <button class="admin-button admin-button-primary" type="submit">Add user</button>
       </div>
     </form>
   `;
 }
 
 function editUserModalHtml(user, state) {
-  const isCurrentUser = user.id === String(state.staff && state.staff.id || '');
-  const readOnlyAttribute = isCurrentUser ? ' readonly' : '';
-  const disabledAttribute = isCurrentUser ? ' disabled' : '';
+  const current = isCurrent(user, state);
   return `
-    ${modalHeader(user.displayName || 'Edit user', user.email, 'Close edit user', isCurrentUser ? 'You' : '')}
-    <form class="admin-action-form admin-user-form" data-user-edit-form data-user-id="${escapeHtml(user.id)}" novalidate>
-      <section class="admin-user-modal-section admin-user-profile-section" aria-label="User profile">
-        <div class="admin-user-form-grid">
-          <label>
-            <span class="admin-field-label">Name <span class="admin-required-marker" aria-hidden="true">*</span></span>
-            <input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required${readOnlyAttribute}${isCurrentUser ? '' : ' autofocus'}>
-          </label>
+    <header class="admin-modal-header admin-user-modal-header">
+      <div class="admin-user-identity">
+        <span class="admin-avatar admin-avatar-lg"${user.isActive ? '' : ' data-tone="muted"'} aria-hidden="true">${escapeHtml(initials(user))}</span>
+        <div>
+          <h2>${escapeHtml(user.displayName || user.email || 'User')}${current ? ' <span class="admin-chip">You</span>' : ''}${user.isActive ? '' : ' <span class="admin-chip">Disabled</span>'}</h2>
+          <p>${escapeHtml(user.email || '')}</p>
         </div>
-        <details class="admin-user-optional-fields admin-disclosure"${user.phone || user.calendarEmail ? ' open' : ''}>
-          <summary>Contact details <span>(optional)</span></summary>
-          <div class="admin-user-form-grid">
-            <label>Phone<input type="tel" name="phone" value="${escapeHtml(user.phone)}" autocomplete="tel" maxlength="40"${readOnlyAttribute}></label>
-            <label>Calendar email<input type="email" name="calendarEmail" value="${escapeHtml(user.calendarEmail)}" autocomplete="off" inputmode="email" maxlength="254"${readOnlyAttribute}></label>
-          </div>
-        </details>
-      </section>
-
-      <fieldset class="admin-user-role-fieldset admin-user-modal-section">
-        <legend>Roles${isCurrentUser ? '' : ' <span class="admin-required-marker" aria-hidden="true">*</span>'}</legend>
-        ${isCurrentUser ? '<p>Another Owner can change your roles.</p>' : ''}
-        <div class="admin-user-role-choices">${roleChoices(user.roles, isCurrentUser)}</div>
+      </div>
+      ${closeButton(current ? 'Close your account details' : 'Close user')}
+    </header>
+    ${current ? '' : `
+    <div class="admin-segmented admin-user-tabs" role="tablist" aria-label="User sections">
+      <button type="button" role="tab" id="user-tab-details" aria-controls="user-panel-details" aria-selected="true" class="is-active" data-user-tab="details">Details</button>
+      <button type="button" role="tab" id="user-tab-access" aria-controls="user-panel-access" aria-selected="false" tabindex="-1" data-user-tab="access">Sign-in and access</button>
+    </div>`}
+    <form class="admin-action-form admin-user-form admin-form-plain" data-user-edit-form data-user-id="${escapeHtml(user.id)}" id="user-panel-details"${current ? '' : ' role="tabpanel" aria-labelledby="user-tab-details"'} novalidate>
+      <fieldset class="admin-form-group">
+        <legend${current ? '' : ' class="admin-visually-hidden"'}>Details</legend>
+        <div class="admin-form-wide">${textField('Name', `<input type="text" name="displayName" value="${escapeHtml(user.displayName)}" autocomplete="name" maxlength="120" required${current ? ' readonly' : ' autofocus'}>`)}</div>
+        ${contactFields(user, current)}
       </fieldset>
 
-      <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
-      <div class="admin-action-buttons admin-modal-actions">
-        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>${isCurrentUser ? 'Close' : 'Cancel'}</button>
-        <button class="admin-button admin-button-primary" type="submit"${disabledAttribute}>Save changes</button>
+      <fieldset class="admin-form-group">
+        <legend>Roles</legend>
+        ${current ? '<p class="admin-field-hint admin-form-wide">This is your account. Another owner can change your roles.</p>' : ''}
+        <div class="admin-user-role-choices admin-form-wide">${roleChoices(user.roles, current)}</div>
+      </fieldset>
+
+      <div class="admin-modal-footer">
+        <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
+        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>${current ? 'Close' : 'Cancel'}</button>
+        ${current ? '' : '<button class="admin-button admin-button-primary" type="submit">Save changes</button>'}
       </div>
     </form>
 
-    <details class="admin-user-modal-section admin-user-security-section admin-disclosure"${isCurrentUser ? ' hidden' : ''}>
-      <summary class="admin-user-section-heading">
-        <div>
-          <h3 id="user-password-title">Temporary password</h3>
-        </div>
-        ${user.mustChangePassword
-          ? '<span class="admin-status-pill" data-status="warning">Change required</span>'
-          : ''}
-      </summary>
-      <form class="admin-action-form admin-user-temp-form" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
-        <div class="admin-user-form-grid">
-          <label>
-            <span class="admin-field-label">Temporary password <span class="admin-required-marker" aria-hidden="true">*</span></span>
-            <input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
-          </label>
-          <label>
-            <span class="admin-field-label">Confirm password <span class="admin-required-marker" aria-hidden="true">*</span></span>
-            <input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required${disabledAttribute}>
-          </label>
-        </div>
-        <p class="admin-form-error" data-user-form-status role="alert" aria-live="assertive"></p>
-        <div class="admin-action-buttons">
-          <button class="admin-button admin-button-secondary" type="submit"${disabledAttribute}>Set temporary password</button>
-        </div>
-      </form>
-    </details>
-
-    <section class="admin-user-modal-section admin-user-access-section" aria-labelledby="user-access-title">
-      <div>
-        <h3 id="user-access-title">Account access</h3>
+    ${current ? '' : `
+    <section class="admin-user-access" id="user-panel-access" role="tabpanel" aria-labelledby="user-tab-access" hidden>
+      <details class="admin-user-access-item admin-user-security-section">
+        <summary class="admin-row-item">
+          <span class="admin-row-text">
+            <strong>Reset password</strong>
+            <span>Set a temporary password they change at their next sign-in.</span>
+          </span>
+          ${user.mustChangePassword ? '<span class="admin-chip" data-tone="warning">Needs password change</span>' : '<span aria-hidden="true"></span>'}
+          <span class="admin-row-go" aria-hidden="true">${ICONS.next}</span>
+        </summary>
+        <form class="admin-action-form admin-user-temp-form admin-form-plain" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
+          <div class="admin-form-group">${passwordFields()}</div>
+          <div class="admin-user-temp-actions">
+            <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
+            <button class="admin-button admin-button-secondary" type="submit">Set password</button>
+          </div>
+        </form>
+      </details>
+      <div class="admin-row-item admin-user-access-item">
+        <span class="admin-row-text">
+          <strong>${user.isActive ? 'Disable access' : 'Restore access'}</strong>
+          <span>${user.isActive ? 'Signs them out. Their account and roles are kept.' : 'They can sign in again with their current password.'}</span>
+        </span>
+        <span aria-hidden="true"></span>
+        <button
+          class="admin-button ${user.isActive ? 'admin-button-danger' : 'admin-button-secondary'}"
+          type="button"
+          data-user-set-active="${user.isActive ? 'false' : 'true'}"
+          data-user-id="${escapeHtml(user.id)}"
+        >${user.isActive ? 'Disable' : 'Restore'}</button>
       </div>
-      <button
-        class="admin-button ${user.isActive ? 'admin-button-danger' : 'admin-button-secondary'}"
-        type="button"
-        data-user-set-active="${user.isActive ? 'false' : 'true'}"
-        data-user-id="${escapeHtml(user.id)}"
-        ${isCurrentUser ? 'disabled aria-describedby="current-user-access-note"' : ''}
-      >${user.isActive ? 'Disable user' : 'Enable user'}</button>
-      ${isCurrentUser
-        ? '<p id="current-user-access-note" class="admin-user-current-note">You cannot disable the account you are currently using.</p>'
-        : ''}
-    </section>
+    </section>`}
   `;
 }
 
@@ -591,7 +595,7 @@ function loadingUserModalHtml() {
   return `
     <header class="admin-modal-header" role="status" aria-label="Loading user details">
       <div><h2><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide" aria-hidden="true"></span></h2></div>
-      <button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close user" title="Close">${ICONS.close}</button>
+      ${closeButton('Close user')}
     </header>
     <div class="admin-user-modal-loading" aria-hidden="true">
       <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span>
@@ -603,11 +607,13 @@ function loadingUserModalHtml() {
 
 function missingUserModalHtml() {
   return `
-    ${modalHeader('User not found', '', 'Close user')}
-    <div class="admin-empty-state admin-empty-state-compact" role="alert">
-      <p>This user is unavailable.</p>
-      <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
-    </div>
+    ${modalHeader('User not found', 'Close user')}
+    ${stateHtml({
+      icon: ICONS.user,
+      title: 'This user no longer exists.',
+      role: 'alert',
+      action: '<button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>'
+    })}
   `;
 }
 
@@ -629,7 +635,7 @@ async function handleCreateSubmit(event, state) {
   }
 
   mutationPending = true;
-  setFormBusy(form, true, 'Creating…');
+  setFormBusy(form, true, 'Adding…');
   try {
     await runMutation(state, {
       action: 'create',
@@ -643,10 +649,10 @@ async function handleCreateSubmit(event, state) {
     if (typeof modals.markClean === 'function') modals.markClean();
     if (typeof modals.closeRoute === 'function') await modals.closeRoute({ force: true });
     await refreshAfterMutation(state);
-    if (typeof toast.show === 'function') toast.show('User created. No email was sent.', 'success');
+    if (typeof toast.show === 'function') toast.show('User added.', 'success');
   } catch (error) {
     if (document.body.contains(form)) {
-      setFormStatus(form, mutationErrorMessage(error));
+      setFormStatus(form, mutationErrorMessage(error, 'The user could not be added. Try again.'));
     }
   } finally {
     mutationPending = false;
@@ -689,11 +695,11 @@ async function handleEditSubmit(event, state, user) {
     if (typeof modals.markClean === 'function') modals.markClean();
     if (typeof modals.closeRoute === 'function') await modals.closeRoute({ force: true });
     await refreshAfterMutation(state);
-    if (typeof toast.show === 'function') toast.show('User changes saved.', 'success');
+    if (typeof toast.show === 'function') toast.show('Changes saved.', 'success');
   } catch (error) {
     await refreshAfterMutation(state);
     if (document.body.contains(form)) {
-      setFormStatus(form, mutationErrorMessage(error));
+      setFormStatus(form, mutationErrorMessage(error, 'Changes could not be saved. Try again.'));
     }
   } finally {
     mutationPending = false;
@@ -715,8 +721,8 @@ async function handleTemporaryPasswordSubmit(event, state, user) {
 
   const confirmed = typeof modals.confirm === 'function'
     ? await modals.confirm({
-      title: 'Set temporary password?',
-      message: `${user.displayName || user.email} must use this password and change it at the next sign-in. Existing sessions will be signed out.`,
+      title: 'Set a temporary password?',
+      message: `${user.displayName || user.email} will be signed out everywhere and must change it at their next sign-in.`,
       cancelLabel: 'Cancel',
       confirmLabel: 'Set password'
     })
@@ -734,11 +740,9 @@ async function handleTemporaryPasswordSubmit(event, state, user) {
     form.reset();
     if (typeof modals.markClean === 'function') modals.markClean();
     await refreshAfterMutation(state);
-    if (typeof toast.show === 'function') {
-      toast.show('Temporary password set. Existing sessions were signed out.', 'success');
-    }
+    if (typeof toast.show === 'function') toast.show('Temporary password set.', 'success');
   } catch (error) {
-    if (document.body.contains(form)) setFormStatus(form, mutationErrorMessage(error));
+    if (document.body.contains(form)) setFormStatus(form, mutationErrorMessage(error, 'The password could not be set. Try again.'));
   } finally {
     mutationPending = false;
     if (document.body.contains(form)) setFormBusy(form, false);
@@ -749,12 +753,12 @@ async function handleSetActive(button, state, user, isActive) {
   if (mutationPending) return;
   const confirmed = typeof modals.confirm === 'function'
     ? await modals.confirm({
-      title: isActive ? 'Enable user?' : 'Disable user?',
+      title: isActive ? 'Restore access?' : 'Disable access?',
       message: isActive
-        ? `${user.displayName || user.email} will be able to sign in to the admin panel again.`
-        : `${user.displayName || user.email} will lose admin access and be signed out. Their account and roles will be retained.`,
+        ? `${user.displayName || user.email} can sign in again.`
+        : `${user.displayName || user.email} will be signed out and can’t sign in until you restore access.`,
       cancelLabel: 'Cancel',
-      confirmLabel: isActive ? 'Enable user' : 'Disable user',
+      confirmLabel: isActive ? 'Restore access' : 'Disable access',
       danger: !isActive
     })
     : true;
@@ -774,10 +778,10 @@ async function handleSetActive(button, state, user, isActive) {
     if (typeof modals.closeRoute === 'function') await modals.closeRoute({ force: true });
     await refreshAfterMutation(state);
     if (typeof toast.show === 'function') {
-      toast.show(isActive ? 'User enabled.' : 'User disabled and signed out.', 'success');
+      toast.show(isActive ? 'Access restored.' : 'Access disabled.', 'success');
     }
   } catch (error) {
-    if (typeof toast.show === 'function') toast.show(mutationErrorMessage(error), 'error');
+    if (typeof toast.show === 'function') toast.show(mutationErrorMessage(error, 'Access could not be changed. Try again.'), 'error');
   } finally {
     mutationPending = false;
     if (document.body.contains(button)) {
@@ -788,12 +792,41 @@ async function handleSetActive(button, state, user, isActive) {
   }
 }
 
+// Two tabs: details (with Save) and sign-in and access. Arrow keys move
+// between tabs, as the ARIA tabs pattern expects.
+function bindUserTabs(root) {
+  const tabs = Array.from(root.querySelectorAll('[data-user-tab]'));
+  if (!tabs.length) return;
+  const select = (tab, focus) => {
+    tabs.forEach((item) => {
+      const selected = item === tab;
+      item.setAttribute('aria-selected', selected ? 'true' : 'false');
+      item.classList.toggle('is-active', selected);
+      item.tabIndex = selected ? 0 : -1;
+      const panel = root.querySelector('#' + item.getAttribute('aria-controls'));
+      if (panel) panel.hidden = !selected;
+    });
+    if (focus) tab.focus();
+  };
+  tabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => select(tab, false));
+    tab.addEventListener('keydown', (event) => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1
+        : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+      select(tabs[next], true);
+    });
+  });
+}
+
 function bindModalEvents(root, state, user) {
   const createForm = target('[data-user-create-form]', root);
   if (createForm) {
     createForm.addEventListener('submit', (event) => handleCreateSubmit(event, state));
     return;
   }
+  bindUserTabs(root);
 
   const isCurrentUser = Boolean(user && user.id === String(state.staff && state.staff.id || ''));
   const editForm = target('[data-user-edit-form]', root);
@@ -828,23 +861,21 @@ function maybeLoadUsers(state) {
 export function renderStaticPage(root) {
   pageDestroyed = false;
   root.innerHTML = `
-    <section class="admin-workbench admin-users-workbench">
-      <section class="admin-panel admin-list-panel" aria-labelledby="users-page-title">
-        <header class="admin-panel-header admin-workspace-header admin-users-workspace-header">
-          <div class="admin-page-title">
-            <h1 id="users-page-title">Users</h1>
-            <p class="admin-count" data-admin-user-count role="status" aria-live="polite"><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></p>
-          </div>
-          <div class="admin-workspace-controls">
-            <button class="admin-button admin-button-secondary" type="button" data-users-refresh hidden>Refresh</button>
-            <button class="admin-button admin-button-primary" type="button" data-user-create-header hidden>${ICONS.add} Create user</button>
-          </div>
-        </header>
-        <div data-admin-users-content>
-          <div class="admin-user-list" aria-hidden="true">${userListSkeleton()}</div>
+    <div class="admin-page-body admin-page-narrow admin-users-page">
+      <header class="admin-page-header">
+        <div>
+          <h1 id="users-page-title">Users</h1>
+          <p class="admin-page-meta" data-admin-user-count role="status" aria-live="polite"><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></p>
         </div>
+        <div class="admin-page-actions">
+          <button class="admin-button admin-button-ghost admin-icon-button" type="button" data-users-refresh aria-label="Refresh users" title="Refresh" hidden>${ICONS.refresh}</button>
+          <button class="admin-button admin-button-primary" type="button" data-user-create-header hidden>${ICONS.add} Add user</button>
+        </div>
+      </header>
+      <section class="admin-card" aria-labelledby="users-page-title">
+        <div data-admin-users-content>${userListSkeleton()}</div>
       </section>
-    </section>
+    </div>
   `;
 }
 

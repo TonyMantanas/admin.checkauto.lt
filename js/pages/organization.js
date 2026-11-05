@@ -11,14 +11,14 @@ function field(label, control, options = {}) {
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <div class="admin-page-body admin-organization-page">
+    <div class="admin-page-body admin-page-narrow admin-organization-page">
       <header class="admin-page-header">
         <div>
           <h1 id="organization-page-title">Organization</h1>
         </div>
       </header>
 
-      <div class="admin-page-body admin-page-narrow">
+      <div class="admin-page-body">
         <section class="admin-card" aria-labelledby="organization-invoice-title">
           <header class="admin-card-head">
             <div>
