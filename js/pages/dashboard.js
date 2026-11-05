@@ -2,145 +2,103 @@ import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'dashboard';
 
-function dashboardKpiSkeletons() {
-  return Array.from({ length: 3 }, (_, index) => `
-    <div class="admin-dashboard-kpi admin-dashboard-kpi-skeleton" aria-hidden="true" style="--admin-skeleton-delay: ${index * 55}ms">
-      ${skeletons.block('admin-skeleton-line admin-skeleton-line-medium')}
-      ${skeletons.block('admin-skeleton-line admin-dashboard-skeleton-value')}
-      ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
-    </div>
-  `).join('');
-}
+const line = (size) => skeletons.block('admin-skeleton-line admin-skeleton-line-' + size);
 
-function dashboardListSkeletons(count) {
+function rowSkeletons(count) {
   return Array.from({ length: count }, (_, index) => `
-    <div class="admin-dashboard-list-skeleton" aria-hidden="true" style="--admin-skeleton-delay: ${index * 70}ms">
-      ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
-      <span>
-        ${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}
-        ${skeletons.block('admin-skeleton-line admin-skeleton-line-medium')}
-      </span>
-      ${skeletons.block('admin-skeleton-pill')}
+    <div class="admin-dash-skeleton-row" aria-hidden="true" style="--admin-skeleton-delay: ${index * 70}ms">
+      ${skeletons.block('admin-dash-skeleton-dot')}
+      <span>${line('wide')}${line('medium')}</span>
     </div>
   `).join('');
 }
 
-function dashboardWorkloadSkeleton() {
-  return `
-    <div class="admin-dashboard-workload-chart admin-dashboard-workload-skeleton" aria-hidden="true">
-      <div class="admin-dashboard-workload-figure">
-        ${skeletons.block('admin-dashboard-skeleton-pie')}
-        ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
-      </div>
-      <div class="admin-dashboard-workload-skeleton-legend">
-        ${Array.from({ length: 4 }, (_, index) => `
-          <span style="--admin-skeleton-delay: ${index * 60}ms">
-            ${skeletons.block('admin-skeleton-pill')}
-            ${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}
-            ${skeletons.block('admin-skeleton-line admin-skeleton-line-short')}
-          </span>
-        `).join('')}
-      </div>
-    </div>
-  `;
+function tileSkeletons() {
+  return Array.from({ length: 3 }, (_, index) => `
+    <li class="admin-dash-tile admin-dash-tile-skeleton" aria-hidden="true" style="--admin-skeleton-delay: ${index * 55}ms">
+      ${skeletons.block('admin-skeleton-line admin-dash-skeleton-value')}
+      ${line('medium')}
+      ${line('short')}
+    </li>
+  `).join('');
 }
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <header class="admin-dashboard-heading">
+    <header class="admin-dash-header">
       <div>
         <h1>Dashboard</h1>
+        <p data-dashboard-date>&nbsp;</p>
       </div>
-      <p data-dashboard-generated aria-live="polite">${skeletons.block('admin-skeleton-line admin-dashboard-skeleton-generated')}</p>
+      <p class="admin-dash-updated" data-dashboard-generated aria-live="polite"></p>
     </header>
 
-    <div class="admin-dashboard-load-error" data-dashboard-status hidden></div>
+    <div class="admin-dash-error" data-dashboard-status hidden></div>
 
-    <div class="admin-dashboard-content" data-dashboard-content>
-      <section class="admin-dashboard-command" aria-label="Operational overview">
-        <section class="admin-dashboard-action-rail" aria-labelledby="dashboard-attention-title">
-          <header class="admin-dashboard-board-heading">
-            <div>
-              <h2 id="dashboard-attention-title" data-dashboard-attention-title>Needs action</h2>
-            </div>
-            <p data-dashboard-attention-summary>Bookings that need review or assignment.</p>
+    <div class="admin-dash" data-dashboard-content>
+      <div class="admin-dash-ops">
+        <section class="admin-dash-card admin-dash-queue" aria-labelledby="dashboard-attention-title">
+          <header class="admin-dash-card-head">
+            <h2 id="dashboard-attention-title"><span data-dashboard-attention-title>Needs action</span></h2>
+            <span class="admin-dash-count" data-dashboard-attention-count hidden></span>
           </header>
-          <div data-dashboard-attention>${dashboardListSkeletons(3)}</div>
+          <div data-dashboard-attention>${rowSkeletons(3)}</div>
         </section>
 
-        <section class="admin-dashboard-today" aria-labelledby="dashboard-today-title">
-          <header class="admin-dashboard-board-heading">
-            <div>
-              <h2 id="dashboard-today-title">Today</h2>
-            </div>
+        <section class="admin-dash-card admin-dash-today" aria-labelledby="dashboard-today-title">
+          <header class="admin-dash-card-head">
+            <h2 id="dashboard-today-title">Today</h2>
+            <div class="admin-dash-progress-wrap" data-dashboard-today-progress></div>
           </header>
-          <div data-dashboard-today>${dashboardListSkeletons(2)}</div>
+          <div data-dashboard-today>${rowSkeletons(3)}</div>
         </section>
+      </div>
+
+      <section class="admin-dash-month" aria-labelledby="dashboard-month-title">
+        <header class="admin-dash-section-head">
+          <h2 id="dashboard-month-title" data-dashboard-month-title>This month so far</h2>
+          <p data-dashboard-month-caption></p>
+        </header>
+        <ul class="admin-dash-tiles" data-dashboard-kpis>${tileSkeletons()}</ul>
       </section>
 
-      <section class="admin-dashboard-metrics-band" aria-labelledby="dashboard-overview-title">
-        <div class="admin-dashboard-metrics-heading">
-          <h2 id="dashboard-overview-title">Month to date</h2>
-          <p>Same elapsed period last month</p>
-        </div>
-        <div class="admin-dashboard-kpis" data-dashboard-kpis aria-label="Business key performance indicators">
-          ${dashboardKpiSkeletons()}
-        </div>
-      </section>
-
-      <section class="admin-dashboard-performance-board admin-dashboard-trend" aria-labelledby="dashboard-trend-title">
-        <header class="admin-dashboard-trend-heading">
+      <section class="admin-dash-card admin-dash-trend" aria-labelledby="dashboard-trend-title">
+        <header class="admin-dash-card-head admin-dash-trend-head">
           <div>
-            <h2 id="dashboard-trend-title">Demand and delivery</h2>
-            <p>Independent booking-received and inspection-completed event trends.</p>
+            <h2 id="dashboard-trend-title">Bookings and inspections</h2>
+            <p class="admin-dash-legends" data-dashboard-trend-summary aria-live="polite">${line('wide')}</p>
           </div>
-          <div class="admin-segmented" data-dashboard-trend-range role="group" aria-label="Demand and delivery period">
+          <div class="admin-segmented" data-dashboard-trend-range role="group" aria-label="Period">
             <button type="button" data-trend-days="7" aria-pressed="false" disabled>7 days</button>
             <button type="button" data-trend-days="30" aria-pressed="true" class="is-active" disabled>30 days</button>
             <button type="button" data-trend-days="90" aria-pressed="false" disabled>3 months</button>
             <button type="button" data-trend-days="365" aria-pressed="false" disabled>12 months</button>
           </div>
         </header>
-        <div class="admin-dashboard-performance-body">
-          <div class="admin-dashboard-chart-column">
-            <p class="admin-dashboard-trend-summary" data-dashboard-trend-summary aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}</p>
-            <div data-dashboard-trend-chart aria-hidden="true">
-              <div class="admin-dashboard-chart-loading">
-                ${skeletons.block('admin-dashboard-skeleton-chart')}
-              </div>
-            </div>
-          </div>
-          <aside class="admin-dashboard-period-readout" aria-label="Selected period comparison">
-            <div data-dashboard-period-readout>
-              <h3>Selected period</h3>
-              <p>${skeletons.block('admin-skeleton-line admin-skeleton-line-wide')}</p>
-              <p>${skeletons.block('admin-skeleton-line admin-skeleton-line-medium')}</p>
-            </div>
-          </aside>
-        </div>
+        <div data-dashboard-trend-chart aria-hidden="true">${skeletons.block('admin-dash-skeleton-chart')}</div>
       </section>
 
-      <section class="admin-dashboard-secondary-grid" aria-label="Secondary business analysis">
-        <section class="admin-dashboard-support-section admin-dashboard-revenue" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
-          <header class="admin-dashboard-support-heading">
+      <div class="admin-dash-pair" data-dashboard-secondary>
+        <section class="admin-dash-card" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
+          <header class="admin-dash-card-head">
             <div>
               <h2 id="dashboard-revenue-title">Payments received</h2>
-              <p>Gross paid, non-void invoice totals, including tax.</p>
+              <p>Paid invoices per month, including tax</p>
             </div>
           </header>
           <div data-dashboard-revenue></div>
         </section>
 
-        <details class="admin-dashboard-support-section admin-dashboard-staff" data-dashboard-staff-panel aria-labelledby="dashboard-staff-title">
-          <summary class="admin-dashboard-support-heading">
-            <span>
+        <section class="admin-dash-card" data-dashboard-staff-panel aria-labelledby="dashboard-staff-title" hidden>
+          <header class="admin-dash-card-head">
+            <div>
               <h2 id="dashboard-staff-title">Inspector workload</h2>
-              <p data-dashboard-staff-period>Completed inspections during the last 30 days.</p>
-            </span>
-          </summary>
-          <div data-dashboard-staff>${dashboardWorkloadSkeleton()}</div>
-        </details>
-      </section>
+              <p>Completed inspections, last 30 days</p>
+            </div>
+          </header>
+          <div data-dashboard-staff></div>
+        </section>
+      </div>
     </div>
   `;
 }
