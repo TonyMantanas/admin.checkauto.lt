@@ -46,6 +46,8 @@
   --admin-accent-hover: #0077ed;
   --admin-accent-soft: #e8f2fc;
   --admin-link: #0066cc;
+  --admin-field: #f0f0f2;
+  --admin-field-hover: #e8e8eb;
   --admin-on-accent: #ffffff;
   --admin-focus: #0071e3;
   --admin-danger: #c9251c;
@@ -269,7 +271,8 @@ fieldset {
 
 .admin-page :is(input, textarea, select):focus-visible {
   border-color: var(--admin-focus);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-focus) 18%, transparent);
+  background-color: var(--admin-surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-focus) 20%, transparent);
 }
 
 .admin-skip-link {
@@ -1350,7 +1353,7 @@ fieldset {
   gap: 0.35rem;
   color: var(--admin-text);
   font-size: var(--admin-text-xs);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .admin-login-panel input,
@@ -1365,13 +1368,21 @@ fieldset {
 .admin-search input,
 .admin-select-wrap select {
   width: 100%;
-  min-height: 2.25rem;
-  padding: var(--admin-field-padding, 0.45rem 0.6rem);
-  border: 1px solid var(--admin-border-strong);
-  border-radius: var(--admin-control-radius);
+  min-height: 2.5rem;
+  padding: var(--admin-field-padding, 0.5rem 0.75rem);
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
   color: var(--admin-text);
-  background: var(--admin-surface);
+  background: var(--admin-field);
   line-height: 1.2;
+  transition:
+    background-color var(--admin-duration) var(--admin-ease),
+    border-color var(--admin-duration) var(--admin-ease),
+    box-shadow var(--admin-duration) var(--admin-ease);
+}
+
+.admin-page :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea):not(:disabled):hover {
+  background-color: var(--admin-field-hover);
 }
 
 .admin-action-form textarea,
@@ -1389,9 +1400,13 @@ fieldset {
 }
 
 .admin-required-marker {
-  color: var(--admin-danger);
-  font-weight: 700;
+  color: var(--admin-text-tertiary);
+  font-weight: 500;
   line-height: 1;
+}
+
+.admin-form-plain .admin-required-marker {
+  display: none;
 }
 
 .admin-page :is(input, textarea, select)::placeholder {
@@ -3307,17 +3322,17 @@ fieldset {
 .admin-status-pill {
   width: max-content;
   max-width: 100%;
-  min-height: 1.35rem;
-  padding: 0.16rem 0.45rem;
+  min-height: 1.4rem;
+  padding: 0.2rem 0.5rem;
   display: inline-flex;
   align-items: center;
-  border: 1px solid var(--admin-border);
-  border-radius: 999px;
+  border: 1px solid transparent;
+  border-radius: 0.5rem;
   color: var(--admin-text-secondary);
-  background: var(--admin-surface-subtle);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1;
+  background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
@@ -3327,7 +3342,6 @@ fieldset {
 .admin-status-pill[data-status="sent"] {
   color: var(--admin-success);
   background: var(--admin-success-soft);
-  border-color: color-mix(in srgb, var(--admin-success) 26%, var(--admin-border));
 }
 
 .admin-status-pill[data-status="pending"],
@@ -3335,7 +3349,6 @@ fieldset {
 .admin-status-pill[data-status="unpaid"] {
   color: var(--admin-warning);
   background: var(--admin-warning-soft);
-  border-color: color-mix(in srgb, var(--admin-warning) 26%, var(--admin-border));
 }
 
 .admin-status-pill[data-status="confirmed"],
@@ -3343,7 +3356,6 @@ fieldset {
 .admin-status-pill[data-status="issued"] {
   color: var(--admin-info);
   background: var(--admin-info-soft);
-  border-color: color-mix(in srgb, var(--admin-info) 24%, var(--admin-border));
 }
 
 .admin-status-pill[data-status="overdue"],
@@ -3355,7 +3367,6 @@ fieldset {
 .admin-status-pill[data-status="error"] {
   color: var(--admin-danger);
   background: var(--admin-danger-soft);
-  border-color: color-mix(in srgb, var(--admin-danger) 26%, var(--admin-border));
 }
 
 .admin-mini-list {
@@ -4669,15 +4680,14 @@ button.admin-mini-item::after {
 }
 
 .admin-checkbox {
-  min-height: 2.25rem;
-  padding: 0.4rem 0.55rem;
+  min-height: 2rem;
+  padding: 0.25rem 0;
   display: flex !important;
-  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
-  gap: var(--admin-space-2) !important;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface);
+  gap: 0.6rem !important;
+  border: 0;
+  background: transparent;
+  font-weight: 500;
 }
 
 .admin-checkbox input {
@@ -5909,9 +5919,10 @@ button.admin-mini-item::after {
   grid-column: 1 / -1;
 }
 
-/* Dashboard
-   The public site's language: white borderless tiles on the grey canvas,
-   big plain numbers, colour only where something needs a decision.
+/* Page frame and shared components
+   Every page uses one frame: a large title above white, borderless cards on
+   the grey canvas. Rows inside cards are soft grey; chips are pale tints and
+   only mark states that need attention.
    ========================================================================== */
 
 .admin-visually-hidden {
@@ -5926,7 +5937,7 @@ button.admin-mini-item::after {
   border: 0;
 }
 
-.admin-dash-header {
+.admin-page-header {
   min-width: 0;
   padding: 0.75rem 0.25rem 1.25rem;
   display: flex;
@@ -5936,20 +5947,516 @@ button.admin-mini-item::after {
   gap: 0.5rem 1rem;
 }
 
-.admin-dash-header h1 {
+.admin-page-header h1 {
   font-size: clamp(1.75rem, 1.45rem + 0.9vw, 2.125rem);
   font-weight: 700;
   letter-spacing: -0.03em;
   line-height: 1.1;
 }
 
-.admin-dash-header p {
+.admin-page-header p {
   margin-block-start: 0.3rem;
   color: var(--admin-text-secondary);
   font-size: 0.9375rem;
 }
 
-.admin-dash-header .admin-dash-updated {
+.admin-card {
+  min-width: 0;
+  padding: 1.25rem 1.375rem 1.375rem;
+  border-radius: var(--admin-tile-radius);
+  background: var(--admin-surface);
+}
+
+.admin-card-head {
+  min-width: 0;
+  min-height: 1.75rem;
+  margin-block-end: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+}
+
+.admin-card-head h2,
+.admin-section-head h2 {
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-card-head p {
+  margin-block-start: 0.2rem;
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  flex: 0 0 0.5rem;
+  border-radius: 50%;
+  background: var(--admin-border-strong);
+}
+
+.admin-dot[data-tone="danger"] { background: var(--admin-danger); }
+
+.admin-dot[data-tone="warning"] { background: var(--admin-warning); }
+
+.admin-dot[data-tone="success"] { background: var(--admin-success); }
+
+.admin-dot:is([data-tone="info"], [data-tone="accent"]) { background: var(--admin-accent); }
+
+.admin-chip {
+  min-height: 1.5rem;
+  padding: 0.2rem 0.55rem;
+  display: inline-flex;
+  align-items: center;
+  border-radius: 0.5rem;
+  color: var(--admin-text-secondary);
+  background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.admin-chip[data-tone="danger"],
+.admin-chip:is([data-tone="rejected"], [data-tone="cancelled"], [data-tone="expired"], [data-tone="failed"]) {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.admin-chip:is([data-tone="warning"], [data-tone="pending"]) {
+  color: var(--admin-warning);
+  background: var(--admin-warning-soft);
+}
+
+.admin-chip:is([data-tone="completed"], [data-tone="available"]) {
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+}
+
+.admin-chip:is([data-tone="accent"], [data-tone="confirmed"]) {
+  color: var(--admin-link);
+  background: var(--admin-accent-soft);
+}
+
+.admin-link-more {
+  margin-block-start: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--admin-link);
+  font-size: var(--admin-text-sm);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 0.25em;
+  transition: text-decoration-color var(--admin-duration) var(--admin-ease);
+}
+
+.admin-link-more:hover {
+  text-decoration-color: currentColor;
+}
+
+.admin-link-row {
+  margin-block-start: 0.875rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.5rem;
+}
+
+.admin-link-row .admin-link-more {
+  margin: 0;
+}
+
+.admin-card-foot {
+  margin-block-start: 0.875rem;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.625rem 1rem;
+}
+
+.admin-card-foot .admin-link-more {
+  margin: 0;
+}
+
+.admin-section-head {
+  padding: 0 0.25rem 0.75rem;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+.admin-section-head p {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+.admin-card[hidden],
+.admin-row-item[hidden] {
+  display: none;
+}
+
+.admin-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-page-header .admin-page-meta {
+  margin-block-start: 0.3rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.9375rem;
+}
+
+.admin-page-body {
+  min-width: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.admin-page-narrow {
+  width: 100%;
+  max-width: 52rem;
+}
+
+/* Tables and long lists sit edge to edge inside the card. */
+.admin-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.admin-card-toolbar {
+  min-width: 0;
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Soft grey rows inside a card: avatar or dot, text, meta, chevron. */
+.admin-row-list {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+  list-style: none;
+}
+
+.admin-row-item {
+  width: 100%;
+  min-width: 0;
+  min-height: 3.5rem;
+  padding: 0.7rem 0.875rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.875rem;
+  color: inherit;
+  background: var(--admin-surface-subtle);
+  text-align: start;
+  transition: background-color var(--admin-duration) var(--admin-ease);
+}
+
+:is(a, button).admin-row-item:hover {
+  background: var(--admin-surface-hover);
+}
+
+.admin-row-text {
+  min-width: 0;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.admin-row-text > strong {
+  overflow: hidden;
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-row-text > span {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+  overflow-wrap: anywhere;
+}
+
+.admin-row-meta-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.375rem;
+}
+
+.admin-row-go {
+  display: inline-flex;
+  color: var(--admin-text-tertiary);
+  transition: transform var(--admin-duration) var(--admin-ease), color var(--admin-duration) var(--admin-ease);
+}
+
+:is(a, button).admin-row-item:hover .admin-row-go {
+  color: var(--admin-text);
+  transform: translateX(2px);
+}
+
+.admin-row-group-label {
+  margin: 1.25rem 0 0.5rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin-avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-link);
+  background: var(--admin-accent-soft);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.admin-avatar[data-tone="muted"] {
+  color: var(--admin-text-secondary);
+  background: color-mix(in srgb, var(--admin-text) 8%, var(--admin-surface));
+}
+
+.admin-avatar-lg {
+  width: 3rem;
+  height: 3rem;
+  flex-basis: 3rem;
+  font-size: 1rem;
+}
+
+/* Forms in the redesigned pages. */
+.admin-form-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 1rem;
+  border: 0;
+}
+
+.admin-form-group + .admin-form-group {
+  margin-block-start: 1.5rem;
+}
+
+.admin-form-group > :is(h3, legend) {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin-form-group > .admin-field-wide,
+.admin-form-group > .admin-form-wide {
+  grid-column: 1 / -1;
+}
+
+.admin-optional {
+  color: var(--admin-text-tertiary);
+  font-weight: 400;
+}
+
+.admin-field-hint {
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+/* Save row at the bottom of a settings card. */
+.admin-card-footer {
+  margin-block-start: 1.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 1rem;
+}
+
+.admin-card-footer > :is(.admin-form-error, .admin-form-status, [role="status"]) {
+  margin: 0 auto 0 0;
+}
+
+.admin-card-footer .admin-button-primary:disabled {
+  color: var(--admin-text-tertiary);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
+  opacity: 1;
+}
+
+/* On/off switch, the public site's style. */
+.admin-switch {
+  min-width: 0;
+  display: inline-flex !important;
+  align-items: center;
+  gap: 0.75rem !important;
+  color: var(--admin-text);
+  font-size: var(--admin-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  opacity: 0;
+}
+
+.admin-switch-track {
+  position: relative;
+  width: 2.25rem;
+  height: 1.35rem;
+  flex: 0 0 2.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--admin-text) 18%, var(--admin-surface));
+  transition: background-color var(--admin-duration) var(--admin-ease);
+}
+
+.admin-switch-track::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0.15rem;
+  inset-inline-start: 0.15rem;
+  width: 1.05rem;
+  height: 1.05rem;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 20%);
+  transition: transform var(--admin-duration) var(--admin-ease);
+}
+
+.admin-switch input:checked + .admin-switch-track {
+  background: var(--admin-accent);
+}
+
+.admin-switch input:checked + .admin-switch-track::after {
+  transform: translateX(0.9rem);
+}
+
+.admin-switch input:focus-visible + .admin-switch-track {
+  outline: 2px solid var(--admin-focus);
+  outline-offset: 2px;
+}
+
+.admin-switch input:disabled + .admin-switch-track {
+  opacity: 0.5;
+}
+
+/* Empty, error and access states: one line and one action. */
+.admin-state {
+  padding: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.875rem;
+  border-radius: 0.875rem;
+  background: var(--admin-surface-subtle);
+}
+
+.admin-state-icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--admin-text-secondary);
+  background: color-mix(in srgb, var(--admin-text) 8%, var(--admin-surface));
+}
+
+.admin-state[data-tone="danger"] .admin-state-icon {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.admin-state[data-tone="success"] .admin-state-icon {
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+}
+
+.admin-state-text {
+  min-width: 0;
+  flex: 1 1 14rem;
+  display: grid;
+  gap: 0.125rem;
+}
+
+.admin-state-text strong {
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.admin-state-text span {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-xs);
+}
+
+/* Long modal forms keep their main action in reach. */
+.admin-modal-footer {
+  position: sticky;
+  z-index: 2;
+  inset-block-end: calc(-1 * var(--admin-modal-padding, 1.5rem));
+  margin: 1.5rem calc(-1 * var(--admin-modal-padding, 1.5rem)) calc(-1 * var(--admin-modal-padding, 1.5rem));
+  padding: 0.875rem var(--admin-modal-padding, 1.5rem);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem 0.75rem;
+  background: color-mix(in srgb, var(--admin-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 -1px 0 var(--admin-border);
+}
+
+.admin-modal-footer > :is(.admin-form-error, .admin-form-status, [role="status"]) {
+  margin: 0 auto 0 0;
+}
+
+@media (max-width: 40rem) {
+  .admin-form-group {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-row-item {
+    padding-inline: 0.75rem;
+    gap: 0.625rem;
+  }
+}
+
+/* Dashboard
+   The public site's language: white borderless tiles on the grey canvas,
+   big plain numbers, colour only where something needs a decision.
+   ========================================================================== */
+
+.admin-page-header .admin-dash-updated {
   margin: 0;
   color: var(--admin-text-tertiary);
   font-size: var(--admin-text-xs);
@@ -5963,7 +6470,7 @@ button.admin-mini-item::after {
 }
 
 .admin-dash[hidden],
-.admin-dash-card[hidden],
+.admin-card[hidden],
 .admin-dash-pair[hidden],
 .admin-dash-count[hidden],
 .admin-dash-error[hidden] {
@@ -5978,40 +6485,9 @@ button.admin-mini-item::after {
   gap: 1rem;
 }
 
-.admin-dash-card {
-  min-width: 0;
-  padding: 1.25rem 1.375rem 1.375rem;
-  border-radius: var(--admin-tile-radius);
-  background: var(--admin-surface);
-}
-
-.admin-dash-card-head {
-  min-width: 0;
-  min-height: 1.75rem;
-  margin-block-end: 1rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-}
-
-.admin-dash-queue .admin-dash-card-head {
+.admin-dash-queue .admin-card-head {
   justify-content: flex-start;
   gap: 0.5rem;
-}
-
-.admin-dash-card-head h2,
-.admin-dash-section-head h2 {
-  font-size: 1.125rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-}
-
-.admin-dash-card-head p {
-  margin-block-start: 0.2rem;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
 }
 
 .admin-dash-count {
@@ -6110,58 +6586,18 @@ a.admin-dash-task:hover .admin-dash-go {
   transform: translateX(2px);
 }
 
-.admin-dash-dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  flex: 0 0 0.5rem;
-  border-radius: 50%;
-  background: var(--admin-border-strong);
-}
-
-.admin-dash-dot[data-tone="danger"] { background: var(--admin-danger); }
-.admin-dash-dot[data-tone="warning"] { background: var(--admin-warning); }
-.admin-dash-dot[data-tone="success"] { background: var(--admin-success); }
-.admin-dash-dot:is([data-tone="info"], [data-tone="accent"]) { background: var(--admin-accent); }
-
 /* Chips follow the public site's verdict labels: a pale tint, dark text. */
 
-.admin-dash-chip,
 .admin-dash-task .admin-expiry-compact {
   min-height: 1.5rem;
   padding: 0.2rem 0.55rem;
   display: inline-flex;
   align-items: center;
   border-radius: 0.5rem;
-  color: var(--admin-text-secondary);
-  background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.2;
   white-space: nowrap;
-}
-
-.admin-dash-chip[data-tone="danger"],
-.admin-dash-chip:is([data-tone="rejected"], [data-tone="cancelled"], [data-tone="expired"], [data-tone="failed"]) {
-  color: var(--admin-danger);
-  background: var(--admin-danger-soft);
-}
-
-.admin-dash-chip:is([data-tone="warning"], [data-tone="pending"]) {
-  color: var(--admin-warning);
-  background: var(--admin-warning-soft);
-}
-
-.admin-dash-chip:is([data-tone="completed"], [data-tone="available"]) {
-  color: var(--admin-success);
-  background: var(--admin-success-soft);
-}
-
-.admin-dash-chip:is([data-tone="accent"], [data-tone="confirmed"]) {
-  color: var(--admin-link);
-  background: var(--admin-accent-soft);
-}
-
-.admin-dash-task .admin-expiry-compact {
   color: var(--admin-expiry-color);
   background: color-mix(in srgb, var(--admin-expiry-color) 12%, var(--admin-surface));
 }
@@ -6226,35 +6662,6 @@ a.admin-dash-task:hover .admin-dash-go {
 .admin-dash-quiet strong {
   color: var(--admin-text);
   font-weight: 600;
-}
-
-.admin-dash-link {
-  margin-block-start: 0.875rem;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--admin-link);
-  font-size: var(--admin-text-sm);
-  font-weight: 600;
-  text-decoration: underline;
-  text-decoration-color: transparent;
-  text-underline-offset: 0.25em;
-  transition: text-decoration-color var(--admin-duration) var(--admin-ease);
-}
-
-.admin-dash-link:hover {
-  text-decoration-color: currentColor;
-}
-
-.admin-dash-links {
-  margin-block-start: 0.875rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem 1.5rem;
-}
-
-.admin-dash-links .admin-dash-link {
-  margin: 0;
 }
 
 /* Today */
@@ -6322,19 +6729,6 @@ a.admin-dash-slot.is-next:hover {
   background: color-mix(in srgb, var(--admin-accent) 16%, var(--admin-surface));
 }
 
-.admin-dash-card-foot {
-  margin-block-start: 0.875rem;
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.625rem 1rem;
-}
-
-.admin-dash-card-foot .admin-dash-link {
-  margin: 0;
-}
-
 .admin-dash-facts {
   margin: 0;
   padding: 0;
@@ -6360,20 +6754,6 @@ a.admin-dash-slot.is-next:hover {
 .admin-dash-month {
   min-width: 0;
   padding-block-start: 0.5rem;
-}
-
-.admin-dash-section-head {
-  padding: 0 0.25rem 0.75rem;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.25rem 1rem;
-}
-
-.admin-dash-section-head p {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
 }
 
 .admin-dash-tiles {
@@ -6892,7 +7272,7 @@ a.admin-dash-tile:hover {
 }
 
 @media (max-width: 40rem) {
-  .admin-dash-header {
+  .admin-page-header {
     padding-block-start: 0.25rem;
   }
 
@@ -6902,7 +7282,7 @@ a.admin-dash-tile:hover {
     gap: 0.75rem;
   }
 
-  .admin-dash-card {
+  .admin-card {
     padding: 1rem 1rem 1.125rem;
     border-radius: 1rem;
   }
@@ -6932,7 +7312,7 @@ a.admin-dash-tile:hover {
     grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
-  .admin-dash-slot .admin-dash-dot {
+  .admin-dash-slot .admin-dot {
     display: none;
   }
 
@@ -6964,7 +7344,7 @@ a.admin-dash-tile:hover {
 }
 
 @media (prefers-contrast: more) {
-  .admin-dash-card,
+  .admin-card,
   .admin-dash-tile,
   .admin-dash-error {
     border: 1px solid var(--admin-border-strong);
@@ -6976,19 +7356,19 @@ a.admin-dash-tile:hover {
 }
 
 @media (forced-colors: active) {
-  .admin-dash-card,
+  .admin-card,
   .admin-dash-tile,
   .admin-dash-task,
   .admin-dash-slot,
   .admin-dash-error,
-  .admin-dash-chip {
+  .admin-chip {
     border: 1px solid CanvasText;
   }
 
   .admin-dash-chart-bar,
   .admin-dash-bars-track > span,
   .admin-dash-progress > span,
-  .admin-dash-dot,
+  .admin-dot,
   .admin-dash-key {
     forced-color-adjust: none;
     background: Highlight;
@@ -7048,8 +7428,8 @@ a.admin-dash-tile:hover {
   padding: var(--admin-modal-padding, var(--admin-space-6));
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid var(--admin-border);
-  border-radius: 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--admin-tile-radius);
   background: var(--admin-surface);
   box-shadow: var(--admin-shadow-modal);
 }
@@ -7059,8 +7439,9 @@ a.admin-dash-tile:hover {
   width: min(100%, 28rem);
 }
 
-.admin-modal-panel[data-size="lg"] {
-  width: min(100%, 58rem);
+.admin-modal-panel[data-size="lg"]:not(.admin-confirm-panel) {
+  --admin-modal-padding: 1.5rem;
+  width: min(100%, 42rem);
 }
 
 .admin-slot-editor-panel {
@@ -7075,13 +7456,11 @@ a.admin-dash-tile:hover {
 
 .admin-modal-header {
   min-width: 0;
-  margin-block-end: 0.875rem;
-  padding-block-end: 0.75rem;
+  margin-block-end: 1.25rem;
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: var(--admin-space-3);
-  border-block-end: 1px solid var(--admin-border);
 }
 
 .admin-modal-header > div {
@@ -7109,9 +7488,9 @@ a.admin-dash-tile:hover {
   flex: 0 0 auto;
   align-self: start;
   color: var(--admin-text-secondary);
-  background: var(--admin-surface);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
+  background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
+  border: 0;
+  border-radius: 50%;
 }
 
 .admin-preview-close:hover {
@@ -8477,6 +8856,8 @@ a.admin-dash-tile:hover {
     --admin-accent-hover: #47a6ff;
     --admin-accent-soft: #10304f;
     --admin-link: #47a6ff;
+    --admin-field: #2a2a2e;
+    --admin-field-hover: #323237;
     --admin-on-accent: #04121f;
     --admin-focus: #47a6ff;
     --admin-danger: #ff6961;
@@ -8573,6 +8954,8 @@ a.admin-dash-tile:hover {
     --admin-accent-hover: Highlight;
     --admin-accent-soft: Canvas;
     --admin-link: LinkText;
+    --admin-field: Field;
+    --admin-field-hover: Field;
     --admin-on-accent: HighlightText;
     --admin-focus: Highlight;
     --admin-danger: CanvasText;
@@ -8856,11 +9239,6 @@ a.admin-dash-tile:hover {
   .admin-booking-time-info-toggle { width:2.75rem; min-width:2.75rem; height:2.75rem; min-height:2.75rem; }
 }
 
-/* Keep detail dialogs as focused as the booking review. */
-.admin-modal-panel[data-size="lg"]:not(.admin-confirm-panel):not(.admin-booking-review-panel) {
-  width:min(100%,46rem);
-  --admin-modal-padding:1.5rem;
-}
 .admin-invoice-overview-grid { grid-template-columns:minmax(0,1fr); gap:.5rem; }
 .admin-invoice-overview .admin-invoice-context-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:0 1rem; }
 .admin-invoice-primary-fact { gap:.35rem; }
@@ -8918,7 +9296,6 @@ a.admin-dash-tile:hover {
 }
 
 /* Task-first customer, invoice, staff, and availability dialogs. */
-.admin-modal-panel[data-size="lg"]:not(.admin-confirm-panel):not(.admin-booking-review-panel) { width:min(100%,42rem); }
 .admin-customer-details-section { padding-block:0 .75rem; }
 .admin-customer-overview-grid { gap:0; }
 .admin-customer-contact-list { gap:.25rem 1rem; }

@@ -234,7 +234,7 @@ export function createDashboardView(deps) {
         tone: 'danger',
         label: 'Record inspection outcome',
         detail: reference + (isDate(item.end_at) ? ' · ended ' + escapeHtml(when(item.end_at)) : ''),
-        meta: '<span class="admin-dash-chip" data-tone="danger">Overdue</span>',
+        meta: '<span class="admin-chip" data-tone="danger">Overdue</span>',
         href
       };
     }
@@ -258,7 +258,7 @@ export function createDashboardView(deps) {
 
   function taskMarkup(task, id) {
     const body =
-      '<span class="admin-dash-dot" data-tone="' + task.tone + '" aria-hidden="true"></span>' +
+      '<span class="admin-dot" data-tone="' + task.tone + '" aria-hidden="true"></span>' +
       '<span class="admin-dash-task-text"><strong>' + escapeHtml(task.label) + '</strong><span>' + task.detail + '</span></span>' +
       '<span class="admin-dash-task-meta">' + (task.meta || '') + '</span>' +
       (id ? '<span class="admin-dash-go" aria-hidden="true">' + icons.next + '</span>' : '');
@@ -292,11 +292,11 @@ export function createDashboardView(deps) {
   function queueLinks(hasMoreBookings) {
     const pending = typeof notificationCount === 'function' ? notificationCount() : 0;
     const links = [];
-    if (hasMoreBookings) links.push('<a class="admin-dash-link" href="' + paths.bookings + '">View all bookings' + icons.next + '</a>');
+    if (hasMoreBookings) links.push('<a class="admin-link-more" href="' + paths.bookings + '">View all bookings' + icons.next + '</a>');
     if (pending > 0 && paths.notifications) {
-      links.push('<a class="admin-dash-link" href="' + paths.notifications + '">All notifications (' + count(pending) + ')' + icons.next + '</a>');
+      links.push('<a class="admin-link-more" href="' + paths.notifications + '">All notifications (' + count(pending) + ')' + icons.next + '</a>');
     }
-    return links.length ? '<div class="admin-dash-links">' + links.join('') + '</div>' : '';
+    return links.length ? '<div class="admin-link-row">' + links.join('') + '</div>' : '';
   }
 
   function renderAttention(analytics) {
@@ -355,9 +355,9 @@ export function createDashboardView(deps) {
     const statusText = booking.status === 'confirmed' ? (isNext ? 'Next' : '') : statusLabel(booking.status || 'unknown');
     const body =
       '<span class="admin-dash-time">' + escapeHtml(timeRange(booking.start_at, booking.end_at) || '–') + '</span>' +
-      '<span class="admin-dash-dot" data-tone="' + tone + '" aria-hidden="true"></span>' +
+      '<span class="admin-dot" data-tone="' + tone + '" aria-hidden="true"></span>' +
       '<span class="admin-dash-task-text"><strong>' + escapeHtml(booking.reference || 'Booking') + '</strong><span>' + escapeHtml(context) + '</span></span>' +
-      (statusText ? '<span class="admin-dash-chip" data-tone="' + (isNext ? 'accent' : escapeHtml(statusTone(booking.status))) + '">' + escapeHtml(statusText) + '</span>' : '');
+      (statusText ? '<span class="admin-chip" data-tone="' + (isNext ? 'accent' : escapeHtml(statusTone(booking.status))) + '">' + escapeHtml(statusText) + '</span>' : '');
     const className = 'admin-dash-slot' + (booking.status === 'completed' ? ' is-done' : '') + (isNext ? ' is-next' : '');
     return '<li>' + (booking.id
       ? '<a class="' + className + '" href="' + paths.bookings + '?filter=today&amp;booking=' + encodeURIComponent(booking.id) + '">' + body + '</a>'
@@ -433,9 +433,9 @@ export function createDashboardView(deps) {
     if (openText) facts.push('<a href="' + paths.availability + '">' + escapeHtml(openText) + '</a>');
 
     root.innerHTML = schedule +
-      '<div class="admin-dash-card-foot">' +
+      '<div class="admin-card-foot">' +
         (facts.length ? '<ul class="admin-dash-facts">' + facts.map((fact) => '<li>' + fact + '</li>').join('') + '</ul>' : '') +
-        '<a class="admin-dash-link" href="' + paths.bookings + '?filter=today">' +
+        '<a class="admin-link-more" href="' + paths.bookings + '?filter=today">' +
           (hiddenCount > 0 ? 'All ' + count(sorted.length) + ' of today\'s bookings' : 'Today\'s bookings') + icons.next +
         '</a>' +
       '</div>';

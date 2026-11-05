@@ -25,7 +25,7 @@ function tileSkeletons() {
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <header class="admin-dash-header">
+    <header class="admin-page-header">
       <div>
         <h1>Dashboard</h1>
         <p data-dashboard-date>&nbsp;</p>
@@ -37,16 +37,16 @@ export function renderStaticPage(root) {
 
     <div class="admin-dash" data-dashboard-content>
       <div class="admin-dash-ops">
-        <section class="admin-dash-card admin-dash-queue" aria-labelledby="dashboard-attention-title">
-          <header class="admin-dash-card-head">
+        <section class="admin-card admin-dash-queue" aria-labelledby="dashboard-attention-title">
+          <header class="admin-card-head">
             <h2 id="dashboard-attention-title"><span data-dashboard-attention-title>Needs action</span></h2>
             <span class="admin-dash-count" data-dashboard-attention-count hidden></span>
           </header>
           <div data-dashboard-attention>${rowSkeletons(3)}</div>
         </section>
 
-        <section class="admin-dash-card admin-dash-today" aria-labelledby="dashboard-today-title">
-          <header class="admin-dash-card-head">
+        <section class="admin-card admin-dash-today" aria-labelledby="dashboard-today-title">
+          <header class="admin-card-head">
             <h2 id="dashboard-today-title">Today</h2>
             <div class="admin-dash-progress-wrap" data-dashboard-today-progress></div>
           </header>
@@ -55,15 +55,15 @@ export function renderStaticPage(root) {
       </div>
 
       <section class="admin-dash-month" aria-labelledby="dashboard-month-title">
-        <header class="admin-dash-section-head">
+        <header class="admin-section-head">
           <h2 id="dashboard-month-title" data-dashboard-month-title>This month so far</h2>
           <p data-dashboard-month-caption></p>
         </header>
         <ul class="admin-dash-tiles" data-dashboard-kpis>${tileSkeletons()}</ul>
       </section>
 
-      <section class="admin-dash-card admin-dash-trend" aria-labelledby="dashboard-trend-title">
-        <header class="admin-dash-card-head admin-dash-trend-head">
+      <section class="admin-card admin-dash-trend" aria-labelledby="dashboard-trend-title">
+        <header class="admin-card-head admin-dash-trend-head">
           <div>
             <h2 id="dashboard-trend-title">Bookings and inspections</h2>
             <p class="admin-dash-legends" data-dashboard-trend-summary aria-live="polite">${line('wide')}</p>
@@ -79,8 +79,8 @@ export function renderStaticPage(root) {
       </section>
 
       <div class="admin-dash-pair" data-dashboard-secondary>
-        <section class="admin-dash-card" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
-          <header class="admin-dash-card-head">
+        <section class="admin-card" data-dashboard-revenue-panel aria-labelledby="dashboard-revenue-title" hidden>
+          <header class="admin-card-head">
             <div>
               <h2 id="dashboard-revenue-title">Payments received</h2>
               <p>Paid invoices per month, including tax</p>
@@ -89,8 +89,8 @@ export function renderStaticPage(root) {
           <div data-dashboard-revenue></div>
         </section>
 
-        <section class="admin-dash-card" data-dashboard-staff-panel aria-labelledby="dashboard-staff-title" hidden>
-          <header class="admin-dash-card-head">
+        <section class="admin-card" data-dashboard-staff-panel aria-labelledby="dashboard-staff-title" hidden>
+          <header class="admin-card-head">
             <div>
               <h2 id="dashboard-staff-title">Inspector workload</h2>
               <p>Completed inspections, last 30 days</p>

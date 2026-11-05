@@ -10,7 +10,7 @@ import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-3';
 import { skeletons } from './skeletons.js?v=20261004-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
-import { createDashboardView } from './dashboard-view.js?v=20261105-3';
+import { createDashboardView } from './dashboard-view.js?v=20261105-4';
 import { formatDay as displayDay, formatDateTime as displayDateTime, formatRange as displayRange, relativeDay as relativeDayLabel } from './formatting.js?v=20261105-3';
 
 /* ==========================================================================
