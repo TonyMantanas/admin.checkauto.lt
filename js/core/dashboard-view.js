@@ -32,6 +32,7 @@ export function createDashboardView(deps) {
     expiryCountdownHtml,
     staffHasAccess,
     setPressed,
+    notificationCount,
     onRetry
   } = deps;
 
@@ -286,6 +287,18 @@ export function createDashboardView(deps) {
     return '<p class="admin-dash-unavailable" role="status">' + escapeHtml(message) + '</p>';
   }
 
+  // Inquiries, email problems and other follow-ups live in Notifications;
+  // point there so the dashboard queue is never the whole story by accident.
+  function queueLinks(hasMoreBookings) {
+    const pending = typeof notificationCount === 'function' ? notificationCount() : 0;
+    const links = [];
+    if (hasMoreBookings) links.push('<a class="admin-dash-link" href="' + paths.bookings + '">View all bookings' + icons.next + '</a>');
+    if (pending > 0 && paths.notifications) {
+      links.push('<a class="admin-dash-link" href="' + paths.notifications + '">All notifications (' + count(pending) + ')' + icons.next + '</a>');
+    }
+    return links.length ? '<div class="admin-dash-links">' + links.join('') + '</div>' : '';
+  }
+
   function renderAttention(analytics) {
     const root = $('[data-dashboard-attention]');
     if (!root) return;
@@ -305,12 +318,12 @@ export function createDashboardView(deps) {
       const tasks = bookingTasks.concat(billingTasks);
       setAttentionCount(total, tasks.some(({ task }) => task.tone === 'danger') ? 'danger' : 'warning');
       if (!tasks.length) {
-        root.innerHTML = clearState('All clear', 'No booking decisions, overdue outcomes or unpaid work.');
+        root.innerHTML = clearState('All clear', 'No booking decisions, overdue outcomes or unpaid work.') + queueLinks(false);
         return;
       }
       const hasMore = attention.has_more || reminders.billing_has_more || total > tasks.length;
       root.innerHTML = '<ul class="admin-dash-tasks">' + tasks.map(({ item, task }) => taskMarkup(task, item.id)).join('') + '</ul>' +
-        (hasMore ? '<a class="admin-dash-link" href="' + paths.bookings + '">View all bookings' + icons.next + '</a>' : '');
+        queueLinks(hasMore);
       return;
     }
 

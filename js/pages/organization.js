@@ -2,6 +2,12 @@ import { skeletons } from '../core/skeletons.js?v=20260821-2';
 
 export const page = 'organization';
 
+// 24-hour times in 15-minute steps, the same in every browser locale.
+const quarterHourOptions = Array.from({ length: 96 }, (_, index) => {
+  const value = String(Math.floor(index / 4)).padStart(2, '0') + ':' + String((index % 4) * 15).padStart(2, '0');
+  return `<option value="${value}">${value}</option>`;
+}).join('');
+
 const weekdays = [
   [1, 'Monday'],
   [2, 'Tuesday'],
@@ -97,14 +103,15 @@ export function renderStaticPage(root) {
               </div>
               <fieldset class="admin-confirmation-week">
                 <legend>Review hours</legend>
+                <div class="admin-confirmation-week-head" aria-hidden="true"><span>Day</span><span>From</span><span>Until</span></div>
                 ${weekdays.map(([isoWeekday, label]) => `
                   <div class="admin-confirmation-day" data-confirmation-day="${isoWeekday}">
                     <label class="admin-checkbox admin-confirmation-day-toggle">
                       <input type="checkbox" name="confirmationDay${isoWeekday}" data-confirmation-day-enabled>
                       <span>${label}</span>
                     </label>
-                    <label><span class="admin-field-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span><input type="time" name="confirmationDay${isoWeekday}Start" step="900" data-confirmation-day-start></label>
-                    <label><span class="admin-field-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span><input type="time" name="confirmationDay${isoWeekday}End" step="900" data-confirmation-day-end></label>
+                    <label><span class="admin-field-label admin-confirmation-time-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span><span class="admin-select-wrap"><select name="confirmationDay${isoWeekday}Start" data-confirmation-day-start aria-label="${label} from">${quarterHourOptions}</select></span></label>
+                    <label><span class="admin-field-label admin-confirmation-time-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span><span class="admin-select-wrap"><select name="confirmationDay${isoWeekday}End" data-confirmation-day-end aria-label="${label} until">${quarterHourOptions}</select></span></label>
                   </div>
                 `).join('')}
               </fieldset>

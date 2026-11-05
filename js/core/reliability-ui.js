@@ -1,7 +1,8 @@
 import { moneyCents, vilniusCandidates } from './reliability.js?v=20261004-1';
+import { formatMoney, formatDateTime } from './formatting.js?v=20261105-3';
 export const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const money = value => new Intl.NumberFormat('en-GB',{style:'currency',currency:'EUR'}).format(Number(value || 0)/100);
-const date = value => value ? new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/Vilnius',dateStyle:'medium',timeStyle:'short'}).format(new Date(value)) : 'Unknown';
+const money = value => formatMoney(value, 'EUR');
+const date = value => value ? formatDateTime(value) : 'Unknown';
 const hidden = (name,value) => `<input type="hidden" name="${name}" value="${esc(value)}">`;
 const amountInput = (name,label,value='',required=true) => `<label><span class="admin-field-label">${label}${required ? ' <span class="admin-required-marker" aria-hidden="true">*</span>' : ''}</span><input name="${name}" type="text" inputmode="decimal"${required ? ' required' : ''} value="${esc(value)}" placeholder="0.00"></label>`;
 const formEnd = label => `<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div><button class="admin-button admin-button-secondary" type="submit">${label}</button></form>`;

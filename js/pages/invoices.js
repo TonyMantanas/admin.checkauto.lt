@@ -93,13 +93,15 @@ export function renderStaticPage(root) {
             </div>
           </div>
         </div>
+        <div class="admin-billing-summary" data-invoice-summary aria-label="Billing totals" hidden></div>
         <div class="admin-data-head admin-invoice-data-head" aria-hidden="true">
           <span>Record and customer</span>
           <span>Status</span>
           <span>Booking</span>
           <span>Date</span>
           <span>Amount</span>
-          <span>Details</span>
+          <span>Due</span>
+          <span>Email</span>
         </div>
         <div class="admin-invoice-list" data-invoice-list>${skeletons.list('invoices')}</div>
         <div class="admin-list-pagination" data-invoice-pagination hidden>

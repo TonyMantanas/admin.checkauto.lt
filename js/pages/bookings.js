@@ -65,6 +65,16 @@ export function renderStaticPage(root) {
             </div>
           </div>
         </div>
+        <div class="admin-booking-data-head" aria-hidden="true">
+          <div class="admin-data-head">
+            <span>Booking</span>
+            <span>Status</span>
+            <span>Service</span>
+            <span>Appointment</span>
+            <span>Vehicle</span>
+          </div>
+          <span></span>
+        </div>
         <div class="admin-booking-list" data-admin-booking-list>${skeletons.list('bookings')}</div>
         <div class="admin-list-pagination" data-booking-pagination hidden>
           <button class="admin-button admin-button-secondary" type="button" data-booking-load-more>Load more bookings</button>

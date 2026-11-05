@@ -1,6 +1,6 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261009-6';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261008-1';
+import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261105-3';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -10,7 +10,8 @@ import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-3';
 import { skeletons } from './skeletons.js?v=20261004-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
-import { createDashboardView } from './dashboard-view.js?v=20261105-1';
+import { createDashboardView } from './dashboard-view.js?v=20261105-3';
+import { formatDay as displayDay, formatDateTime as displayDateTime, formatRange as displayRange, relativeDay as relativeDayLabel } from './formatting.js?v=20261105-3';
 
 /* ==========================================================================
    admin.js - CheckAuto admin app
@@ -43,6 +44,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     availability: adminPath('/availability/'),
     customers: adminPath('/customers/'),
     invoices: adminPath('/invoices/'),
+    notifications: adminPath('/notifications/'),
     marketing: adminPath('/marketing/'),
     organization: adminPath('/organization/'),
     users: adminPath('/users/'),
@@ -480,28 +482,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return parts.hour + ':' + parts.minute;
   }
 
+  // Display only. formatDate stays the YYYY-MM-DD key used for logic.
   function formatDateTime(value) {
     if (!value) return 'Not provided';
-    return formatDate(value) + ' ' + formatTime(value);
+    return displayDateTime(value);
   }
 
   function formatRange(start, end) {
     if (!start || !end) return 'Not provided';
-    if (formatDate(start) === formatDate(end)) {
-      return formatDate(start) + ', ' + formatTime(start) + '-' + formatTime(end);
-    }
-    return formatDateTime(start) + ' - ' + formatDateTime(end);
+    return displayRange(start, end);
   }
 
   function formatReviewRange(start, end) {
     if (!start || !end) return 'Not provided';
-    var friendlyDate = function (value) {
-      return new Intl.DateTimeFormat('en-GB', {
-        timeZone: TIME_ZONE, weekday: 'short', day: 'numeric', month: 'short', year: 'numeric'
-      }).format(new Date(value));
-    };
-    return friendlyDate(start) + ' · ' + formatTime(start) + '–' +
-      (formatDate(start) === formatDate(end) ? formatTime(end) : friendlyDate(end) + ' ' + formatTime(end));
+    return displayRange(start, end);
+  }
+
+  function formatDueDate(value) {
+    return isValidYmd(value) ? displayDay(value) : '';
   }
 
   function expiryDurationLabel(remainingMs) {
@@ -933,7 +931,36 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function invoiceTone(invoice) {
     if (!invoice) return 'available';
     if (invoice.invoice_status === 'void') return 'void';
-    return invoice.payment_status === 'paid' ? 'paid' : 'unpaid';
+    if (invoice.payment_status === 'paid') return 'paid';
+    return invoiceIsOverdue(invoice) ? 'overdue' : 'unpaid';
+  }
+
+  function invoiceIsOpen(invoice) {
+    return Boolean(invoice && invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid');
+  }
+
+  function invoiceIsOverdue(invoice) {
+    return invoiceIsOpen(invoice) && isValidYmd(invoice.due_date) && compareYmd(invoice.due_date, todayYmd()) < 0;
+  }
+
+  function invoiceOutstandingCents(invoice) {
+    return Math.max(0, (Number(invoice.amount_cents) || 0) - (Number(invoice.paid_amount_cents) || 0));
+  }
+
+  // Short delivery words for the list; the modal keeps the full wording.
+  function emailStatusShort(status) {
+    return {
+      sent: ['Sent', 'neutral'],
+      delivered: ['Delivered', 'success'],
+      queued: ['Queued', 'warning'],
+      processing: ['Sending', 'warning'],
+      pending: ['Waiting', 'warning'],
+      delayed: ['Delayed', 'warning'],
+      needs_review: ['Check delivery', 'danger'],
+      failed: ['Failed', 'danger'],
+      bounced: ['Bounced', 'danger'],
+      not_sent: ['Not sent', 'neutral']
+    }[status] || (status === 'skipped' || !status ? ['–', 'none'] : [String(status).replace(/_/g, ' '), 'neutral']);
   }
 
   function emailStatusLabel(status) {
@@ -2813,6 +2840,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         end: slot.end_at,
         title: serviceNameById(slot.service_id),
         meta: (staffById(slot.assigned_staff_id) || {}).display_name || 'Unassigned',
+        assigneeName: (staffById(slot.assigned_staff_id) || {}).display_name || '',
         href: PATHS.availability + '?slot=' + encodeURIComponent(slot.id)
       });
     });
@@ -2839,7 +2867,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       status: booking.status,
       start: start,
       end: end,
-      title: booking.public_reference + ' - ' + booking.customer_name,
+      title: booking.public_reference + ' · ' + booking.customer_name,
+      customerName: booking.customer_name || '',
+      reference: booking.public_reference || '',
       meta: booking.vehicle || serviceNameForBooking(booking),
       href: PATHS.bookings + '?booking=' + encodeURIComponent(booking.id)
     };
@@ -2875,11 +2905,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function dayLabel(dateValue) {
-    var weekday = new Intl.DateTimeFormat('en-GB', {
-      timeZone: TIME_ZONE,
-      weekday: 'short'
-    }).format(utcNoonFromYmd(dateValue));
-    return weekday + ' ' + dateValue.slice(5);
+    return displayDay(dateValue, { weekday: true, year: false });
   }
 
   function compactCalendarDate(dateValue, options) {
@@ -2903,6 +2929,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return compactCalendarDate(range.start, { year: crossesYear }) +
       ' - ' +
       compactCalendarDate(end, { year: crossesYear || !compact });
+  }
+
+  // A confirmed inspection can only be marked completed once it has started.
+  function bookingCanBeCompleted(booking) {
+    var start = booking && (booking.final_start_at || booking.requested_start_at);
+    var startMs = start ? new Date(start).getTime() : NaN;
+    return Boolean(booking && booking.status === 'confirmed' && Number.isFinite(startMs) && startMs <= Date.now());
   }
 
   function bookingRowHtml(booking, attributeName) {
@@ -2934,9 +2967,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<span class="admin-row-date admin-booking-meta">' + escapeHtml(dateRange) + '</span>' +
         '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(vehicle) + '</span>' +
       '</button>' +
-      (booking.status === 'confirmed'
-        ? '<button class="admin-button admin-button-secondary admin-booking-row-complete" type="button" data-row-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>'
-        : '') +
+      '<span class="admin-booking-row-action">' +
+        (bookingCanBeCompleted(booking)
+          ? '<button class="admin-button admin-button-ghost admin-booking-row-complete" type="button" data-row-complete-booking="' + escapeHtml(booking.id) + '" aria-label="Mark ' + escapeHtml(booking.public_reference) + ' completed">' + ICON_SUCCESS + '<span>Mark completed</span></button>'
+          : '') +
+      '</span>' +
     '</article>';
   }
 
@@ -2958,6 +2993,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     expiryCountdownHtml: expiryCountdownHtml,
     staffHasAccess: staffHasAccess,
     setPressed: setPressed,
+    notificationCount: function () {
+      var summary = state.operationsSummary || state.operationsState;
+      var total = summary && Number(summary.action_count);
+      return Number.isFinite(total) ? total : 0;
+    },
     onRetry: function () {
       return refresh({ preserveScroll: true, force: true, view: 'dashboard' }).catch(reportNavigationRefreshError);
     }
@@ -3034,7 +3074,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '<div class="admin-calendar-head">' +
             '<div class="admin-calendar-corner"></div>' +
             range.days.map(function (day) {
-              return '<div class="admin-calendar-day-head" data-past="' + (compareYmd(day, todayYmd()) < 0 ? 'true' : 'false') + '">' + escapeHtml(dayLabel(day)) + '</div>';
+              return '<div class="admin-calendar-day-head" data-past="' + (compareYmd(day, todayYmd()) < 0 ? 'true' : 'false') + '"' + (day === todayYmd() ? ' data-today="true" aria-current="date"' : '') + '>' + escapeHtml(dayLabel(day)) + '</div>';
             }).join('') +
           '</div>' +
           '<div class="admin-calendar-body">' +
@@ -3050,11 +3090,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var calendarScroller = $('.admin-calendar-scroll', calendar);
     if (calendarScroller && !calendarIsCompact()) {
       calendarScroller.scrollLeft = previousScrollLeft;
-      if (previousScrollTop !== null) {
+      if (calendar.dataset.scrollPlaced === 'true' && previousScrollTop !== null) {
         calendarScroller.scrollTop = previousScrollTop;
       } else {
-        var workingDayMiddle = ((DEFAULT_START_HOUR + 17) / 2) * HOUR_HEIGHT;
-        calendarScroller.scrollTop = Math.max(0, workingDayMiddle - calendarScroller.clientHeight / 2);
+        placeCalendarAtWorkingHours(calendar, calendarScroller, events);
       }
     }
 
@@ -3083,28 +3122,79 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
+  // The first time the week grid is visible, start the view just before the
+  // working day (or the earliest item, if something starts earlier).
+  function placeCalendarAtWorkingHours(calendar, scroller, events) {
+    var earliest = events.reduce(function (minutes, event) {
+      return Math.min(minutes, eventMinutes(event.start));
+    }, DEFAULT_START_HOUR * 60);
+    var place = function () {
+      if (!scroller.isConnected || scroller.clientHeight === 0) return false;
+      scroller.scrollTop = Math.max(0, (earliest / 60 - 0.5) * HOUR_HEIGHT);
+      calendar.dataset.scrollPlaced = 'true';
+      return true;
+    };
+    if (place() || !('ResizeObserver' in window)) return;
+    var observer = new ResizeObserver(function () {
+      if (place() || !scroller.isConnected) observer.disconnect();
+    });
+    observer.observe(scroller);
+  }
+
+  function shortStaffName(name) {
+    var parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length < 2) return parts[0] || '';
+    return parts[0] + ' ' + parts[parts.length - 1].charAt(0) + '.';
+  }
+
+  // Phones get an agenda: it starts today (earlier days fold away), shows each
+  // booking as a row and collapses a day's open times into one line of times.
   function renderCalendarAgenda(range, byDay) {
+    var today = todayYmd();
+    var earlier = range.days.filter(function (day) { return compareYmd(day, today) < 0; });
+    var upcoming = range.days.filter(function (day) { return compareYmd(day, today) >= 0; });
+    if (!upcoming.length) {
+      upcoming = range.days;
+      earlier = [];
+    }
+    var renderDay = function (day) {
+      var events = byDay[day] || [];
+      var bookings = events.filter(function (event) { return event.type !== 'slot'; });
+      var open = events.filter(function (event) { return event.type === 'slot'; });
+      var summary = [
+        bookings.length ? bookings.length + (bookings.length === 1 ? ' booking' : ' bookings') : '',
+        open.length ? open.length + ' open' : ''
+      ].filter(Boolean).join(' · ') || 'Nothing scheduled';
+      return '<section class="admin-calendar-agenda-day' + (day === today ? ' is-today' : '') + '">' +
+        '<div class="admin-calendar-agenda-date">' +
+          '<span>' + escapeHtml(day === today ? 'Today · ' + dayLabel(day) : dayLabel(day)) + '</span>' +
+          '<span>' + escapeHtml(summary) + '</span>' +
+        '</div>' +
+        '<div class="admin-calendar-agenda-events">' +
+          bookings.map(function (event) {
+            var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' + (event.customerName || event.title) +
+              (event.reference ? ', ' + event.reference : '') + (event.meta ? ', ' + event.meta : '') + ', ' + statusLabel(event.status);
+            return '<button class="admin-calendar-agenda-event" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(statusTone(event.status)) + '" data-calendar-event="' + escapeHtml(event.id) + '">' +
+              '<span class="admin-calendar-agenda-time">' + escapeHtml(formatTime(event.start) + '–' + formatTime(event.end)) + '</span>' +
+              '<span class="admin-calendar-agenda-meta"><strong>' + escapeHtml(event.customerName || event.title) + '</strong><span>' + escapeHtml([event.reference, event.meta].filter(Boolean).join(' · ')) + '</span></span>' +
+              '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(event.status)) + '">' + escapeHtml(statusLabel(event.status)) + '</span>' +
+            '</button>';
+          }).join('') +
+          (open.length
+            ? '<div class="admin-calendar-agenda-open"><span>Open</span>' + open.map(function (event) {
+                var who = event.assigneeName ? ', ' + event.assigneeName : '';
+                return '<button class="admin-calendar-agenda-slot' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + '" type="button" data-calendar-event="' + escapeHtml(event.id) + '" aria-label="' + escapeHtml('Open time ' + formatTime(event.start) + ' to ' + formatTime(event.end) + who) + '">' + escapeHtml(formatTime(event.start)) + '</button>';
+              }).join('') + '</div>'
+            : '') +
+          (!events.length ? '<p class="admin-calendar-agenda-empty">Nothing scheduled.</p>' : '') +
+        '</div>' +
+      '</section>';
+    };
     return '<div class="admin-calendar-agenda" aria-label="Calendar agenda">' +
-      range.days.map(function (day) {
-        var events = byDay[day] || [];
-        return '<section class="admin-calendar-agenda-day">' +
-          '<div class="admin-calendar-agenda-date">' +
-            '<span>' + escapeHtml(dayLabel(day)) + '</span>' +
-            '<span>' + events.length + ' event' + (events.length === 1 ? '' : 's') + '</span>' +
-          '</div>' +
-          '<div class="admin-calendar-agenda-events">' +
-            (events.length ? events.map(function (event) {
-              var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' + event.title +
-                (event.meta ? ', ' + event.meta : '') + ', ' + statusLabel(event.status);
-              return '<button class="admin-calendar-agenda-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(statusTone(event.status)) + '" data-calendar-event="' + escapeHtml(event.id) + '">' +
-                '<span class="admin-calendar-agenda-time">' + escapeHtml(formatTime(event.start) + '–' + formatTime(event.end)) + '</span>' +
-                '<span class="admin-calendar-agenda-meta"><strong>' + escapeHtml(event.title) + '</strong><span>' + escapeHtml(event.meta || '') + '</span></span>' +
-                '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(event.status)) + '">' + escapeHtml(statusLabel(event.status)) + '</span>' +
-              '</button>';
-            }).join('') : '<p class="admin-calendar-agenda-empty">No scheduled items.</p>') +
-          '</div>' +
-        '</section>';
-      }).join('') +
+      (earlier.length
+        ? '<details class="admin-calendar-agenda-earlier" data-disclosure-key="agenda-earlier"><summary>Earlier this ' + (state.calendarView === 'day' ? 'day' : 'week') + ' <span>' + earlier.length + (earlier.length === 1 ? ' day' : ' days') + '</span></summary>' + earlier.map(renderDay).join('') + '</details>'
+        : '') +
+      upcoming.map(renderDay).join('') +
     '</div>';
   }
 
@@ -3134,11 +3224,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var top = Math.max(0, start - hours.start * 60) / 60 * HOUR_HEIGHT;
     var height = Math.max(34, (Math.max(end, start + 15) - start) / 60 * HOUR_HEIGHT);
     var tone = statusTone(event.status);
+    var isOpen = event.type === 'slot';
+    var primary = isOpen ? 'Open' : (event.customerName || event.title);
+    var secondary = isOpen ? shortStaffName(event.assigneeName) : (event.reference || '');
     var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' +
-      event.title + ', ' + statusLabel(event.status);
-    return '<button class="admin-calendar-event' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
-      '<strong>' + escapeHtml(formatTime(event.start) + '-' + formatTime(event.end)) + '</strong>' +
-      '<span>' + escapeHtml(statusLabel(event.status) + ': ' + event.title) + '</span>' +
+      (isOpen ? 'open time' + (event.assigneeName ? ', ' + event.assigneeName : '') : primary + (secondary ? ', ' + secondary : '') + ', ' + statusLabel(event.status));
+    return '<button class="admin-calendar-event' + (isOpen ? ' is-open' : '') + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
+      '<strong>' + escapeHtml(formatTime(event.start) + '–' + formatTime(event.end)) + '</strong>' +
+      '<span>' + escapeHtml(primary) + '</span>' +
+      (secondary ? '<small>' + escapeHtml(secondary) + '</small>' : '') +
     '</button>';
   }
 
@@ -3341,8 +3435,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    // The list and its paging follow the received time, so rows are grouped
+    // by the day each booking came in.
+    var groupKey = null;
     els.bookingList.innerHTML = bookings.map(function (booking) {
-      return bookingRowHtml(booking, 'data-booking-id');
+      var received = booking.created_at && Number.isFinite(new Date(booking.created_at).getTime()) ? booking.created_at : null;
+      var key = received ? formatDate(received) : 'unknown';
+      var heading = '';
+      if (key !== groupKey) {
+        groupKey = key;
+        var label = received ? relativeDayLabel(received) : 'date unknown';
+        heading = '<h2 class="admin-booking-group">Received ' + escapeHtml(label) + '</h2>';
+      }
+      return heading + bookingRowHtml(booking, 'data-booking-id');
     }).join('');
 
     $all('[data-booking-id]', els.bookingList).forEach(function (button) {
@@ -3768,9 +3873,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<div class="admin-detail-section admin-booking-decision">' +
         '<h2>Review decision</h2>' +
         '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a booking decision">' +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="requested" aria-controls="booking-decision-requested-panel" aria-expanded="false" aria-pressed="false">Confirm requested time</button>' +
+          '<button class="admin-button admin-button-primary" type="button" data-booking-decision-choice="requested" aria-controls="booking-decision-requested-panel" aria-expanded="false" aria-pressed="false">Confirm requested time</button>' +
           '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-controls="booking-decision-change-panel" aria-expanded="false" aria-pressed="false">Change time</button>' +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false" aria-pressed="false">Reject</button>' +
+          '<button class="admin-button admin-button-danger" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false" aria-pressed="false">Reject</button>' +
         '</div>' +
         '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-requested-panel" data-booking-decision-panel="requested" hidden>' +
           '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
@@ -3815,7 +3920,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (booking.status === 'confirmed') {
       return '<div class="admin-detail-section admin-booking-decision">' +
         '<div class="admin-action-buttons">' +
-          '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>' +
+          (bookingCanBeCompleted(booking)
+            ? '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>'
+            : '') +
           '<button class="admin-button admin-button-secondary" type="button" data-booking-cancellation-open>Cancel booking</button>' +
         '</div>' +
         '<div class="admin-booking-cancellation-panel admin-booking-reject-panel" data-booking-cancellation-panel hidden>' +
@@ -3933,7 +4040,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var customerName = customer.display_name || 'Unnamed customer';
       var customerEmail = customer.email || 'No email';
       var customerContact = [customer.email, customer.phone].filter(Boolean).join(' · ') || 'No contact details';
-      var customerMeta = bookings.length + ' booking' + (bookings.length === 1 ? '' : 's') + ' · ' + invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's');
+      var customerMeta = [customerBookingMoment(bookings), bookings.length + ' booking' + (bookings.length === 1 ? '' : 's'), invoices.length + ' invoice' + (invoices.length === 1 ? '' : 's')].filter(Boolean).join(' · ');
       var customerLabel = [customerName, customerEmail, customer.phone || 'No phone', customerMeta].join(', ');
       return '<button class="admin-customer-item admin-data-row' + (customer.id === state.selectedCustomerId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(customerLabel) + '" data-customer-id="' + escapeHtml(customer.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title">' + escapeHtml(customerName) + '</span></span>' +
@@ -3947,6 +4054,21 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         navigateToModal('customer', button.dataset.customerId);
       });
     });
+  }
+
+  // "Next Sat 7 Nov" for an upcoming booking, otherwise "Last 4 Nov".
+  function customerBookingMoment(bookings) {
+    var now = Date.now();
+    var timed = bookings.map(function (booking) {
+      var start = booking.final_start_at || booking.requested_start_at;
+      return { booking: booking, time: start ? new Date(start).getTime() : NaN, start: start };
+    }).filter(function (item) { return Number.isFinite(item.time); });
+    var next = timed.filter(function (item) { return item.time >= now && isActiveBookingStatus(item.booking.status); })
+      .sort(function (a, b) { return a.time - b.time; })[0];
+    if (next) return 'Next ' + displayDay(next.start, { weekday: true });
+    var last = timed.filter(function (item) { return item.time < now; })
+      .sort(function (a, b) { return b.time - a.time; })[0];
+    return last ? 'Last ' + displayDay(last.start) : '';
   }
 
   function marketingLabel(status) {
@@ -4315,8 +4437,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div class="admin-customer-header-primary">' +
           '<h2>' + escapeHtml(customer.display_name || 'Unnamed customer') + '</h2>' +
           '<div class="admin-customer-header-contact" aria-label="Contact customer">' +
-            (customer.phone ? '<a class="admin-icon-button admin-customer-header-icon" href="tel:' + escapeHtml(customer.phone) + '" aria-label="Call ' + escapeHtml(customer.phone) + '" title="Call ' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '</a>' : '') +
-            (customer.email ? '<a class="admin-icon-button admin-customer-header-icon" href="mailto:' + escapeHtml(customer.email) + '" aria-label="Email ' + escapeHtml(customer.email) + '" title="Email ' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '</a>' : '') +
+            (customer.phone ? '<a class="admin-customer-contact-link" href="tel:' + escapeHtml(customer.phone) + '" aria-label="Call ' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(customer.phone) + '</span></a>' : '') +
+            (customer.email ? '<a class="admin-customer-contact-link" href="mailto:' + escapeHtml(customer.email) + '" aria-label="Email ' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(customer.email) + '</span></a>' : '') +
           '</div>' +
         '</div>' +
         '<div class="admin-customer-header-utility">' +
@@ -4941,6 +5063,73 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     renderInvoiceList();
   }
 
+  function sumByCurrency(rows, amount) {
+    var totals = {};
+    rows.forEach(function (row) {
+      var currency = String(row.currency || 'EUR').toUpperCase();
+      totals[currency] = (totals[currency] || 0) + amount(row);
+    });
+    var currencies = Object.keys(totals).sort();
+    return currencies.length
+      ? currencies.map(function (currency) { return formatMoney(totals[currency], currency); }).join(' · ')
+      : formatMoney(0, 'EUR');
+  }
+
+  function invoiceQuickFilter() {
+    var plain = !state.invoiceSearch && !state.invoiceEmailStatuses.length && !state.invoiceAmountMin && !state.invoiceAmountMax && !state.invoiceDateFrom &&
+      state.invoiceStatuses.join() === 'issued' && state.invoicePaymentStatuses.join() === 'unpaid';
+    if (!plain) return '';
+    if (state.invoiceDateField === 'due' && state.invoiceDateTo === addDaysYmd(todayYmd(), -1)) return 'overdue';
+    return state.invoiceDateTo ? '' : 'unpaid';
+  }
+
+  function applyInvoiceQuickFilter(kind) {
+    var turnOff = invoiceQuickFilter() === kind;
+    state.invoiceSearch = '';
+    state.invoiceStatuses = turnOff ? [] : ['issued'];
+    state.invoicePaymentStatuses = turnOff ? [] : ['unpaid'];
+    state.invoiceEmailStatuses = [];
+    state.invoiceDateField = !turnOff && kind === 'overdue' ? 'due' : 'created';
+    state.invoiceDateFrom = '';
+    state.invoiceDateTo = !turnOff && kind === 'overdue' ? addDaysYmd(todayYmd(), -1) : '';
+    state.invoiceAmountMin = '';
+    state.invoiceAmountMax = '';
+    commitInvoiceFilters();
+  }
+
+  // Totals describe the records on screen: the API pages and filters billing
+  // records and has no overall total, so the note says what is covered.
+  function renderInvoiceSummary(invoices) {
+    var root = $('[data-invoice-summary]');
+    if (!root) return;
+    if (!invoices.length && !invoiceQuickFilter()) {
+      root.hidden = true;
+      root.innerHTML = '';
+      return;
+    }
+    var open = invoices.filter(invoiceIsOpen);
+    var overdue = open.filter(invoiceIsOverdue);
+    var active = invoiceQuickFilter();
+    var tile = function (kind, label, rows) {
+      var countText = rows.length + (rows.length === 1 ? ' invoice' : ' invoices');
+      return '<button class="admin-billing-tile" type="button" data-invoice-quick="' + kind + '" data-tone="' + (kind === 'overdue' && rows.length ? 'danger' : 'neutral') + '" aria-pressed="' + (active === kind ? 'true' : 'false') + '">' +
+        '<strong>' + escapeHtml(sumByCurrency(rows, invoiceOutstandingCents)) + '</strong>' +
+        '<span>' + escapeHtml(label + ' · ' + countText) + '</span>' +
+        '<small>' + (active === kind ? 'Showing only these · show all' : 'Show only these') + '</small>' +
+      '</button>';
+    };
+    var scope = state.invoiceQueryHasMore
+      ? 'Totals cover the ' + invoices.length + ' records loaded so far.'
+      : (invoiceFilterCount() > 0 || state.invoiceSearch ? 'Totals cover the records shown.' : 'Totals cover all billing records.');
+    root.hidden = false;
+    root.innerHTML = tile('unpaid', 'Unpaid', open) + tile('overdue', 'Overdue', overdue) + '<p>' + escapeHtml(scope) + '</p>';
+    $all('[data-invoice-quick]', root).forEach(function (button) {
+      button.addEventListener('click', function () {
+        applyInvoiceQuickFilter(button.dataset.invoiceQuick);
+      });
+    });
+  }
+
   function renderInvoiceList() {
     var list = $('[data-invoice-list]');
     if (!list) return;
@@ -4956,6 +5145,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       count.setAttribute('aria-live', 'polite');
       count.setAttribute('aria-atomic', 'true');
     }
+    renderInvoiceSummary(invoices);
     if (!invoices.length) {
       var hasRefinement = invoiceFilterCount() > 0 || Boolean(state.invoiceSearch);
       list.innerHTML = emptyState(
@@ -4983,17 +5173,23 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? (invoice.paid_at ? formatDateTime(invoice.paid_at) : formatDateTime(invoice.created_at))
         : (invoice.issued_at ? formatDateTime(invoice.issued_at) : 'Not issued');
       var invoiceAmount = formatMoney(invoice.payment_status === 'paid' ? (invoice.paid_amount_cents || invoice.amount_cents) : invoice.amount_cents, invoice.currency);
-      var invoiceMeta = invoice.invoice_status === 'payment'
+      var isPaymentRecord = invoice.invoice_status === 'payment';
+      var dueText = isPaymentRecord || invoice.invoice_status === 'void'
+        ? '–'
+        : (formatDueDate(invoice.due_date) || 'Not set');
+      var email = isPaymentRecord ? ['–', 'none'] : emailStatusShort(invoice.email_status);
+      var invoiceMeta = isPaymentRecord
         ? [paymentLabel(invoice.payment_status), invoice.payment_method || 'Method not recorded'].join(' · ')
-        : 'Due ' + (invoice.due_date || 'not set') + ' · Email ' + emailStatusLabel(invoice.email_status);
+        : 'Due ' + (formatDueDate(invoice.due_date) || 'not set') + ' · Email ' + emailStatusLabel(invoice.email_status);
       var invoiceLabel = [invoice.invoice_number, invoiceCustomer, invoiceStatusLabel(invoice), invoiceBooking, invoiceDate, invoiceAmount, invoiceMeta].join(', ');
-      return '<button class="admin-booking-item admin-data-row' + (invoice.id === state.selectedInvoiceId ? ' is-selected' : '') + '" type="button" aria-label="' + escapeHtml(invoiceLabel) + '" data-invoice-id="' + escapeHtml(invoice.id) + '">' +
+      return '<button class="admin-booking-item admin-data-row' + (invoice.id === state.selectedInvoiceId ? ' is-selected' : '') + (invoiceIsOverdue(invoice) ? ' is-overdue' : '') + '" type="button" aria-label="' + escapeHtml(invoiceLabel) + '" data-invoice-id="' + escapeHtml(invoice.id) + '">' +
         '<span class="admin-row-primary admin-booking-item-header"><span class="admin-booking-title"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(invoiceCustomer) + '</span></span></span>' +
         '<span class="admin-row-status"><span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span></span>' +
         '<span class="admin-row-service admin-booking-meta">' + escapeHtml(invoiceBooking) + '</span>' +
         '<span class="admin-row-date admin-booking-meta">' + escapeHtml(invoiceDate) + '</span>' +
         '<span class="admin-row-amount">' + escapeHtml(invoiceAmount) + '</span>' +
-        '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(invoiceMeta) + '</span>' +
+        '<span class="admin-row-due admin-booking-meta"><span class="admin-row-mobile-label">Due </span>' + escapeHtml(dueText) + '</span>' +
+        '<span class="admin-row-email admin-booking-meta" data-tone="' + email[1] + '"><span class="admin-row-mobile-label">Email </span>' + escapeHtml(email[0]) + '</span>' +
       '</button>';
     }).join('');
 
@@ -5061,7 +5257,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var amountLabel = isPaid ? 'Amount paid' : (isUnpaidIssued ? 'Amount due' : 'Invoice amount');
     var dueSummary = invoice.invoice_status === 'void'
       ? 'Document voided; recorded money remains in the ledger'
-      : (invoice.payment_status === 'paid' ? '' : 'Due ' + (invoice.due_date || 'date not set'));
+      : (invoice.payment_status === 'paid' ? '' : 'Due ' + (formatDueDate(invoice.due_date) || 'date not set'));
     var customerActions =
       (customer
         ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
@@ -5126,7 +5322,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           detailRow('Payment state', paymentLabel(invoice.payment_status)) +
           (isPaid ? detailRow('Amount paid', paidAmount) : '') +
           (!isPaymentOnly ? detailRow('Invoice amount', invoiceAmount) : '') +
-          detailRow('Due date', invoice.due_date) +
+          detailRow('Due date', formatDueDate(invoice.due_date)) +
           detailRow('VAT', formatMoney(invoice.tax_cents, invoice.currency)) +
           detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
           detailRow('Retention until', invoice.retention_hold_until) +
@@ -6184,6 +6380,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
         '<fieldset class="admin-confirmation-week">' +
           '<legend>Review hours</legend>' +
+          '<div class="admin-confirmation-week-head" aria-hidden="true"><span>Day</span><span>From</span><span>Until</span></div>' +
           weekdays.map(function (weekday) {
             var isoWeekday = weekday[0];
             var label = weekday[1];
@@ -6193,12 +6390,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
                 '<span>' + label + '</span>' +
               '</label>' +
               '<label>' +
-                '<span class="admin-field-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
-                '<input type="time" name="confirmationDay' + isoWeekday + 'Start" step="900" data-confirmation-day-start>' +
+                '<span class="admin-field-label admin-confirmation-time-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
+                '<span class="admin-select-wrap"><select name="confirmationDay' + isoWeekday + 'Start" data-confirmation-day-start aria-label="' + escapeHtml(label) + ' from">' + quarterHourOptions() + '</select></span>' +
               '</label>' +
               '<label>' +
-                '<span class="admin-field-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
-                '<input type="time" name="confirmationDay' + isoWeekday + 'End" step="900" data-confirmation-day-end>' +
+                '<span class="admin-field-label admin-confirmation-time-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
+                '<span class="admin-select-wrap"><select name="confirmationDay' + isoWeekday + 'End" data-confirmation-day-end aria-label="' + escapeHtml(label) + ' until">' + quarterHourOptions() + '</select></span>' +
               '</label>' +
             '</div>';
           }).join('') +
@@ -6236,6 +6433,29 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
     });
     form.addEventListener('submit', handleConfirmationScheduleSubmit);
+  }
+
+  // 24-hour times in 15-minute steps, the same in every browser locale.
+  function quarterHourOptions() {
+    var options = '';
+    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
+      var value = pad2(Math.floor(minutes / 60)) + ':' + pad2(minutes % 60);
+      options += '<option value="' + value + '">' + value + '</option>';
+    }
+    return options;
+  }
+
+  // Keeps a stored time that is off the 15-minute grid instead of dropping it.
+  function setTimeSelectValue(select, value) {
+    if (!select) return;
+    if (select.tagName === 'SELECT' && value && !Array.from(select.options).some(function (option) { return option.value === value; })) {
+      var extra = document.createElement('option');
+      extra.value = value;
+      extra.textContent = value;
+      var before = Array.from(select.options).find(function (option) { return option.value > value; });
+      select.insertBefore(extra, before || null);
+    }
+    select.value = value;
   }
 
   function confirmationTimeValue(value, fallback) {
@@ -6311,8 +6531,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         toggle.checked = Boolean(entry);
         toggle.disabled = !canEdit;
       }
-      if (start) start.value = confirmationTimeValue(entry && entry.opens_at, '09:00');
-      if (end) end.value = confirmationTimeValue(entry && entry.closes_at, '16:00');
+      setTimeSelectValue(start, confirmationTimeValue(entry && entry.opens_at, '09:00'));
+      setTimeSelectValue(end, confirmationTimeValue(entry && entry.closes_at, '16:00'));
       updateConfirmationDayState(row);
     });
 
@@ -6960,7 +7180,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return '<div class="admin-slot-item' + (slot.id === querySlotId ? ' is-selected' : '') + '" data-tone="' + escapeHtml(statusTone(status)) + '">' +
         '<div>' +
           '<div class="admin-booking-title">' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '</div>' +
-          '<div class="admin-slot-meta">' + escapeHtml(service) + ' - ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned') + ' - ' + escapeHtml(statusLabel(status) + seriesMeta) + '</div>' +
+          '<div class="admin-slot-meta">' + escapeHtml(service)  + ' · ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned')  + ' · ' + escapeHtml(statusLabel(status) + seriesMeta) + '</div>' +
           (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' - ' + booking.customer_name) + '</a>' : '') +
         '</div>' +
         '<div class="admin-slot-actions">' +

@@ -1,4 +1,5 @@
 import { auth } from '../core/auth.js?v=20260804-1';
+import { formatDateTime } from '../core/formatting.js?v=20261105-3';
 
 const SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
@@ -101,11 +102,7 @@ function setOptionalRow(selector, value) {
 
 function formatAccountDate(value) {
   if (!value || Number.isNaN(Date.parse(value))) return '';
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Europe/Vilnius'
-  }).format(new Date(value));
+  return formatDateTime(value);
 }
 
 function accountSessionId(session) {

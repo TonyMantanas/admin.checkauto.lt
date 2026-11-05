@@ -2,6 +2,7 @@ import { api } from '../core/api.js?v=20260804-1';
 import { ICONS } from '../core/icons.js?v=20260802-1';
 import { modals } from '../core/modals.js?v=20260804-1';
 import { toast } from '../core/toast.js?v=20260804-1';
+import { formatDateTime } from '../core/formatting.js?v=20261105-3';
 
 const ROLE_OPTIONS = Object.freeze([
   {
@@ -96,6 +97,7 @@ function normalizedUsers(body) {
     .map(normalizeUser)
     .filter((user) => user.id)
     .sort((left, right) => (
+      Number(right.isActive) - Number(left.isActive) ||
       left.displayName.localeCompare(right.displayName, 'en', { sensitivity: 'base' }) ||
       left.email.localeCompare(right.email, 'en', { sensitivity: 'base' })
     ));
@@ -108,11 +110,7 @@ function userById(state, id) {
 
 function formatDate(value) {
   if (!value || Number.isNaN(Date.parse(value))) return '';
-  return new Intl.DateTimeFormat('en-GB', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: 'Europe/Vilnius'
-  }).format(new Date(value));
+  return formatDateTime(value);
 }
 
 function roleLabel(role) {
@@ -194,7 +192,7 @@ function userRow(user, state) {
   const status = user.isActive ? 'active' : 'cancelled';
   const statusText = user.isActive ? 'Active' : 'Disabled';
   return `
-    <article class="admin-user-row" role="listitem" data-user-id="${escapeHtml(user.id)}">
+    <article class="admin-user-row${user.isActive ? '' : ' is-disabled'}" role="listitem" data-user-id="${escapeHtml(user.id)}">
       <div class="admin-user-primary">
         <strong>${escapeHtml(user.displayName || 'Unnamed user')}</strong>
         <span>${escapeHtml(user.email || 'No sign-in email')}</span>
