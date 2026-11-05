@@ -1,4 +1,4 @@
-import { PATHS } from './routes.js?v=20261004-2';
+import { PATHS } from './routes.js?v=20261105-7';
 import { ICONS } from './icons.js?v=20261004-3';
 
 const groups = [
@@ -95,7 +95,7 @@ export function renderShell(page) {
           ><span data-sync-icon="synced">${ICONS.check}</span><span data-sync-icon="loading">${ICONS.refresh}</span><span data-sync-icon="error">${ICONS.alert}</span></button>
         </div>
         <div class="admin-account-menu" id="admin-account-menu" data-admin-account-menu role="menu" aria-label="Account" hidden>
-          <a class="admin-account-menu-item" href="${PATHS.account}" data-admin-nav="account" role="menuitem" tabindex="-1" ${page === 'account' ? 'aria-current="page"' : ''}><span class="admin-icon admin-icon-settings" aria-hidden="true"></span><span>Settings</span></a>
+          <a class="admin-account-menu-item" href="${PATHS.account}" data-admin-nav="account" role="menuitem" tabindex="-1" ${page === 'account' ? 'aria-current="page"' : ''}><span class="admin-icon admin-icon-settings" aria-hidden="true"></span><span>Account</span></a>
           <button class="admin-account-menu-item" type="button" data-admin-logout role="menuitem" tabindex="-1">${ICONS.signOut}<span>Log out</span></button>
         </div>
         <span class="admin-sync-announcement" data-admin-sync-announcement role="status" aria-live="polite" aria-atomic="true"></span>

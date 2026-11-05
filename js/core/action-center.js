@@ -1,5 +1,5 @@
 import { esc, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
-import { PATHS } from './routes.js?v=20261004-2';
+import { PATHS } from './routes.js?v=20261105-7';
 import { ICONS } from './icons.js?v=20260802-1';
 import { formatMoney, formatDateTime, formatDay, relativeDateTime } from './formatting.js?v=20261105-3';
 

@@ -6,9 +6,9 @@ import { drawers } from './core/drawers.js?v=20260727-3';
 import { formatters } from './core/formatting.js?v=20261105-3';
 import { modals } from './core/modals.js?v=20260804-1';
 import { realtime } from './core/realtime.js?v=20260727-3';
-import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20261004-2';
-import { initAdminRuntime } from './core/runtime.js?v=20261105-5';
-import { renderShell } from './core/shell.js?v=20261011-1';
+import { PATHS, PAGE_TITLES, pageFromPathname, pageFromUrl } from './core/routes.js?v=20261105-7';
+import { initAdminRuntime } from './core/runtime.js?v=20261105-7';
+import { renderShell } from './core/shell.js?v=20261105-7';
 import { state } from './core/state.js?v=20260821-2';
 import { toast } from './core/toast.js?v=20260804-1';
 import { validators } from './core/validation.js?v=20260727-3';
@@ -23,7 +23,7 @@ const pageControllers = {
   marketing: () => import('./pages/marketing.js?v=20261007-1'),
   organization: () => import('./pages/organization.js?v=20261105-6'),
   users: () => import('./pages/users.js?v=20261105-6'),
-  account: () => import('./pages/account.js?v=20261105-3'),
+  account: () => import('./pages/account.js?v=20261105-7'),
   login: () => import('./pages/login.js?v=20261007-1')
 };
 
@@ -61,7 +61,7 @@ async function mountPage(page, previousController, runtimeState, isCurrent) {
   if (typeof isCurrent === 'function' && !isCurrent()) return null;
 
   document.body.dataset.adminPage = page;
-  document.title = `checkauto.lt ${PAGE_TITLES[page] || 'Admin'}`;
+  document.title = `${PAGE_TITLES[page] || 'Admin'} · checkauto.lt`;
 
   const root = document.querySelector('[data-page-root]');
   if (root && typeof controller.renderStaticPage === 'function') {

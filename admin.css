@@ -1472,364 +1472,6 @@ fieldset {
 /* Account settings and password recovery
    ========================================================================== */
 
-.admin-account-layout {
-  min-width: 0;
-  width: 100%;
-  max-width: 72rem;
-}
-
-.admin-account-header {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.admin-account-content {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(17rem, 0.65fr);
-}
-
-.admin-account-profile {
-  min-width: 0;
-  padding: 1rem;
-}
-
-.admin-account-identity {
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--admin-space-4);
-}
-
-.admin-account-identity-copy {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-1);
-}
-
-.admin-account-identity-copy h2 {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: clamp(1.125rem, 1.6vw, 1.35rem);
-  letter-spacing: -0.025em;
-}
-
-.admin-account-identity-copy p {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-sm);
-  font-weight: 500;
-}
-
-.admin-account-status {
-  flex: 0 0 auto;
-  margin-block-start: 0.2rem;
-}
-
-.admin-account-status.is-skeleton {
-  padding: 0;
-  border: 0;
-  background: transparent;
-}
-
-.admin-account-status[data-status="inactive"] {
-  color: var(--admin-danger);
-  background: var(--admin-danger-soft);
-  border-color: color-mix(in srgb, var(--admin-danger) 26%, var(--admin-border));
-}
-
-.admin-account-details {
-  max-width: 26rem;
-  margin: 1rem 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.875rem;
-}
-
-.admin-account-details > div {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-1);
-}
-
-.admin-account-details > div[hidden] {
-  display: none;
-}
-
-.admin-account-details dt,
-.admin-account-metadata dt {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-}
-
-.admin-account-details dd,
-.admin-account-metadata dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.admin-account-details dd {
-  color: var(--admin-text);
-  font-size: var(--admin-text-md);
-  font-weight: 600;
-}
-
-.admin-account-settings {
-  min-width: 0;
-  display: grid;
-  align-content: start;
-  border-inline-start: 1px solid var(--admin-border);
-}
-
-.admin-account-section {
-  min-width: 0;
-  padding: 0.875rem;
-  display: grid;
-  gap: 0.625rem;
-}
-
-.admin-account-section + .admin-account-section {
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-account-section h2 {
-  font-size: 1rem;
-}
-
-.admin-account-role-list {
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--admin-space-2);
-  list-style: none;
-}
-
-.admin-account-role-chip {
-  padding: 0.3rem 0.6rem;
-  border: 1px solid var(--admin-border-strong);
-  border-radius: 999px;
-  color: var(--admin-text);
-  background: var(--admin-surface);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
-.admin-account-security > p {
-  max-width: 30rem;
-  font-size: var(--admin-text-xs);
-}
-
-.admin-account-sessions {
-  min-width: 0;
-  padding: 0.875rem 1rem;
-  display: grid;
-  gap: 0.625rem;
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-account-sessions-header {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-}
-
-.admin-account-sessions-heading {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-2);
-}
-
-.admin-account-sessions-heading h2 {
-  font-size: 1rem;
-}
-
-.admin-account-session-count {
-  min-height: 1.35rem;
-  padding: 0.16rem 0.45rem;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--admin-border);
-  border-radius: 999px;
-  color: var(--admin-text-secondary);
-  background: var(--admin-surface-subtle);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.admin-account-session-list {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-panel-radius);
-  background: var(--admin-surface);
-  list-style: none;
-}
-
-.admin-account-session {
-  min-width: 0;
-  padding: 0.625rem 0.75rem;
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) minmax(20rem, 1.25fr);
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.admin-account-session + .admin-account-session,
-.admin-account-session-empty + .admin-account-session {
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-account-session[data-current="true"] {
-  background: var(--admin-surface-subtle);
-}
-
-.admin-account-session-identity,
-.admin-account-session-title {
-  min-width: 0;
-}
-
-.admin-account-session-title {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--admin-space-2);
-}
-
-.admin-account-session-title strong {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-size: var(--admin-text-sm);
-}
-
-.admin-account-session-dates {
-  min-width: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--admin-space-3);
-}
-
-.admin-account-session-dates > div {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-1);
-}
-
-.admin-account-session-dates dt {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-}
-
-.admin-account-session-dates dd {
-  min-width: 0;
-  margin: 0;
-  overflow-wrap: anywhere;
-  color: var(--admin-text);
-  font-size: var(--admin-text-xs);
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-}
-
-.admin-account-session-empty {
-  padding: var(--admin-space-4);
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-sm);
-  list-style: none;
-}
-
-.admin-account-session-skeleton {
-  grid-template-columns: minmax(8rem, 0.7fr) minmax(12rem, 1.3fr);
-}
-
-.admin-account-session-skeleton .admin-skeleton-line:first-child {
-  width: min(100%, 10rem);
-}
-
-.admin-account-session-skeleton .admin-skeleton-line:last-child {
-  width: min(100%, 18rem);
-}
-
-.admin-account-detail-skeleton {
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--admin-space-2);
-}
-
-.admin-account-reset-status,
-.admin-account-sessions-status {
-  min-height: 0;
-  margin: 0;
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-}
-
-.admin-account-reset-status:not(:empty),
-.admin-account-sessions-status:not(:empty) {
-  padding: 0.65rem 0.75rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-}
-
-.admin-account-reset-status[data-tone="success"]:not(:empty),
-.admin-account-sessions-status[data-tone="success"]:not(:empty) {
-  color: var(--admin-success);
-  background: var(--admin-success-soft);
-  border-color: color-mix(in srgb, var(--admin-success) 30%, var(--admin-border));
-}
-
-.admin-account-reset-status[data-tone="error"]:not(:empty),
-.admin-account-sessions-status[data-tone="error"]:not(:empty) {
-  color: var(--admin-danger);
-  background: var(--admin-danger-soft);
-  border-color: color-mix(in srgb, var(--admin-danger) 30%, var(--admin-border));
-}
-
-.admin-account-metadata {
-  min-width: 0;
-  margin: 0;
-  padding: 0.7rem var(--admin-space-5);
-  display: flex;
-  align-items: center;
-  gap: var(--admin-space-6);
-  border-block-start: 1px solid var(--admin-border);
-  background: var(--admin-surface-subtle);
-}
-
-.admin-account-metadata > div {
-  min-width: 0;
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--admin-space-2);
-}
-
-.admin-account-metadata > div[hidden] {
-  display: none;
-}
-
-.admin-account-metadata dd {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-account-metadata-skeleton > div {
-  min-width: 10rem;
-  display: grid;
-  gap: var(--admin-space-1);
-}
-
 .admin-reset-panel {
   width: min(100%, 32rem);
 }
@@ -6190,6 +5832,107 @@ button.admin-mini-item::after {
   }
 }
 
+/* Account
+   ========================================================================== */
+
+.admin-row-item--plain {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.admin-account-identity {
+  display: flex;
+  align-items: center;
+  gap: 0.875rem;
+}
+
+.admin-account-identity-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.admin-account-identity-copy h2 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.admin-account-identity-copy p {
+  margin-block-start: 0.15rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-account-identity-copy p[hidden] {
+  display: none;
+}
+
+.admin-account-facts {
+  margin: 1.25rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.admin-account-facts > div {
+  min-width: 0;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.admin-account-facts > div[hidden] {
+  display: none;
+}
+
+.admin-account-facts dt {
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+}
+
+.admin-account-facts dd {
+  margin: 0;
+  color: var(--admin-text);
+  font-size: var(--admin-text-sm);
+  font-weight: 500;
+}
+
+.admin-account-reset-status:empty {
+  display: none;
+}
+
+:is(.admin-account-reset-status, .admin-account-sessions-status)[data-tone="success"] {
+  color: var(--admin-success);
+}
+
+:is(.admin-account-reset-status, .admin-account-sessions-status)[data-tone="error"] {
+  color: var(--admin-danger);
+}
+
+.admin-account-sessions-status {
+  margin-block-start: 0.75rem;
+  font-size: var(--admin-text-xs);
+}
+
+.admin-account-sessions-status:empty {
+  display: none;
+}
+
+.admin-account-sign-out {
+  color: var(--admin-danger);
+}
+
+.admin-account-sign-out:hover {
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.admin-account-sign-out[hidden] {
+  display: none;
+}
+
+.admin-account-session-empty {
+  color: var(--admin-text-secondary);
+  font-size: var(--admin-text-sm);
+}
+
 /* Dashboard
    The public site's language: white borderless tiles on the grey canvas,
    big plain numbers, colour only where something needs a decision.
@@ -7610,21 +7353,6 @@ a.admin-dash-tile:hover {
 
 @media (max-width: 68.75rem) {
 
-  .admin-account-content {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-account-settings {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    border-block-start: 1px solid var(--admin-border);
-    border-inline-start: 0;
-  }
-
-  .admin-account-section + .admin-account-section {
-    border-block-start: 0;
-    border-inline-start: 1px solid var(--admin-border);
-  }
-
   .admin-panel-header.admin-workspace-header {
     grid-template-columns: minmax(0, 1fr);
     align-items: stretch;
@@ -7842,47 +7570,6 @@ a.admin-dash-tile:hover {
 
   .admin-panel-header {
     padding: var(--admin-space-3);
-  }
-
-  .admin-account-profile {
-    padding: var(--admin-space-4);
-  }
-
-  .admin-account-settings {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-account-section {
-    padding: var(--admin-space-3);
-  }
-
-  .admin-account-section + .admin-account-section {
-    border-block-start: 1px solid var(--admin-border);
-    border-inline-start: 0;
-  }
-
-  .admin-account-security .admin-button,
-  .admin-account-sessions-header .admin-button {
-    width: 100%;
-  }
-
-  .admin-account-sessions {
-    padding: var(--admin-space-3);
-  }
-
-  .admin-account-sessions-header {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .admin-account-session {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--admin-space-3);
-  }
-
-  .admin-account-metadata {
-    padding-inline: var(--admin-space-4);
-    gap: var(--admin-space-4);
   }
 
   .admin-calendar-panel > .admin-panel-header {
@@ -8142,25 +7829,6 @@ a.admin-dash-tile:hover {
 
   .admin-availability-add-label {
     display: none;
-  }
-
-  .admin-account-identity {
-    flex-wrap: wrap;
-  }
-
-  .admin-account-details {
-    grid-template-columns: minmax(0, 1fr);
-    gap: var(--admin-space-3);
-  }
-
-  .admin-account-session-dates {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-account-metadata {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: var(--admin-space-1);
   }
 
   .admin-bookings-workspace-header {

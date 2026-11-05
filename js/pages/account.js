@@ -1,5 +1,6 @@
 import { auth } from '../core/auth.js?v=20260804-1';
-import { formatDateTime } from '../core/formatting.js?v=20261105-3';
+import { formatDateTime, formatDay, relativeDateTime } from '../core/formatting.js?v=20261105-3';
+import { modals } from '../core/modals.js?v=20260804-1';
 
 const SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
@@ -87,7 +88,7 @@ function target(selector) {
   return document.querySelector(selector);
 }
 
-function setText(selector, value, fallback = 'Not provided') {
+function setText(selector, value, fallback = '') {
   const element = target(selector);
   if (element) element.textContent = value || fallback;
 }
@@ -98,11 +99,6 @@ function setOptionalRow(selector, value) {
   row.hidden = !value;
   const valueTarget = row.querySelector('dd');
   if (valueTarget) valueTarget.textContent = value || '';
-}
-
-function formatAccountDate(value) {
-  if (!value || Number.isNaN(Date.parse(value))) return '';
-  return formatDateTime(value);
 }
 
 function accountSessionId(session) {
@@ -145,55 +141,29 @@ function approximateSessionLabel(session) {
   return 'Unknown browser';
 }
 
-function sessionDateRow(label, value) {
-  const row = document.createElement('div');
-  const term = document.createElement('dt');
-  const description = document.createElement('dd');
-  const formatted = formatAccountDate(value);
-
-  term.textContent = label;
-  if (formatted) {
-    const time = document.createElement('time');
-    time.dateTime = String(value);
-    time.textContent = formatted;
-    description.appendChild(time);
-  } else {
-    description.textContent = 'Not available';
-  }
-  row.append(term, description);
-  return row;
-}
-
 function sessionListItem(session, currentSessionId) {
   const item = document.createElement('li');
-  const identity = document.createElement('div');
-  const titleRow = document.createElement('div');
+  const text = document.createElement('span');
   const title = document.createElement('strong');
-  const dates = document.createElement('dl');
+  const detail = document.createElement('span');
   const isCurrent = isCurrentAccountSession(session, currentSessionId);
 
-  item.className = 'admin-account-session';
+  item.className = 'admin-row-item admin-row-item--plain admin-account-session';
   if (isCurrent) item.dataset.current = 'true';
-  identity.className = 'admin-account-session-identity';
-  titleRow.className = 'admin-account-session-title';
+  text.className = 'admin-row-text';
   title.textContent = approximateSessionLabel(session);
-  titleRow.appendChild(title);
+  const signedIn = session && session.created_at ? 'Signed in ' + formatDateTime(session.created_at) : '';
+  const active = session && session.last_active_at ? 'last active ' + relativeDateTime(session.last_active_at) : '';
+  detail.textContent = [signedIn, active].filter(Boolean).join(' · ');
+  text.append(title, detail);
+  item.appendChild(text);
 
   if (isCurrent) {
     const badge = document.createElement('span');
-    badge.className = 'admin-status-pill admin-account-session-current';
-    badge.dataset.status = 'active';
-    badge.textContent = 'Current';
-    titleRow.appendChild(badge);
+    badge.className = 'admin-chip';
+    badge.textContent = 'This device';
+    item.appendChild(badge);
   }
-
-  identity.appendChild(titleRow);
-  dates.className = 'admin-account-session-dates';
-  dates.append(
-    sessionDateRow('Signed in', session && session.created_at),
-    sessionDateRow('Last active', session && session.last_active_at)
-  );
-  item.append(identity, dates);
   return item;
 }
 
@@ -238,7 +208,7 @@ function renderAccountSessions(state) {
       return rightActiveAt - leftActiveAt;
     });
 
-  count.textContent = `${sessions.length} ${sessions.length === 1 ? 'session' : 'sessions'}`;
+  count.textContent = sessions.length ? `${sessions.length} signed in` : '';
   list.removeAttribute('aria-busy');
   if (sessions.length) {
     list.replaceChildren(...sessions.map((session) => (
@@ -246,8 +216,8 @@ function renderAccountSessions(state) {
     )));
   } else {
     const empty = document.createElement('li');
-    empty.className = 'admin-account-session-empty';
-    empty.textContent = 'Session details are unavailable.';
+    empty.className = 'admin-row-item admin-row-item--plain admin-account-session-empty';
+    empty.textContent = 'Sessions can’t be shown right now.';
     list.replaceChildren(empty);
   }
 
@@ -258,6 +228,7 @@ function renderAccountSessions(state) {
     if (signOutOthersPending) button.setAttribute('aria-busy', 'true');
     else button.removeAttribute('aria-busy');
     button.textContent = signOutOthersPending ? 'Signing out…' : 'Sign out other sessions';
+    button.hidden = !signOutOthersPending && !hasOtherSessions;
   }
 }
 
@@ -272,12 +243,12 @@ function setButtonBusy(button, busy) {
   if (!button) return;
   if (busy) {
     button.dataset.idleLabel = button.textContent;
-    button.textContent = 'Requesting…';
+    button.textContent = 'Sending…';
     button.classList.add('is-loading');
     button.disabled = true;
     button.setAttribute('aria-busy', 'true');
   } else {
-    button.textContent = button.dataset.idleLabel || 'Email me a reset link';
+    button.textContent = button.dataset.idleLabel || 'Send reset link';
     button.classList.remove('is-loading');
     button.disabled = false;
     button.removeAttribute('aria-busy');
@@ -303,6 +274,12 @@ function humanizeIdentifier(value) {
     : 'Unknown';
 }
 
+function accountInitials(staff) {
+  const parts = String(staff.display_name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length) return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
+  return String(staff.auth_email || '?').charAt(0).toUpperCase();
+}
+
 function renderAccount(staff, state) {
   const resetButton = target('[data-account-password-reset]');
   const accountViewLoaded = Boolean(state && state.loadedViews && state.loadedViews.auth);
@@ -313,40 +290,33 @@ function renderAccount(staff, state) {
 
   const authEmail = String(staff.auth_email || '');
   const phone = String(staff.phone || '');
-  const createdAt = formatAccountDate(staff.auth_created_at);
-  const lastSignInAt = formatAccountDate(staff.auth_last_sign_in_at);
+  const createdAt = staff.auth_created_at && !Number.isNaN(Date.parse(staff.auth_created_at)) ? formatDay(staff.auth_created_at) : '';
   const roles = assignedRoles(staff);
 
-  const contactLoading = target('[data-account-contact-loading]');
-  const metadataLoading = target('[data-account-metadata-loading]');
-  if (contactLoading) contactLoading.hidden = true;
-  if (metadataLoading) metadataLoading.hidden = true;
-
-  setText('[data-account-name]', String(staff.display_name || ''));
-  setText('[data-account-auth-email]', authEmail);
+  const avatar = target('[data-account-avatar]');
+  if (avatar) avatar.textContent = accountInitials(staff);
+  setText('[data-account-name]', String(staff.display_name || ''), authEmail || 'Your account');
+  const email = target('[data-account-auth-email]');
+  if (email) {
+    email.textContent = authEmail;
+    email.hidden = !authEmail;
+  }
+  // Only an explicitly inactive account gets a chip; a missing flag is not "inactive".
+  const status = target('[data-account-status]');
+  if (status) {
+    status.hidden = staff.is_active !== false;
+    status.textContent = staff.is_active === false ? 'Inactive' : '';
+  }
+  setText('[data-account-roles]', roles.map((role) => roleLabels[role] || humanizeIdentifier(role)).join(' · '), 'No role');
   setOptionalRow('[data-account-phone-row]', phone);
   setOptionalRow('[data-account-created-row]', createdAt);
-  setOptionalRow('[data-account-last-sign-in-row]', lastSignInAt);
-  setText('[data-account-status]', staff.is_active ? 'Active' : 'Inactive');
-  const accountContact = target('[data-account-contact]');
-  if (accountContact) accountContact.hidden = !phone;
-  const accountMetadata = target('[data-account-metadata]');
-  if (accountMetadata) accountMetadata.hidden = !createdAt && !lastSignInAt;
-  const accountStatus = target('[data-account-status]');
-  if (accountStatus) {
-    accountStatus.dataset.status = staff.is_active ? 'active' : 'inactive';
-    accountStatus.classList.remove('is-skeleton');
-  }
 
-  const rolesList = target('[data-account-roles]');
-  if (rolesList) {
-    const roleItems = roles.length ? roles : [''];
-    rolesList.replaceChildren(...roleItems.map((role) => {
-      const item = document.createElement('li');
-      item.className = 'admin-account-role-chip';
-      item.textContent = role ? (roleLabels[role] || humanizeIdentifier(role)) : 'None assigned';
-      return item;
-    }));
+  const mfaRow = target('[data-account-mfa-row]');
+  if (mfaRow) {
+    const factors = state.authUser ? auth.factorsFromUser(state.authUser) : null;
+    mfaRow.hidden = !factors;
+    const mfa = target('[data-account-mfa]');
+    if (mfa && factors) mfa.textContent = factors.totp.length ? 'On · authenticator app' : 'Off';
   }
 
   if (resetButton) resetButton.disabled = !authEmail;
@@ -355,7 +325,7 @@ function renderAccount(staff, state) {
 async function signOutOtherSessions(state) {
   if (signOutOthersPending) return;
   if (!state.session || !state.session.access_token) {
-    setSessionsStatus('Refresh the page and sign in again before managing sessions.', 'error');
+    setSessionsStatus('Sign in again, then try once more.', 'error');
     return;
   }
 
@@ -366,9 +336,20 @@ async function signOutOtherSessions(state) {
     return;
   }
 
+  const confirmed = typeof modals.confirm === 'function'
+    ? await modals.confirm({
+      title: 'Sign out other sessions?',
+      message: 'Every other browser signed in to your account will need to sign in again.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Sign out',
+      danger: true
+    })
+    : true;
+  if (!confirmed) return;
+
   signOutOthersPending = true;
   renderAccountSessions(state);
-  setSessionsStatus('Signing out other sessions…', 'loading');
+  setSessionsStatus('');
 
   try {
     await auth.signOut(state.session, 'others');
@@ -380,12 +361,12 @@ async function signOutOtherSessions(state) {
     }
     signOutOthersPending = false;
     renderAccountSessions(state);
-    setSessionsStatus('Other sessions signed out. This session remains active.', 'success');
+    setSessionsStatus('Other sessions signed out.', 'success');
   } catch (error) {
     signOutOthersPending = false;
     renderAccountSessions(state);
     setSessionsStatus(
-      error instanceof Error ? error.message : 'Other sessions could not be signed out.',
+      error instanceof Error ? error.message : 'Other sessions could not be signed out. Try again.',
       'error'
     );
   }
@@ -394,7 +375,7 @@ async function signOutOtherSessions(state) {
 
 async function requestPasswordReset(state, button) {
   if (!state.session || !state.session.access_token || !state.staff || !state.staff.auth_email) {
-    setStatus('Refresh the page and sign in again before requesting your reset link.', 'error');
+    setStatus('Sign in again, then request the link.', 'error');
     return;
   }
 
@@ -435,7 +416,7 @@ async function requestPasswordReset(state, button) {
     }
 
     setStatus(
-      'You’ll receive a reset link by email. Open the newest link in this browser within 15 minutes.',
+      'Check your email. The link works for 15 minutes, in this browser.',
       'success'
     );
   } catch (error) {
@@ -443,7 +424,7 @@ async function requestPasswordReset(state, button) {
     if (serverResponded) restoreStoredPkceVerifier(previousPkceRecord);
     setStatus(
       !serverResponded
-        ? 'Request status unknown. If an email arrives, use the newest link in this browser.'
+        ? 'We couldn’t confirm the request. If an email arrives, open the newest link in this browser.'
         : error instanceof Error
           ? error.message
           : 'Your reset link could not be requested.',
@@ -461,112 +442,59 @@ export const page = 'account';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-account-layout" aria-labelledby="account-page-title">
-      <section class="admin-panel admin-account-panel">
-        <header class="admin-panel-header admin-workspace-header admin-account-header">
-          <div class="admin-page-title">
-            <h1 id="account-page-title">Account</h1>
+    <div class="admin-page-body admin-page-narrow admin-account-page">
+      <header class="admin-page-header">
+        <div><h1 id="account-page-title">Account</h1></div>
+      </header>
+
+      <section class="admin-card admin-account-profile" aria-labelledby="account-details-title">
+        <div class="admin-account-identity">
+          <span class="admin-avatar admin-avatar-lg" data-account-avatar aria-hidden="true"></span>
+          <div class="admin-account-identity-copy">
+            <h2 id="account-details-title" data-account-name><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-name" aria-hidden="true"></span></h2>
+            <p data-account-auth-email><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-email" aria-hidden="true"></span></p>
           </div>
-        </header>
-
-        <div class="admin-account-content">
-          <section class="admin-account-profile" aria-labelledby="account-details-title">
-            <div class="admin-account-identity">
-              <div class="admin-account-identity-copy">
-                <h2 id="account-details-title" data-account-name><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-name" aria-hidden="true"></span></h2>
-                <p data-account-auth-email><span class="admin-skeleton admin-skeleton-line admin-skeleton-account-email" aria-hidden="true"></span></p>
-              </div>
-              <span
-                class="admin-status-pill admin-account-status is-skeleton"
-                data-account-status
-                data-status=""
-              ><span class="admin-skeleton admin-skeleton-pill" aria-hidden="true"></span></span>
-            </div>
-            <dl class="admin-account-details" data-account-contact hidden>
-              <div data-account-phone-row hidden>
-                <dt>Phone</dt>
-                <dd></dd>
-              </div>
-            </dl>
-            <div class="admin-account-details admin-account-detail-skeleton" data-account-contact-loading aria-hidden="true">
-              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short"></span>
-              <span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span>
-            </div>
-          </section>
-
-          <div class="admin-account-settings">
-            <section class="admin-account-section admin-account-roles" aria-labelledby="account-roles-title">
-              <h2 id="account-roles-title">Roles</h2>
-              <ul class="admin-account-role-list" data-account-roles>
-                <li class="admin-account-role-chip admin-skeleton-role" aria-hidden="true"><span class="admin-skeleton admin-skeleton-line"></span></li>
-              </ul>
-            </section>
-
-            <section class="admin-account-section admin-account-security" aria-labelledby="account-security-title">
-              <h2 id="account-security-title">Password</h2>
-              <button
-                class="admin-button admin-button-secondary"
-                type="button"
-                data-account-password-reset
-                disabled
-              >Email me a reset link</button>
-              <p
-                class="admin-account-reset-status"
-                data-account-reset-status
-                role="status"
-                aria-live="polite"
-                aria-atomic="true"
-              ></p>
-            </section>
-          </div>
+          <span class="admin-chip" data-tone="danger" data-account-status hidden></span>
         </div>
-
-        <section class="admin-account-sessions" aria-labelledby="account-sessions-title">
-          <header class="admin-account-sessions-header">
-            <div class="admin-account-sessions-heading">
-              <h2 id="account-sessions-title">Active sessions</h2>
-              <span class="admin-account-session-count" data-account-session-count><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></span>
-            </div>
-            <button
-              class="admin-button admin-button-danger"
-              type="button"
-              data-account-sign-out-others
-              aria-describedby="account-sessions-status"
-              disabled
-            >Sign out other sessions</button>
-          </header>
-          <ul class="admin-account-session-list" data-account-sessions aria-busy="true">
-            <li class="admin-account-session admin-account-session-skeleton" aria-hidden="true">
-              <span class="admin-skeleton admin-skeleton-line"></span>
-              <span class="admin-skeleton admin-skeleton-line"></span>
-            </li>
-          </ul>
-          <p
-            id="account-sessions-status"
-            class="admin-account-sessions-status"
-            data-account-sessions-status
-            role="status"
-            aria-live="polite"
-            aria-atomic="true"
-          ></p>
-        </section>
-
-        <div class="admin-account-metadata admin-account-metadata-skeleton" data-account-metadata-loading aria-hidden="true">
-          <div><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span></div>
-          <div><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span></div>
-        </div>
-        <dl class="admin-account-metadata" data-account-metadata aria-label="Account activity" hidden>
-          <div data-account-created-row hidden>
-            <dt>Account created</dt>
-            <dd></dd>
-          </div>
-          <div data-account-last-sign-in-row hidden>
-            <dt>Last sign-in</dt>
-            <dd></dd>
-          </div>
+        <dl class="admin-account-facts">
+          <div><dt>Roles</dt><dd data-account-roles><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-short" aria-hidden="true"></span></dd></div>
+          <div data-account-phone-row hidden><dt>Phone</dt><dd></dd></div>
+          <div data-account-created-row hidden><dt>Member since</dt><dd></dd></div>
         </dl>
       </section>
-    </section>
+
+      <section class="admin-card" aria-labelledby="account-signin-title">
+        <header class="admin-card-head"><div><h2 id="account-signin-title">Sign-in</h2></div></header>
+        <ul class="admin-row-list">
+          <li class="admin-row-item admin-row-item--plain">
+            <span class="admin-row-text">
+              <strong>Password</strong>
+              <span class="admin-account-reset-status" data-account-reset-status role="status" aria-live="polite" aria-atomic="true"></span>
+            </span>
+            <button class="admin-button admin-button-secondary" type="button" data-account-password-reset disabled>Send reset link</button>
+          </li>
+          <li class="admin-row-item admin-row-item--plain" data-account-mfa-row hidden>
+            <span class="admin-row-text"><strong>Two-step sign-in</strong><span data-account-mfa></span></span>
+          </li>
+        </ul>
+      </section>
+
+      <section class="admin-card" aria-labelledby="account-sessions-title">
+        <header class="admin-card-head">
+          <div>
+            <h2 id="account-sessions-title">Sessions</h2>
+            <p data-account-session-count><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></p>
+          </div>
+          <button class="admin-button admin-button-ghost admin-account-sign-out" type="button" data-account-sign-out-others aria-describedby="account-sessions-status" disabled>Sign out other sessions</button>
+        </header>
+        <ul class="admin-row-list" data-account-sessions aria-busy="true">
+          <li class="admin-row-item admin-row-item--plain" aria-hidden="true">
+            <span class="admin-row-text"><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide"></span><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-medium"></span></span>
+          </li>
+        </ul>
+        <p id="account-sessions-status" class="admin-account-sessions-status" data-account-sessions-status role="status" aria-live="polite" aria-atomic="true"></p>
+      </section>
+    </div>
   `;
 }
 

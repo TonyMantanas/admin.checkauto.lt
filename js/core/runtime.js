@@ -1,12 +1,12 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
 import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261105-3';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261105-7';
 import { ICONS } from './icons.js?v=20260802-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261004-3';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261105-7';
 import { skeletons } from './skeletons.js?v=20261004-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -1157,7 +1157,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function applyDashboardData(data) {
     if (!data || typeof data !== 'object') return;
-    if (data.staff) state.staff = data.staff;
+    // Views may return a slimmer staff record; keep fields they omit so the
+    // account page can't flip to "inactive" or lose the email.
+    if (data.staff) {
+      state.staff = state.staff && data.staff.id && state.staff.id === data.staff.id
+        ? Object.assign({}, state.staff, data.staff)
+        : data.staff;
+    }
     if (typeof data.recoveryAcknowledgementRequired === 'boolean') state.recoveryAcknowledgementRequired=data.recoveryAcknowledgementRequired;
     if (data.operationsState) state.operationsState = data.operationsState;
     if (data.operationsSummary) state.operationsSummary = data.operationsSummary;
@@ -8901,6 +8907,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (state.session) {
       try {
         authenticatedUser = await auth.getUser(state.session);
+        state.authUser = authenticatedUser;
       } catch (error) {
         await revokeAndClearSession(state.session);
       }

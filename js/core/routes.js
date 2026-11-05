@@ -32,7 +32,7 @@ export const PAGE_TITLES = {
   marketing: 'Marketing',
   organization: 'Organization',
   users: 'Users',
-  account: 'Account settings',
+  account: 'Account',
   resetPassword: 'Reset password',
   login: 'Sign in'
 };
