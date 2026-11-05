@@ -11,6 +11,7 @@ import { skeletons } from './skeletons.js?v=20261004-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
 import { createDashboardView } from './dashboard-view.js?v=20261105-4';
+import { bookingRequestFieldsHtml } from './settings-forms.js?v=20261105-5';
 import { formatDay as displayDay, formatDateTime as displayDateTime, formatRange as displayRange, relativeDay as relativeDayLabel } from './formatting.js?v=20261105-3';
 
 /* ==========================================================================
@@ -6203,7 +6204,47 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var form = $('[data-organization-settings-form]');
     var submit = form && $('[data-organization-settings-submit]', form);
     if (!form || !submit || form.getAttribute('aria-busy') === 'true') return;
-    submit.disabled = !organizationSettingsBaseline || organizationSettingsFormState(form) === organizationSettingsBaseline;
+    var dirty = Boolean(organizationSettingsBaseline) && organizationSettingsFormState(form) !== organizationSettingsBaseline;
+    submit.disabled = !dirty;
+    var status = $('[data-organization-settings-status]', form);
+    if (dirty && status && status.classList.contains('is-success')) {
+      status.textContent = '';
+      status.classList.remove('is-success');
+    }
+  }
+
+  var ORGANIZATION_FIELD_LABELS = {
+    seller_name: 'company name',
+    seller_address: 'address',
+    seller_company_code: 'company code',
+    seller_vat_code: 'VAT code',
+    seller_email: 'email',
+    seller_phone: 'phone',
+    bank_name: 'bank',
+    bank_recipient_name: 'account holder',
+    bank_account_iban: 'IBAN',
+    bank_swift_bic: 'SWIFT / BIC',
+    payment_instructions: 'payment note'
+  };
+
+  // Invoices can't be issued until the required details exist; say which.
+  function renderOrganizationReadiness() {
+    var chip = $('[data-organization-readiness]');
+    if (!chip) return;
+    var readiness = state.invoiceSettingsReadiness;
+    var blocked = Boolean(readiness && readiness.ready === false);
+    chip.hidden = !blocked;
+    if (!blocked) {
+      chip.textContent = '';
+      return;
+    }
+    var missing = (Array.isArray(readiness.missing_fields) ? readiness.missing_fields : []).map(function (name) {
+      var key = String(name || '').replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+      return ORGANIZATION_FIELD_LABELS[key] || key.replace(/_/g, ' ');
+    }).filter(Boolean);
+    chip.textContent = missing.length
+      ? 'Missing before invoicing: ' + missing.join(', ')
+      : 'Incomplete: invoices can’t be issued yet';
   }
 
   function setOrganizationField(form, name, value) {
@@ -6234,6 +6275,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
     organizationSettingsBaseline = organizationSettingsFormState(form);
     syncOrganizationSettingsSubmit();
+    renderOrganizationReadiness();
   }
 
   function setOrganizationLoading(loading) {
@@ -6262,7 +6304,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     clearFormValidation(form, status);
     if (!form.reportValidity()) return;
     if (!staffHasRole(state.staff, 'owner') || !staffHasAccess(state.staff, 'staff_users.manage', ['owner'])) {
-      showFieldError(status, 'Only an active organization owner can update these settings.');
+      showFieldError(status, 'Only the organization owner can change these settings.');
       return;
     }
 
@@ -6299,13 +6341,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         state.organizationSettings = response.result;
       }
       renderOrganizationSettings(true);
+      var savedSettingsStatus = $('[data-organization-settings-status]', form);
+      if (savedSettingsStatus) {
+        savedSettingsStatus.textContent = 'Saved.';
+        savedSettingsStatus.classList.add('is-success');
+      }
       state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
       renderOperationalStatus();
-      showToast('Organization invoice details updated.', 'success');
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      if (status) status.textContent = error instanceof Error ? error.message : 'Could not save organization settings.';
+      if (status) status.textContent = error instanceof Error ? error.message : 'Invoice details could not be saved. Try again.';
     } finally {
       if (document.body.contains(form)) {
         setFormBusy(form, false);
@@ -6327,6 +6373,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         var toggle = $('[data-confirmation-day-enabled]', row);
         if (toggle) toggle.addEventListener('change', function () { updateConfirmationDayState(row); });
       });
+      bindConfirmationScheduleChanges(scheduleForm);
       scheduleForm.addEventListener('submit', handleConfirmationScheduleSubmit);
     }
     initCustomControls($('[data-page-root]'));
@@ -6339,82 +6386,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function confirmationScheduleFormHtml() {
-    var weekdays = [
-      [1, 'Monday'],
-      [2, 'Tuesday'],
-      [3, 'Wednesday'],
-      [4, 'Thursday'],
-      [5, 'Friday'],
-      [6, 'Saturday'],
-      [7, 'Sunday']
-    ];
-
     return '<div class="admin-modal-header">' +
         '<div>' +
-          '<h2>Booking review window</h2>' +
+          '<h2>Booking requests</h2>' +
+          '<p>How long you have to accept a new request, and when that time counts.</p>' +
         '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking review window" title="Close">' + ICON_CLOSE + '</button>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking request settings" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      '<form class="admin-confirmation-schedule-form" data-confirmation-schedule-form novalidate>' +
-        '<div class="admin-confirmation-settings">' +
-          '<label>' +
-            '<span class="admin-field-label">Decision window <span class="admin-required-marker" aria-hidden="true">*</span></span>' +
-            '<span class="admin-select-wrap">' +
-              '<select name="confirmationDurationMinutes" data-confirmation-duration required>' +
-                '<option value="15">15 minutes</option>' +
-                '<option value="30">30 minutes</option>' +
-                '<option value="60">1 hour</option>' +
-                '<option value="90">1 hour 30 minutes</option>' +
-                '<option value="120">2 hours</option>' +
-                '<option value="180">3 hours</option>' +
-                '<option value="240">4 hours</option>' +
-                '<option value="480">8 hours</option>' +
-                '<option value="1440">24 hours</option>' +
-              '</select>' +
-            '</span>' +
-          '</label>' +
-          '<div class="admin-confirmation-timezone">' +
-            '<span>Time zone</span>' +
-            '<strong data-confirmation-timezone>Europe/Vilnius</strong>' +
-          '</div>' +
-        '</div>' +
-        '<fieldset class="admin-confirmation-week">' +
-          '<legend>Review hours</legend>' +
-          '<div class="admin-confirmation-week-head" aria-hidden="true"><span>Day</span><span>From</span><span>Until</span></div>' +
-          weekdays.map(function (weekday) {
-            var isoWeekday = weekday[0];
-            var label = weekday[1];
-            return '<div class="admin-confirmation-day" data-confirmation-day="' + isoWeekday + '">' +
-              '<label class="admin-checkbox admin-confirmation-day-toggle">' +
-                '<input type="checkbox" name="confirmationDay' + isoWeekday + '" data-confirmation-day-enabled>' +
-                '<span>' + label + '</span>' +
-              '</label>' +
-              '<label>' +
-                '<span class="admin-field-label admin-confirmation-time-label">From <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
-                '<span class="admin-select-wrap"><select name="confirmationDay' + isoWeekday + 'Start" data-confirmation-day-start aria-label="' + escapeHtml(label) + ' from">' + quarterHourOptions() + '</select></span>' +
-              '</label>' +
-              '<label>' +
-                '<span class="admin-field-label admin-confirmation-time-label">Until <span class="admin-required-marker" data-confirmation-time-required aria-hidden="true" hidden>*</span></span>' +
-                '<span class="admin-select-wrap"><select name="confirmationDay' + isoWeekday + 'End" data-confirmation-day-end aria-label="' + escapeHtml(label) + ' until">' + quarterHourOptions() + '</select></span>' +
-              '</label>' +
-            '</div>';
-          }).join('') +
-        '</fieldset>' +
-        '<div class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></div>' +
-        '<div class="admin-action-buttons admin-modal-actions">' +
-          '<button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit>Save review window</button>' +
+      '<form class="admin-booking-request-form admin-form-plain" data-confirmation-schedule-form novalidate>' +
+        bookingRequestFieldsHtml() +
+        '<div class="admin-modal-footer">' +
+          '<p class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></p>' +
+          '<button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit disabled>Save</button>' +
         '</div>' +
       '</form>';
-  }
-
-  function renderConfirmationScheduleAccess() {
-    var button = $('[data-confirmation-schedule-open]');
-    if (!button) return;
-    button.hidden = !staffHasAccess(
-      state.staff,
-      'confirmation_schedule.manage',
-      ['owner']
-    );
   }
 
   function renderConfirmationScheduleModal() {
@@ -6432,17 +6417,37 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         });
       }
     });
+    bindConfirmationScheduleChanges(form);
     form.addEventListener('submit', handleConfirmationScheduleSubmit);
   }
 
-  // 24-hour times in 15-minute steps, the same in every browser locale.
-  function quarterHourOptions() {
-    var options = '';
-    for (var minutes = 0; minutes < 24 * 60; minutes += 15) {
-      var value = pad2(Math.floor(minutes / 60)) + ':' + pad2(minutes % 60);
-      options += '<option value="' + value + '">' + value + '</option>';
+  // Reads every named control, disabled ones included: the form is fully
+  // disabled while saving, which FormData would silently skip.
+  function confirmationScheduleSnapshot(form) {
+    return JSON.stringify($all('input[name], select[name], textarea[name]', form).map(function (control) {
+      return [control.name, control.type === 'checkbox' ? control.checked : String(control.value || '')];
+    }));
+  }
+
+  // Save only reacts once something changed; a new edit clears "Saved".
+  function syncConfirmationScheduleSubmit(form) {
+    var target = form || $('[data-confirmation-schedule-form]');
+    var submit = target && $('[data-confirmation-schedule-submit]', target);
+    if (!target || !submit || target.getAttribute('aria-busy') === 'true') return;
+    var dirty = Boolean(target.dataset.scheduleBaseline) && confirmationScheduleSnapshot(target) !== target.dataset.scheduleBaseline;
+    submit.disabled = !dirty;
+    var status = $('[data-confirmation-schedule-status]', target);
+    if (dirty && status && status.classList.contains('is-success')) {
+      status.textContent = '';
+      status.classList.remove('is-success');
     }
-    return options;
+  }
+
+  function bindConfirmationScheduleChanges(form) {
+    if (!form || form.dataset.scheduleChangesBound) return;
+    form.dataset.scheduleChangesBound = 'true';
+    form.addEventListener('input', function () { syncConfirmationScheduleSubmit(form); });
+    form.addEventListener('change', function () { syncConfirmationScheduleSubmit(form); });
   }
 
   // Keeps a stored time that is off the 15-minute grid instead of dropping it.
@@ -6489,7 +6494,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function renderConfirmationSchedule(force) {
     var form = $('[data-confirmation-schedule-form]');
     if (!form) return;
-    var snapshot=function(){return JSON.stringify(Array.from(new FormData(form).entries()));};
+    var snapshot=function(){return confirmationScheduleSnapshot(form);};
     if (!force && form.dataset.scheduleBaseline && snapshot()!==form.dataset.scheduleBaseline) return;
 
     var settings = state.confirmationSettings;
@@ -6538,6 +6543,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     refreshCustomControls(form);
     form.dataset.scheduleBaseline=snapshot();
+    syncConfirmationScheduleSubmit(form);
   }
 
   async function handleConfirmationScheduleSubmit(event) {
@@ -6547,7 +6553,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var duration = Number(($('[data-confirmation-duration]', form) || {}).value || 0);
 
     if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) {
-      if (status) status.textContent = 'Only the organization owner can change this schedule.';
+      if (status) status.textContent = 'Only the organization owner can change these settings.';
       return;
     }
 
@@ -6579,7 +6585,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
 
     if (!Number.isInteger(duration) || duration < 15 || duration > 1440) {
-      showFieldError(status, 'Choose a valid confirmation time.', $('[data-confirmation-duration]', form));
+      showFieldError(status, 'Choose how long you have to respond.', $('[data-confirmation-duration]', form));
       return;
     }
     if (!enabledDays) {
@@ -6613,18 +6619,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       renderConfirmationSchedule(true);
       var savedStatus = $('[data-confirmation-schedule-status]');
       if (savedStatus) {
-        savedStatus.textContent = 'Review window saved. New bookings will use it.';
+        savedStatus.textContent = 'Saved. New requests use these settings.';
         savedStatus.classList.add('is-success');
       }
       state.lastSuccessfulRefresh = Date.now();
       setSyncState('Synced', 'synced');
       renderOperationalStatus();
-      showToast('Booking review window updated.', 'success');
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      if (status) status.textContent = error instanceof Error ? error.message : 'Could not save the confirmation schedule.';
+      if (status) status.textContent = error instanceof Error ? error.message : 'Booking request settings could not be saved. Try again.';
     } finally {
-      if (document.body.contains(form)) setFormBusy(form, false);
+      if (document.body.contains(form)) {
+        setFormBusy(form, false);
+        syncConfirmationScheduleSubmit(form);
+      }
     }
   }
 

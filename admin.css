@@ -1356,17 +1356,13 @@ fieldset {
   font-weight: 600;
 }
 
-.admin-login-panel input,
-.admin-login-panel select,
-.admin-slot-form input,
-.admin-day-schedule-form input,
-.admin-action-form input,
-.admin-action-form textarea,
-.admin-organization-form input,
-.admin-organization-form textarea,
-.admin-date-jump input,
-.admin-search input,
-.admin-select-wrap select {
+/* Every text field, select and textarea is filled. :where keeps the
+   specificity low so components can still adjust size or padding. */
+.admin-page :where(
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="hidden"], [type="file"], [type="color"], [type="submit"], [type="button"]),
+  select,
+  textarea
+) {
   width: 100%;
   min-height: 2.5rem;
   padding: var(--admin-field-padding, 0.5rem 0.75rem);
@@ -1385,8 +1381,7 @@ fieldset {
   background-color: var(--admin-field-hover);
 }
 
-.admin-action-form textarea,
-.admin-organization-form textarea {
+.admin-action-form textarea {
   min-height: var(--admin-textarea-height, 8.5rem);
   resize: vertical;
   line-height: 1.45;
@@ -3824,101 +3819,6 @@ button.admin-mini-item::after {
   justify-self: end;
 }
 
-.admin-confirmation-schedule-form {
-  display: grid;
-  gap: var(--admin-space-5);
-}
-
-.admin-confirmation-schedule-form label,
-.admin-confirmation-week legend {
-  min-width: 0;
-  display: grid;
-  gap: 0.35rem;
-  color: var(--admin-text);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
-.admin-confirmation-schedule-form input[type="time"],
-.admin-confirmation-schedule-form .admin-select-wrap select {
-  width: 100%;
-  min-height: var(--admin-control-height);
-  padding: 0.375rem 0.625rem;
-  border: 1px solid var(--admin-border-strong);
-  border-radius: var(--admin-control-radius);
-  color: var(--admin-text);
-  background: var(--admin-surface);
-  line-height: 1.2;
-}
-
-.admin-confirmation-settings {
-  display: grid;
-  grid-template-columns: minmax(12rem, 18rem) minmax(12rem, 1fr);
-  align-items: end;
-  gap: var(--admin-space-4);
-}
-
-.admin-confirmation-timezone {
-  min-height: 2.25rem;
-  padding: 0.45rem 0.65rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface-subtle);
-  font-size: var(--admin-text-xs);
-}
-
-.admin-confirmation-timezone span {
-  color: var(--admin-text-secondary);
-}
-
-.admin-confirmation-timezone strong {
-  color: var(--admin-text);
-  font-variant-numeric: tabular-nums;
-}
-
-.admin-confirmation-week {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-2);
-}
-
-.admin-confirmation-week legend {
-  margin-block-end: var(--admin-space-2);
-}
-
-.admin-confirmation-day {
-  min-width: 0;
-  padding: 0.5rem;
-  display: grid;
-  grid-template-columns: minmax(9rem, 1fr) minmax(7.5rem, 0.45fr) minmax(7.5rem, 0.45fr);
-  align-items: end;
-  gap: var(--admin-space-3);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface-subtle);
-}
-
-.admin-confirmation-day.is-disabled {
-  color: var(--admin-text-secondary);
-}
-
-.admin-confirmation-day.is-disabled > label:not(.admin-confirmation-day-toggle) {
-  opacity: 0.55;
-}
-
-.admin-confirmation-day-toggle {
-  align-self: end;
-}
-
-.admin-confirmation-schedule-form > .admin-action-buttons {
-  padding-block-start: var(--admin-space-1);
-  border-block-start: 1px solid var(--admin-border);
-}
-
 .admin-day-schedule-form {
   gap: var(--admin-space-5);
 }
@@ -4056,169 +3956,15 @@ button.admin-mini-item::after {
 /* Organization
    ========================================================================== */
 
-.admin-organization-workbench,
-.admin-organization-sections,
-.admin-organization-section,
-.admin-organization-form,
-.admin-organization-form fieldset {
-  min-width: 0;
-  display: grid;
-}
-
-.admin-organization-workspace-header {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.admin-organization-workspace-header .admin-page-title {
-  min-width: 0;
-}
-
-.admin-organization-workspace-header .admin-page-title p,
-.admin-organization-section-header p {
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-}
-
-.admin-organization-sections {
-  grid-template-columns: minmax(0, 1.12fr) minmax(22rem, 0.88fr);
-  align-items: stretch;
-}
-
-.admin-organization-section + .admin-organization-section {
-  border-inline-start: 1px solid var(--admin-border);
-}
-
-.admin-organization-section-header {
-  min-height: 3rem;
-  padding: 0.625rem 0.875rem;
-  display: flex;
-  align-items: center;
-  border-block-end: 1px solid var(--admin-border);
-  background: var(--admin-surface-subtle);
-}
-
-.admin-organization-section-header h2 {
-  font-size: var(--admin-text-md);
-}
-
-.admin-organization-form,
-.admin-confirmation-schedule-page-form {
-  padding: 1rem;
-  gap: 0.875rem;
-}
-
-.admin-organization-form fieldset {
-  gap: var(--admin-space-3);
-}
-
-.admin-organization-form legend {
-  margin-block-end: var(--admin-space-1);
-  color: var(--admin-text);
-  font-size: var(--admin-text-sm);
-  font-weight: 700;
-}
-
-.admin-organization-form-grid {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--admin-space-3);
-}
-
-.admin-organization-form label {
-  min-width: 0;
-  display: grid;
-  gap: 0.35rem;
-  color: var(--admin-text);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
-.admin-organization-form textarea {
-  min-height: 4.75rem;
-}
-
-.admin-organization-form .admin-field-wide {
-  grid-column: 1 / -1;
-}
-
-.admin-organization-form > .admin-action-buttons,
-.admin-confirmation-schedule-page-form > .admin-action-buttons {
-  padding-block-start: var(--admin-space-3);
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-confirmation-schedule-page-form {
-  align-content: start;
-}
-
-.admin-confirmation-schedule-page-form .admin-confirmation-settings {
-  grid-template-columns: minmax(10rem, 1fr) minmax(11rem, 1fr);
-  gap: var(--admin-space-3);
-}
-
-.admin-confirmation-schedule-page-form .admin-confirmation-day {
-  grid-template-columns: minmax(7.5rem, 1fr) minmax(6.5rem, 0.6fr) minmax(6.5rem, 0.6fr);
-  gap: var(--admin-space-2);
-}
-
-@media (min-width: 68.8125rem) {
-  .admin-organization-shell {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .admin-organization-sections {
-    flex: 1;
-    min-height: 0;
-  }
-
-  .admin-organization-section {
-    min-height: 0;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-
-  .admin-organization-section > :is(
-    [data-organization-invoice-loading],
-    [data-organization-schedule-loading],
-    .admin-organization-form,
-    .admin-confirmation-schedule-page-form
-  ) {
-    min-height: 0;
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-  }
-}
-
-@media (max-width: 68.75rem) {
-  .admin-organization-sections {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-organization-section + .admin-organization-section {
-    border-block-start: 1px solid var(--admin-border);
-    border-inline-start: 0;
-  }
-}
-
 @media (max-width: 42rem) {
-  .admin-organization-form-grid,
   .admin-skeleton-form-grid,
-  .admin-skeleton-confirmation-settings,
-  .admin-day-schedule-time-grid {
+.admin-skeleton-confirmation-settings,
+.admin-day-schedule-time-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .admin-organization-form .admin-field-wide,
   .admin-skeleton-field-wide {
     grid-column: auto;
-  }
-
-  .admin-confirmation-schedule-page-form .admin-confirmation-settings {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .admin-skeleton-confirmation-day {
@@ -6264,11 +6010,12 @@ button.admin-mini-item::after {
 
 .admin-form-group > :is(h3, legend) {
   grid-column: 1 / -1;
-  margin: 0;
+  margin: 0 0 0.75rem;
   padding: 0;
-  color: var(--admin-text-secondary);
-  font-size: 0.8125rem;
+  color: var(--admin-text);
+  font-size: 0.9375rem;
   font-weight: 600;
+  letter-spacing: -0.01em;
 }
 
 .admin-form-group > .admin-field-wide,
@@ -6302,7 +6049,8 @@ button.admin-mini-item::after {
   margin: 0 auto 0 0;
 }
 
-.admin-card-footer .admin-button-primary:disabled {
+/* A primary action that can't run yet reads as quiet, not broken. */
+.admin-button-primary:disabled:not(.is-loading) {
   color: var(--admin-text-tertiary);
   border-color: transparent;
   background: color-mix(in srgb, var(--admin-text) 6%, var(--admin-surface));
@@ -6448,6 +6196,118 @@ button.admin-mini-item::after {
   .admin-row-item {
     padding-inline: 0.75rem;
     gap: 0.625rem;
+  }
+}
+
+/* Settings forms: Organization and the booking requests settings
+   ========================================================================== */
+
+.admin-form-group > label,
+.admin-booking-request-form label:not(.admin-switch) {
+  min-width: 0;
+  display: grid;
+  gap: 0.35rem;
+  color: var(--admin-text);
+  font-size: var(--admin-text-xs);
+  font-weight: 600;
+}
+
+.admin-form-group textarea {
+  min-height: 4.75rem;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+.admin-booking-request-form {
+  min-width: 0;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.admin-booking-request-time {
+  max-width: 16rem;
+}
+
+.admin-booking-request-hours {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+  border: 0;
+}
+
+.admin-booking-request-hours > legend {
+  margin-block-end: 0.5rem;
+  padding: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.admin-booking-request-head,
+.admin-booking-request-day {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(6.5rem, 8rem) minmax(6.5rem, 8rem);
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-booking-request-head {
+  padding: 0 0.875rem;
+  color: var(--admin-text-tertiary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-booking-request-day {
+  padding: 0.5rem 0.5rem 0.5rem 0.875rem;
+  border-radius: 0.875rem;
+  background: var(--admin-surface-subtle);
+}
+
+.admin-booking-request-day select {
+  background-color: var(--admin-surface);
+}
+
+.admin-booking-request-day.is-disabled > label:not(.admin-switch) {
+  opacity: 0.45;
+}
+
+.admin-booking-request-zone {
+  margin-block-start: 0.5rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+}
+
+@media (min-width: 40.0625rem) {
+  .admin-booking-request-time-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 40rem) {
+  .admin-booking-request-head {
+    display: none;
+  }
+
+  .admin-booking-request-time {
+    max-width: none;
+  }
+
+  .admin-booking-request-day {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0.75rem;
+  }
+
+  .admin-booking-request-day > .admin-switch {
+    grid-column: 1 / -1;
   }
 }
 
@@ -8237,18 +8097,6 @@ a.admin-dash-tile:hover {
     width: 100%;
   }
 
-  .admin-confirmation-settings {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-confirmation-day {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .admin-confirmation-day-toggle {
-    grid-column: 1 / -1;
-  }
-
   .admin-calendar-agenda-day,
   .admin-agenda-day {
     grid-template-columns: minmax(0, 1fr);
@@ -8654,26 +8502,23 @@ a.admin-dash-tile:hover {
   }
 
   .admin-nav-group a,
-  .admin-nav a,
-  .admin-nav-unavailable,
-  .admin-nav-info,
-  .admin-login-panel input,
-  .admin-login-panel select,
-  .admin-slot-form input,
-  .admin-action-form input,
-  .admin-action-form textarea,
-  .admin-organization-form input,
-  .admin-organization-form textarea,
-  .admin-user-readonly-field strong,
-  .admin-date-jump input,
-  .admin-search input,
-  .admin-select-wrap select,
-  .admin-checkbox,
-  .admin-disclosure summary,
-  .admin-context-action,
-  .admin-customer-related-disclosure > summary,
-  .admin-confirmation-schedule-form input[type="time"],
-  .admin-notification-filter {
+.admin-nav a,
+.admin-nav-unavailable,
+.admin-nav-info,
+.admin-login-panel input,
+.admin-login-panel select,
+.admin-slot-form input,
+.admin-action-form input,
+.admin-action-form textarea,
+.admin-user-readonly-field strong,
+.admin-date-jump input,
+.admin-search input,
+.admin-select-wrap select,
+.admin-checkbox,
+.admin-disclosure summary,
+.admin-context-action,
+.admin-customer-related-disclosure > summary,
+.admin-notification-filter {
     min-height: 2.75rem;
   }
 
@@ -9255,19 +9100,8 @@ a.admin-dash-tile:hover {
 .admin-campaign-summary { padding-block-start:0; }
 .admin-campaign-preview { padding-block:.75rem; }
 .admin-campaign-preview h3 { margin-block-end:.5rem; }
-.admin-confirmation-schedule-form,
 .admin-day-schedule-form { gap:.875rem; }
-.admin-confirmation-week { gap:0; }
-.admin-confirmation-day { padding:.5rem 0; border:0; border-block-end:1px solid var(--admin-border); border-radius:0; background:transparent; }
-.admin-confirmation-day:first-of-type { border-block-start:1px solid var(--admin-border); }
-.admin-confirmation-week-head { padding:.25rem 0 .375rem; display:grid; grid-template-columns:minmax(9rem, 1fr) minmax(7.5rem, 0.45fr) minmax(7.5rem, 0.45fr); gap:var(--admin-space-3); color:var(--admin-text-secondary); font-size:.75rem; font-weight:600; }
-@media (min-width: 48.0625rem) {
-  .admin-confirmation-day { align-items:center; }
-  .admin-confirmation-time-label { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; }
-}
-@media (max-width: 48rem) {
-  .admin-confirmation-week-head { display:none; }
-}
+
 .admin-day-schedule-core-fields { grid-template-columns:repeat(3,minmax(0,1fr)); gap:.75rem; }
 .admin-day-schedule-inspector { grid-column:1 / -1; }
 .admin-day-schedule-advanced > div { gap:.75rem; }
@@ -9288,11 +9122,7 @@ a.admin-dash-tile:hover {
   .admin-customer-contact-list { grid-template-columns:minmax(0,1fr); }
   .admin-day-schedule-core-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-day-schedule-core-fields > :first-child { grid-column:1 / -1; }
-  .admin-confirmation-day { grid-template-columns:minmax(0,1fr) repeat(2,minmax(0,1fr)); }
-}
-@media (max-width:28rem) {
-  .admin-confirmation-day { grid-template-columns:repeat(2,minmax(0,1fr)); }
-  .admin-confirmation-day > :first-child { grid-column:1 / -1; }
+
 }
 
 /* Task-first customer, invoice, staff, and availability dialogs. */
