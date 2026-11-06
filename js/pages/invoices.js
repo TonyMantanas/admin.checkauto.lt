@@ -1,4 +1,4 @@
-import { skeletons } from '../core/skeletons.js?v=20260821-2';
+import { skeletons } from '../core/skeletons.js?v=20261106-4';
 import { ICONS } from '../core/icons.js?v=20260802-1';
 
 export const page = 'invoices';
@@ -93,7 +93,7 @@ export function renderStaticPage(root) {
             <button class="is-active admin-segmented-icon" type="button" data-invoice-sort="desc" aria-pressed="true" aria-label="Newest first" title="Newest first" disabled>${ICONS.sortDescending}</button>
           </div>
         </div>
-        <div class="admin-billing-summary" data-invoice-summary aria-label="Billing totals" hidden></div>
+        <div class="admin-billing-summary" data-invoice-summary aria-label="Billing totals">${skeletons.billingTiles()}</div>
         <div class="admin-list-scroll">
           <div class="admin-data-head admin-invoice-data-head" aria-hidden="true">
             <span>Record and customer</span>

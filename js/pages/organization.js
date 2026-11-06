@@ -1,4 +1,4 @@
-import { skeletons } from '../core/skeletons.js?v=20260821-2';
+import { skeletons } from '../core/skeletons.js?v=20261106-4';
 import { bookingRequestFieldsHtml } from '../core/settings-forms.js?v=20261105-5';
 
 export const page = 'organization';

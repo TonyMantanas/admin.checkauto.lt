@@ -1568,6 +1568,27 @@ fieldset {
   background: var(--admin-surface);
 }
 
+.admin-skeleton-tile {
+  min-height: 5.65rem;
+  pointer-events: none;
+  align-content: center;
+  gap: 0.5rem;
+}
+
+.admin-skeleton-amount {
+  width: 6rem;
+  height: 1.25rem;
+}
+
+/* The count under a page title keeps one text line of height while loading. */
+.admin-page-header .admin-page-meta {
+  min-height: 1.45em;
+}
+
+.admin-page-header .admin-page-meta > .admin-skeleton {
+  margin-block-start: 0.4em;
+}
+
 .admin-skeleton-stat {
   pointer-events: none;
 }
@@ -2028,8 +2049,8 @@ fieldset {
     background-color var(--admin-duration) var(--admin-ease);
 }
 
-.admin-booking-list.is-querying .admin-booking-row-shell,
-.admin-invoice-list.is-querying .admin-data-row {
+.admin-booking-list.is-querying .admin-booking-row-shell:not(.admin-skeleton-row),
+.admin-invoice-list.is-querying .admin-data-row:not(.admin-skeleton-row) {
   opacity: 0.68;
 }
 
@@ -5046,6 +5067,10 @@ button.admin-mini-item::after {
   gap: 0.5rem 1rem;
 }
 
+.admin-card-footer > :is(.admin-form-error, [role="status"]) {
+  margin: 0 auto 0 0;
+}
+
 /* A primary action that can't run yet reads as quiet, not broken. */
 .admin-button-primary:disabled:not(.is-loading) {
   color: var(--admin-text-tertiary);
@@ -5179,6 +5204,10 @@ button.admin-mini-item::after {
   background: color-mix(in srgb, var(--admin-surface) 92%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 -1px 0 var(--admin-border);
+}
+
+.admin-modal-footer > :is(.admin-form-error, [role="status"]) {
+  margin: 0 auto 0 0;
 }
 
 @media (max-width: 40rem) {
@@ -6996,6 +7025,12 @@ a.admin-dash-tile:hover {
   .admin-booking-item > *,
   .admin-customer-item > * {
     grid-column: 1 / -1;
+  }
+
+  .admin-data-row > .admin-row-primary,
+  .admin-booking-item > .admin-row-primary,
+  .admin-customer-item > .admin-row-primary {
+    grid-column: 1;
   }
 
   .admin-data-row > .admin-row-status,

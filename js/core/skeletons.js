@@ -2,30 +2,58 @@ function block(className) {
   return `<span class="admin-skeleton ${className || ''}" aria-hidden="true"></span>`;
 }
 
-function listRow(columns, index) {
-  return `
-    <div class="admin-data-row admin-skeleton-row" aria-hidden="true" style="--admin-skeleton-delay: ${index * 70}ms">
-      ${columns.map((column, columnIndex) => {
-        if (column === 'admin-row-primary') {
-          return `<span class="${column} admin-skeleton-primary">${block('admin-skeleton-line admin-skeleton-line-wide')}${block('admin-skeleton-line admin-skeleton-line-medium')}</span>`;
-        }
-        if (column === 'admin-row-status') {
-          return `<span class="${column}">${block('admin-skeleton-pill')}</span>`;
-        }
-        return `<span class="${column}">${block(`admin-skeleton-line ${columnIndex % 2 ? 'admin-skeleton-line-medium' : 'admin-skeleton-line-short'}`)}</span>`;
-      }).join('')}
-    </div>
-  `;
+// List skeletons use the same grid and wrappers as the real rows, so the
+// page keeps its shape when data replaces them. One row count is shared by
+// the page shell and the runtime, so a skeleton is never redrawn larger.
+const LIST_ROWS = 8;
+
+const LIST_COLUMNS = {
+  bookings: ['admin-row-primary', 'admin-row-status', 'admin-row-service', 'admin-row-date', 'admin-row-meta'],
+  customers: ['admin-row-primary', 'admin-row-service', 'admin-row-meta'],
+  invoices: ['admin-row-primary', 'admin-row-status', 'admin-row-service', 'admin-row-date', 'admin-row-amount', 'admin-row-due', 'admin-row-email']
+};
+
+function listCells(kind, columns) {
+  return columns.map((column, columnIndex) => {
+    if (column === 'admin-row-primary') {
+      const second = kind === 'customers' ? '' : block('admin-skeleton-line admin-skeleton-line-medium');
+      return `<span class="${column} admin-skeleton-primary">${block('admin-skeleton-line admin-skeleton-line-wide')}${second}</span>`;
+    }
+    if (column === 'admin-row-status') {
+      return `<span class="${column}">${block('admin-skeleton-pill')}</span>`;
+    }
+    return `<span class="${column}">${block(`admin-skeleton-line ${columnIndex % 2 ? 'admin-skeleton-line-medium' : 'admin-skeleton-line-short'}`)}</span>`;
+  }).join('');
 }
 
-function list(kind, count = 6) {
-  const columns = {
-    bookings: ['admin-row-primary', 'admin-row-status', 'admin-row-service', 'admin-row-date', 'admin-row-meta'],
-    customers: ['admin-row-primary', 'admin-row-status', 'admin-row-service', 'admin-row-meta'],
-    invoices: ['admin-row-primary', 'admin-row-status', 'admin-row-service', 'admin-row-date', 'admin-row-amount', 'admin-row-meta']
-  }[kind] || ['admin-row-primary', 'admin-row-status', 'admin-row-meta'];
+function listRow(kind, columns, index) {
+  const style = `--admin-skeleton-delay: ${index * 70}ms`;
+  const cells = listCells(kind, columns);
+  if (kind === 'bookings') {
+    return `<div class="admin-booking-row-shell admin-skeleton-row" aria-hidden="true" style="${style}"><div class="admin-booking-item admin-data-row">${cells}</div><span class="admin-booking-row-action"></span></div>`;
+  }
+  const rowClass = kind === 'customers' ? 'admin-customer-item' : 'admin-booking-item';
+  return `<div class="${rowClass} admin-data-row admin-skeleton-row" aria-hidden="true" style="${style}">${cells}</div>`;
+}
 
-  return Array.from({ length: count }, (_, index) => listRow(columns, index)).join('');
+function list(kind, count = LIST_ROWS) {
+  const columns = LIST_COLUMNS[kind] || ['admin-row-primary', 'admin-row-status', 'admin-row-meta'];
+  const group = kind === 'bookings'
+    ? `<div class="admin-booking-group admin-skeleton-group" aria-hidden="true">${block('admin-skeleton-line admin-skeleton-line-short')}</div>`
+    : '';
+  return group + Array.from({ length: count }, (_, index) => listRow(kind, columns, index)).join('');
+}
+
+// Billing totals sit above the list, so they get placeholders too and the
+// list doesn't drop when the real totals arrive.
+function billingTiles() {
+  return Array.from({ length: 2 }, (_, index) => `
+    <div class="admin-billing-tile admin-skeleton-tile" aria-hidden="true" style="--admin-skeleton-delay: ${index * 90}ms">
+      ${block('admin-skeleton-line admin-skeleton-amount')}
+      ${block('admin-skeleton-line admin-skeleton-line-medium')}
+      ${block('admin-skeleton-line admin-skeleton-line-short')}
+    </div>
+  `).join('');
 }
 
 function stats() {
@@ -162,6 +190,7 @@ function preview() {
 }
 
 export const skeletons = Object.freeze({
+  billingTiles,
   block,
   calendar,
   campaigns,

@@ -7,7 +7,7 @@ import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
 import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261105-7';
-import { skeletons } from './skeletons.js?v=20261004-4';
+import { skeletons } from './skeletons.js?v=20261106-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
 import { createDashboardView } from './dashboard-view.js?v=20261105-4';
@@ -387,7 +387,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     // continue to imply that the page is still fetching data.
     $all('[data-organization-invoice-loading], [data-organization-schedule-loading]', pageRoot)
       .forEach(function (element) { element.hidden = true; });
-    $all('.admin-skeleton-row, .admin-skeleton-mini-item, .admin-calendar-skeleton, .admin-skeleton-stat, .admin-notifications-skeleton-filters', pageRoot)
+    $all('.admin-skeleton-row, .admin-skeleton-group, .admin-skeleton-tile, .admin-skeleton-mini-item, .admin-calendar-skeleton, .admin-skeleton-stat, .admin-notifications-skeleton-filters', pageRoot)
       .forEach(function (element) { element.remove(); });
     $all('.admin-count', pageRoot).forEach(function (element) {
       if ($('.admin-skeleton', element)) element.textContent = 'Unavailable';
@@ -3306,18 +3306,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     history.replaceState(modalHistoryState(route, route ? 1 : 0), '', url.pathname + url.search);
   }
 
-  function renderBookingQuerySkeleton(list) {
-    var targetList = list || $('[data-admin-booking-list]');
-    if (targetList) {
-      targetList.setAttribute('aria-busy', 'true');
-      targetList.classList.add('is-querying');
-      targetList.innerHTML = skeletons.list('bookings', 8);
+  // A list that already shows a skeleton keeps it, so its rows and pulse
+  // don't restart while a second request is under way.
+  function renderListSkeleton(list, count, kind) {
+    if (list) {
+      list.setAttribute('aria-busy', 'true');
+      list.classList.add('is-querying');
+      if (!$('.admin-skeleton-row', list)) list.innerHTML = skeletons.list(kind);
     }
-    var count = $('[data-admin-booking-count]');
     if (count) {
       count.setAttribute('aria-busy', 'true');
-      count.innerHTML = skeletons.block('admin-skeleton-line admin-skeleton-count');
+      if (!$('.admin-skeleton', count)) count.innerHTML = skeletons.block('admin-skeleton-line admin-skeleton-count');
     }
+  }
+
+  function renderBookingQuerySkeleton(list) {
+    renderListSkeleton(list || $('[data-admin-booking-list]'), $('[data-admin-booking-count]'), 'bookings');
   }
 
   async function fetchOperationalPages(query, controller, count, resultKey) {
@@ -3372,12 +3376,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var result = await fetchOperationalPages(query,controller,targetCount,'bookingQuery');
       if (controller.signal.aborted || activeBookingQuery !== controller || state.page !== 'bookings' || bookingFilterSignature() !== signature) return false;
       var rows = Array.isArray(result.rows) ? result.rows : [];
-      state.bookings = append ? state.bookings.concat(rows) : rows;
-      state.bookingQueryTotal = Number(result.total_count) || 0;
-      state.bookingQueryHasMore = Boolean(result.has_more);
-      state.bookingQueryOffset = state.bookings.length;
-      state.bookingQuerySignature = signature;
-      state.bookingQueryLoading = false;
+      var commit = function () {
+        if (state.page !== 'bookings' || bookingFilterSignature() !== signature) return false;
+        state.bookings = append ? state.bookings.concat(rows) : rows;
+        state.bookingQueryTotal = Number(result.total_count) || 0;
+        state.bookingQueryHasMore = Boolean(result.has_more);
+        state.bookingQueryOffset = state.bookings.length;
+        state.bookingQuerySignature = signature;
+        state.bookingQueryLoading = false;
+        return true;
+      };
+      // A deferred caller applies the rows itself once the page data it
+      // renders with has arrived as well.
+      if (opts.defer) return commit;
+      commit();
       renderBookingsPage();
       return true;
     } catch (error) {
@@ -4982,17 +4994,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderInvoiceQuerySkeleton(list) {
-    var targetList = list || $('[data-invoice-list]');
-    if (targetList) {
-      targetList.setAttribute('aria-busy', 'true');
-      targetList.classList.add('is-querying');
-      targetList.innerHTML = skeletons.list('invoices', 8);
-    }
-    var count = $('[data-invoice-count]');
-    if (count) {
-      count.setAttribute('aria-busy', 'true');
-      count.innerHTML = skeletons.block('admin-skeleton-line admin-skeleton-count');
-    }
+    renderListSkeleton(list || $('[data-invoice-list]'), $('[data-invoice-count]'), 'invoices');
   }
 
   async function loadInvoiceQuery(options) {
@@ -5035,12 +5037,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var result = await fetchOperationalPages(query,controller,targetCount,'invoiceQuery');
       if (controller.signal.aborted || activeInvoiceQuery !== controller || state.page !== 'invoices' || invoiceFilterSignature() !== signature) return false;
       var rows = Array.isArray(result.rows) ? result.rows : [];
-      state.invoices = append ? state.invoices.concat(rows) : rows;
-      state.invoiceQueryTotal = Number(result.total_count) || 0;
-      state.invoiceQueryHasMore = Boolean(result.has_more);
-      state.invoiceQueryOffset = state.invoices.length;
-      state.invoiceQuerySignature = signature;
-      state.invoiceQueryLoading = false;
+      var commit = function () {
+        if (state.page !== 'invoices' || invoiceFilterSignature() !== signature) return false;
+        state.invoices = append ? state.invoices.concat(rows) : rows;
+        state.invoiceQueryTotal = Number(result.total_count) || 0;
+        state.invoiceQueryHasMore = Boolean(result.has_more);
+        state.invoiceQueryOffset = state.invoices.length;
+        state.invoiceQuerySignature = signature;
+        state.invoiceQueryLoading = false;
+        return true;
+      };
+      if (opts.defer) return commit;
+      commit();
       renderInvoicesPage();
       return true;
     } catch (error) {
@@ -8748,6 +8756,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!hadLoadedView) clearPageLoadError();
     setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
     setSyncState(opts.background ? 'Updating' : 'Loading', 'loading');
+    // Bookings and Billing rows come from their own query. Ask for them at
+    // the same time as the page data and draw the page once, when both are in.
+    var listQuery = null;
+    if (state.page === 'bookings') listQuery = loadBookingQuery({ force: true, silent: true, preservePages: true, defer: true });
+    else if (state.page === 'invoices') listQuery = loadInvoiceQuery({ force: true, silent: true, preservePages: true, defer: true });
     try {
       var applied = await loadDashboard(requestedView, { force: Boolean(opts.force) });
       window.CheckAutoStartup?.advance(.85);
@@ -8760,25 +8773,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setUserLabel();
       setActiveNav();
       var slotEditorDraft = !opts.background && state.page === 'availability' ? captureSlotEditorDraft() : null;
-      var bookingQueryWasPopulated = state.page === 'bookings' && Boolean(state.bookingQuerySignature);
-      var invoiceQueryWasPopulated = state.page === 'invoices' && Boolean(state.invoiceQuerySignature);
+      if (listQuery) {
+        var commitRows = await listQuery;
+        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+        if (typeof commitRows !== 'function' || !commitRows()) {
+          throw new Error(state.page === 'bookings'
+            ? 'Bookings could not be refreshed. Previously loaded records are retained.'
+            : 'Invoices could not be refreshed. Previously loaded records are retained.');
+        }
+      }
       // Reconcile data behind an active editor without resetting its controls.
       if (opts.background && state.page === 'availability' && state.slotEditorOpen) {
         renderCalendar();
-      } else if (state.page !== 'bookings' && state.page !== 'invoices') {
-        if (opts.background) renderPagePreservingDisclosures();
-        else renderPage();
-      } else if (bookingQueryWasPopulated || invoiceQueryWasPopulated) {
-        if (opts.background) renderPagePreservingDisclosures();
-        else renderPage();
-      }
-      if (state.page === 'bookings') {
-        if (!(await loadBookingQuery({ force: true, silent: bookingQueryWasPopulated, preservePages: true }))) throw new Error('Bookings could not be refreshed. Previously loaded records are retained.');
-        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
-      }
-      if (state.page === 'invoices') {
-        if (!(await loadInvoiceQuery({ force: true, silent: invoiceQueryWasPopulated, preservePages: true }))) throw new Error('Invoices could not be refreshed. Previously loaded records are retained.');
-        if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
+      } else if (opts.background) {
+        renderPagePreservingDisclosures();
+      } else {
+        renderPage();
       }
       if (
         !state.hasRendered &&
