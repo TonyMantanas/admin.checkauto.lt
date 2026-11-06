@@ -1386,6 +1386,20 @@ fieldset {
   gap: 0.2rem;
 }
 
+/* A label above a choice group reads like any other field label. */
+.admin-field-group {
+  min-width: 0;
+  display: grid;
+  justify-items: start;
+  gap: 0.35rem;
+}
+
+.admin-field-group > .admin-field-label {
+  color: var(--admin-text);
+  font-size: var(--admin-text-xs);
+  font-weight: 600;
+}
+
 .admin-required-marker {
   color: var(--admin-text-tertiary);
   font-weight: 500;
@@ -6278,8 +6292,8 @@ a.admin-dash-tile:hover {
   flex-direction: column;
 }
 
-.admin-step-form > .admin-step-section:last-of-type,
-.admin-step-form > label:last-of-type {
+/* Room between the last field and the sticky footer. */
+.admin-step-form > :has(+ .admin-panel-footer) {
   margin-block-end: 1.5rem;
 }
 
@@ -6366,6 +6380,15 @@ a.admin-dash-tile:hover {
 
 .admin-fact-text {
   white-space: pre-wrap;
+}
+
+.admin-note-entry {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.admin-note-entry + .admin-note-entry {
+  margin-block-start: 0.625rem;
 }
 
 .admin-email-line {

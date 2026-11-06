@@ -30,6 +30,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var SUPABASE_URL = 'https://ddhhhieitupjixynjrry.supabase.co';
   var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkaGhoaWVpdHVwaml4eW5qcnJ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODIxNDAyOTQsImV4cCI6MjA5NzcxNjI5NH0.PXAxGc3TSFUnbcyWdizhkiJkKqJlqD1Ic8PHAjHSFIc';
   var ADMIN_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-bookings';
+  // Changing a confirmed booking, internal notes and customer contact edits
+  // live in their own function so admin-bookings is never redeployed for them.
+  var CHANGES_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-booking-changes';
+  var CHANGES_ACTIONS = ['updateConfirmedBooking', 'updateCustomerContact'];
   var MFA_RECOVERY_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-mfa-recovery';
   var TEMP_PASSWORD_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-temp-password';
   var ADMIN_BASE_PATH = (
@@ -1465,10 +1469,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       throw new Error('This account is not approved for admin access or the session has expired.');
     }
     if (payload.action === 'sendMarketingCampaign') payload = ensureActionIdempotency(payload);
-    else if (['confirmBooking','rejectBooking','cancelBooking','recordAgreedPrice','createSlotSeries','recordPayment','recordRefund','correctPayment','resolvePaymentReconciliation','retryNotification','acknowledgeContact','createAndSendInvoice','resendInvoice'].includes(payload.action)) {
+    else if (['confirmBooking','updateConfirmedBooking','rejectBooking','cancelBooking','recordAgreedPrice','createSlotSeries','recordPayment','recordRefund','correctPayment','resolvePaymentReconciliation','retryNotification','acknowledgeContact','createAndSendInvoice','resendInvoice'].includes(payload.action)) {
       payload = await operationStore().attach(payload);
     }
-    var response = await fetch(ADMIN_ENDPOINT, {
+    var response = await fetch(CHANGES_ACTIONS.includes(payload.action) ? CHANGES_ENDPOINT : ADMIN_ENDPOINT, {
       method: 'POST',
       headers: authHeaders(),
       cache: 'no-store',
@@ -1744,6 +1748,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         invoices: route.type === 'booking' ? invoicesForBooking(bookingId) : invoice,
         customer: booking ? customerForBooking(booking) : (invoice ? customerById(invoice.customer_id) : null),
         assignee: booking ? staffById(booking.assigned_to_staff_id) : null,
+        notes: route.type === 'booking' ? state.bookingNotes?.[bookingId]?.notes || null : null,
         operations: operations ? {
           quotes: operations.quotes,
           payment_entries: operations.payment_entries,
@@ -3633,6 +3638,46 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return detail ? detail.data : {...state.operationsState, detail_pending:true};
   }
 
+  // Internal notes (owners and admins). Loaded once per open booking and
+  // shown on its overview; a failed load just shows no notes.
+  var bookingNotesLoads = Object.create(null);
+  function canReadInternalNotes() {
+    return staffHasAccess(state.staff, 'sensitive_data.access', ['owner', 'admin']);
+  }
+  function loadBookingNotes(bookingId) {
+    if (bookingNotesLoads[bookingId]) return bookingNotesLoads[bookingId];
+    var pending = (async function () {
+      state.bookingNotes = state.bookingNotes || {};
+      try {
+        if (!(await ensureActiveSession())) return false;
+        var response = await fetch(CHANGES_ENDPOINT + '?view=booking_notes&bookingId=' + encodeURIComponent(bookingId), { headers: authHeaders(), cache: 'no-store' });
+        var data = await response.json().catch(function () { return {}; });
+        if (!response.ok) throw new Error(data.error || 'Internal notes could not be loaded.');
+        state.bookingNotes[bookingId] = { notes: Array.isArray(data.notes) ? data.notes : [], at: Date.now() };
+      } catch (error) {
+        state.bookingNotes[bookingId] = { notes: [], at: Date.now(), error: error instanceof Error ? error.message : String(error) };
+      } finally {
+        delete bookingNotesLoads[bookingId];
+      }
+      var route = modalRouteFromUrl();
+      if (route && route.type === 'booking' && route.id === bookingId) reconcileOpenModal();
+      return true;
+    })();
+    bookingNotesLoads[bookingId] = pending;
+    return pending;
+  }
+  function bookingNotes(bookingId) {
+    if (!canReadInternalNotes()) return null;
+    var entry = state.bookingNotes && state.bookingNotes[bookingId];
+    if (!entry || Date.now() - entry.at > 30000) loadBookingNotes(bookingId);
+    return entry ? entry.notes : null;
+  }
+  function forgetBookingDetail(bookingId) {
+    if (!bookingId) return;
+    if (state.bookingOperations) delete state.bookingOperations[bookingId];
+    if (state.bookingNotes) delete state.bookingNotes[bookingId];
+  }
+
   // Booking panel ------------------------------------------------------------
   // Overview: who, when, what and the one next step for this state. Forms are
   // steps that replace the body (see openModalStep).
@@ -3787,9 +3832,25 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (when ? '<span class="admin-fact-sub">' + escapeHtml(when) + '</span>' : ''));
   }
 
+  function bookingNotesFact(booking) {
+    var notes = bookingNotes(booking.id);
+    if (!notes || !notes.length) return '';
+    return factHtml(notes.length === 1 ? 'Internal note' : 'Internal notes', notes.map(function (note) {
+      var by = [note.author || (staffById(note.author_staff_id) || {}).display_name || '', note.created_at ? formatDateTime(note.created_at) : ''].filter(Boolean).join(' · ');
+      return '<span class="admin-note-entry"><span class="admin-fact-text">' + escapeHtml(note.note) + '</span>' +
+        (by ? '<span class="admin-fact-sub">' + escapeHtml(by) + '</span>' : '') + '</span>';
+    }).join(''));
+  }
+
+  // Confirmed bookings can move to another time or inspector until they're done.
+  function bookingCanBeChanged(booking, permissions) {
+    return booking.status === 'confirmed' && !booking.pii_redacted_at && Boolean(permissions && permissions.manage);
+  }
+
   function bookingOverviewHtml(booking) {
     var operations = bookingOperations(booking.id);
     var permissions = bookingPermissions();
+    var changeable = bookingCanBeChanged(booking, permissions);
     var assigned = staffById(booking.assigned_to_staff_id);
     var customer = customerForBooking(booking);
     var serviceName = serviceNameForBooking(booking);
@@ -3802,7 +3863,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         new Date(booking.final_end_at).getTime() !== new Date(booking.requested_end_at).getTime());
     var whenHtml = '<strong>' + escapeHtml(when) + '</strong>' +
       (!scheduled && booking.status === 'pending' ? '<span class="admin-fact-sub">Requested by the customer</span>' : '') +
-      (timeChanged ? '<span class="admin-fact-sub">Originally requested ' + escapeHtml(formatReviewRange(booking.requested_start_at, booking.requested_end_at)) + '</span>' : '');
+      (timeChanged ? '<span class="admin-fact-sub">Originally requested ' + escapeHtml(formatReviewRange(booking.requested_start_at, booking.requested_end_at)) + '</span>' : '') +
+      (changeable ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="change">Change time</button></span>' : '');
+    var inspectorHtml = escapeHtml(assigned ? assigned.display_name : 'Not assigned') +
+      (changeable ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="change">' + (assigned ? 'Change inspector' : 'Assign inspector') + '</button></span>' : '');
 
     var contactLinks =
       (booking.customer_phone ? '<a class="admin-context-action" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(booking.customer_phone) + '</span></a>' : '') +
@@ -3833,11 +3897,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       panelNoticeHtml('booking', booking.id) +
       '<dl class="admin-facts">' +
         factHtml('When', whenHtml) +
-        (booking.status === 'pending' && !assigned ? '' : factHtml('Inspector', escapeHtml(assigned ? assigned.display_name : 'Not assigned'))) +
+        (booking.status === 'pending' && !assigned ? '' : factHtml('Inspector', inspectorHtml)) +
         factHtml('Customer', customerHtml) +
         factHtml('Vehicle', vehicleHtml) +
         (booking.customer_message ? factHtml('Customer note', '<span class="admin-fact-text">' + escapeHtml(booking.customer_message) + '</span>') : '') +
         bookingDecisionMessageFact(booking) +
+        bookingNotesFact(booking) +
         bookingPriceFact(booking, operations, permissions.manage) +
         (permissions.bill && booking.status === 'completed' ? bookingInvoiceFact(booking) : '') +
         (emailsHtml ? factHtml('Emails', emailsHtml) : '') +
@@ -3904,6 +3969,44 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</section>' +
         stepFooterHtml('Back', 'Confirm and email customer') +
       '</form>';
+  }
+
+  function bookingChangeStepHtml(booking) {
+    var start = booking.final_start_at || booking.requested_start_at;
+    var end = booking.final_end_at || booking.requested_end_at;
+    var date = dateInputValue(start);
+    var from = timeInputValue(start);
+    var until = timeInputValue(end);
+    var staffId = booking.assigned_to_staff_id || '';
+    var options = assignableStaffOptions(staffId);
+    var current = staffById(staffId);
+    var currentListed = staffId && options.indexOf('value="' + escapeHtml(staffId) + '"') >= 0;
+    var placeholder = currentListed ? ''
+      : '<option value="" selected disabled>' + escapeHtml(current ? current.display_name + ' (no longer active)' : 'Choose an inspector') + '</option>';
+    return panelStepHeaderHtml('Change time or inspector', { meta: escapeHtml((booking.customer_name || booking.public_reference) + ' · ' + booking.public_reference) }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="updateConfirmedBooking" data-no-confirm' +
+        ' data-current-date="' + escapeHtml(date) + '" data-current-start="' + escapeHtml(from) + '" data-current-end="' + escapeHtml(until) + '" data-current-staff="' + escapeHtml(staffId) + '">' +
+        hiddenInput('bookingId', booking.id) +
+        '<div class="admin-form-row admin-form-row-time">' +
+          '<label>' + requiredLabel('Date') + '<input name="date" type="date" required value="' + escapeHtml(date) + '"></label>' +
+          '<label>' + requiredLabel('From') + '<input name="startTime" type="time" step="900" required value="' + escapeHtml(from) + '"></label>' +
+          '<label>' + requiredLabel('Until') + '<input name="endTime" type="time" step="900" required value="' + escapeHtml(until) + '"></label>' +
+        '</div>' +
+        '<div data-dst-slot hidden></div>' +
+        '<label>' + requiredLabel('Inspector') + '<span class="admin-select-wrap"><select name="assignedStaffId" required>' + placeholder + options + '</select></span></label>' +
+        '<label class="admin-checkbox" data-notify-customer hidden><input name="notifyCustomer" type="checkbox" checked><span>Email the customer the new time</span></label>' +
+        '<label>' + optionalLabel('Internal note') + '<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+        stepFooterHtml('Back', 'Save changes') +
+      '</form>';
+  }
+
+  function bookingChangeState(form) {
+    var el = form.elements;
+    var timeChanged = el.date.value !== form.dataset.currentDate ||
+      el.startTime.value !== form.dataset.currentStart ||
+      el.endTime.value !== form.dataset.currentEnd;
+    var staffChanged = Boolean(el.assignedStaffId.value) && el.assignedStaffId.value !== form.dataset.currentStaff;
+    return { timeChanged: timeChanged, staffChanged: staffChanged, notify: timeChanged && el.notifyCustomer.checked };
   }
 
   function bookingReasonStepHtml(booking, kind) {
@@ -4017,6 +4120,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (step === 'confirm' && booking.status === 'pending') html = bookingConfirmStepHtml(booking);
     else if (step === 'reject' && booking.status === 'pending') html = bookingReasonStepHtml(booking, 'reject');
     else if (step === 'cancel' && booking.status === 'confirmed') html = bookingReasonStepHtml(booking, 'cancel');
+    else if (step === 'change' && bookingCanBeChanged(booking, bookingPermissions())) html = bookingChangeStepHtml(booking);
     else if (step === 'price') html = bookingPriceStepHtml(booking);
     else if (step === 'invoice' && booking.status === 'completed') html = bookingInvoiceStepHtml(booking);
     else {
@@ -4048,6 +4152,26 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       };
       confirmForm.addEventListener('input', syncTime);
       syncTime();
+    }
+
+    // Change step: the email checkbox only matters when the time moves, and
+    // the button says what will happen.
+    var changeForm = $('form[data-action="updateConfirmedBooking"]', modal);
+    if (changeForm) {
+      var notifyField = $('[data-notify-customer]', changeForm);
+      var changeSubmit = $('[data-step-submit]', changeForm);
+      var syncChange = function () {
+        var change = bookingChangeState(changeForm);
+        notifyField.hidden = !change.timeChanged;
+        changeSubmit.textContent = change.notify ? 'Save and email customer'
+          : change.timeChanged && change.staffChanged ? 'Save changes'
+          : change.timeChanged ? 'Save new time'
+          : change.staffChanged ? (changeForm.dataset.currentStaff ? 'Change inspector' : 'Assign inspector')
+          : 'Save changes';
+      };
+      changeForm.addEventListener('input', syncChange);
+      changeForm.addEventListener('change', syncChange);
+      syncChange();
     }
 
     var invoiceForm = $('form[data-action="createAndSendInvoice"]', modal);
@@ -4680,12 +4804,40 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</form>';
   }
 
+  function customerCanEditContact(customer) {
+    return !customer.pii_redacted_at && staffHasAccess(state.staff, 'privacy.manage', ['owner', 'admin']);
+  }
+
+  function customerContactStepHtml(customer, linkedBookings) {
+    var open = (linkedBookings || []).filter(function (booking) {
+      return ['pending', 'confirmed'].includes(booking.status) && !booking.pii_redacted_at;
+    });
+    var language = customer.preferred_language === 'en' ? 'en' : 'lt';
+    var references = open.map(function (booking) { return booking.public_reference; }).filter(Boolean).join(', ');
+    return panelStepHeaderHtml('Edit contact details', { meta: escapeHtml(customer.display_name || 'Customer') }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="updateCustomerContact" data-no-confirm>' +
+        hiddenInput('customerId', customer.id) +
+        '<label>' + requiredLabel('Name') + '<input name="displayName" type="text" maxlength="200" required autocomplete="off" value="' + escapeHtml(customer.display_name || '') + '"></label>' +
+        '<label>' + requiredLabel('Email') + '<input name="email" type="email" maxlength="254" required autocomplete="off" value="' + escapeHtml(customer.email || '') + '"></label>' +
+        '<label>' + optionalLabel('Phone') + '<input name="phone" type="tel" maxlength="40" autocomplete="off" value="' + escapeHtml(customer.phone || '') + '"></label>' +
+        '<div class="admin-field-group"><span class="admin-field-label">Language</span>' +
+          '<div class="admin-choice-group" role="radiogroup" aria-label="Language">' +
+            '<label><input type="radio" name="preferredLanguage" value="lt"' + (language === 'lt' ? ' checked' : '') + '><span>Lithuanian</span></label>' +
+            '<label><input type="radio" name="preferredLanguage" value="en"' + (language === 'en' ? ' checked' : '') + '><span>English</span></label>' +
+          '</div>' +
+        '</div>' +
+        (open.length ? '<p class="admin-step-note">Also changes ' + (open.length === 1 ? 'open booking ' : 'open bookings ') + escapeHtml(references) + '.</p>' : '') +
+        stepFooterHtml('Back', 'Save contact details') +
+      '</form>';
+  }
+
   function customerOverviewHtml(customer, bookings, invoices) {
     var contactLinks =
       (customer.phone ? '<a class="admin-context-action" href="tel:' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(customer.phone) + '</span></a>' : '') +
       (customer.email ? '<a class="admin-context-action" href="mailto:' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(customer.email) + '</span></a>' : '');
     return '<dl class="admin-facts">' +
-        factHtml('Contact', contactLinks ? '<span class="admin-fact-links admin-fact-links-stacked">' + contactLinks + '</span>' : '<span>No contact details</span>') +
+        factHtml('Contact', (contactLinks ? '<span class="admin-fact-links admin-fact-links-stacked">' + contactLinks + '</span>' : '<span>No contact details</span>') +
+          (customerCanEditContact(customer) ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="contact">Edit contact details</button></span>' : '')) +
         (customer.preferred_language ? factHtml('Language', escapeHtml(languageLabel(customer.preferred_language))) : '') +
         factHtml('Marketing emails', marketingStatusHtml(customer)) +
       '</dl>' +
@@ -4708,6 +4860,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (step === 'hold' && !hasActiveLegalHold(customer)) {
       html = customerHoldStepHtml(customer);
+    } else if (step === 'contact' && customerCanEditContact(customer)) {
+      html = customerContactStepHtml(customer, linkedBookings);
     } else {
       if (step) state.modalStep = null;
       var tab = customerPanelTab(customer.id);
@@ -4917,11 +5071,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       privacy_legal_hold_set: 'Legal hold started',
       privacy_legal_hold_released: 'Legal hold released',
       privacy_erasure_requested: 'Erasure request recorded',
-      privacy_customer_redacted: 'Customer data redacted',
-      marketing_consent_withdrawn_public: 'Marketing consent withdrawn'
-    }[eventType] || String(eventType || 'Customer record updated')
-      .replace(/_/g, ' ')
-      .replace(/\b\w/g, function (letter) { return letter.toUpperCase(); });
+      privacy_customer_redacted: 'Personal data erased',
+      marketing_consent_withdrawn_public: 'Marketing consent withdrawn',
+      customer_contact_updated: 'Contact details changed',
+      booking_rescheduled: 'Booking moved',
+      booking_assigned: 'Inspector changed'
+    }[eventType] || wordsFromCode(eventType) || 'Customer record updated';
   }
 
   function customerActivityTone(eventType) {
@@ -5676,7 +5831,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="' + (refund ? 'recordRefund' : 'recordPayment') + '" data-no-confirm data-money-label="' + (refund ? 'refund' : 'payment') + '">' +
         hiddenInput('bookingId', invoice.booking_id) +
         '<label>' + requiredLabel('Amount (€)') + '<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amountCents ? (amountCents / 100).toFixed(2) : '') + '" placeholder="0.00"></label>' +
-        '<div class="admin-step-section"><span class="admin-field-label">Method</span>' + methodChoiceHtml('bank_transfer') + '</div>' +
+        '<div class="admin-field-group"><span class="admin-field-label">Method</span>' + methodChoiceHtml('bank_transfer') + '</div>' +
         movementFieldsHtml(refund ? 'Refunded on' : 'Received on') +
         '<label>' + (refund ? requiredLabel('Reason') : optionalLabel('Note')) + '<textarea name="paymentNote" maxlength="1000"' + (refund ? ' required' : '') + '></textarea></label>' +
         stepFooterHtml('Back', refund ? 'Record refund' : 'Record payment') +
@@ -5699,7 +5854,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
         '<div class="admin-step-section" data-correction-fields>' +
           '<label>' + requiredLabel('Correct amount (€)') + '<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount) + '"></label>' +
-          '<div class="admin-step-section"><span class="admin-field-label">Method</span>' + methodChoiceHtml(PAYMENT_METHOD_LABELS[entry.method] ? entry.method : 'bank_transfer') + '</div>' +
+          '<div class="admin-field-group"><span class="admin-field-label">Method</span>' + methodChoiceHtml(PAYMENT_METHOD_LABELS[entry.method] ? entry.method : 'bank_transfer') + '</div>' +
           movementFieldsHtml('Date', entry.occurred_at ? dateInputValue(entry.occurred_at) + 'T' + timeInputValue(entry.occurred_at) : '') +
         '</div>' +
         '<label>' + requiredLabel('Reason') + '<textarea name="paymentNote" maxlength="1000" required></textarea></label>' +
@@ -6018,6 +6173,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       createSlot: 'Creating…',
       setCustomerLegalHold: 'Saving…',
       releaseCustomerLegalHold: 'Saving…',
+      updateConfirmedBooking: 'Saving…',
+      updateCustomerContact: 'Saving…',
       withdrawCustomerMarketingConsent: 'Saving…',
       redactCustomerPii: 'Erasing…',
       deleteCustomerProfile: 'Deleting…',
@@ -6032,6 +6189,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       rejectBooking: 'Request rejected and the customer emailed.',
       cancelBooking: 'Booking cancelled and the customer emailed.',
       completeBooking: 'Marked completed.',
+      updateConfirmedBooking: 'Changes saved.',
+      updateCustomerContact: 'Contact details saved.',
       recordAgreedPrice: 'Price saved.',
       createAndSendInvoice: 'Invoice created and emailed.',
       recordPayment: 'Payment recorded.',
@@ -6177,6 +6336,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } else if (payload.action === 'completeBooking') {
       patch.status = 'completed';
       patch.completed_at = now;
+    } else if (payload.action === 'updateConfirmedBooking' && result) {
+      patch.final_start_at = result.final_start_at || current.final_start_at;
+      patch.final_end_at = result.final_end_at || current.final_end_at;
+      patch.assigned_to_staff_id = result.assigned_to_staff_id || current.assigned_to_staff_id;
     } else {
       return null;
     }
@@ -6215,6 +6378,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function actionSuccessMessage(action, result) {
+    if (action === 'updateConfirmedBooking' && result) {
+      var delivery = result.emailDelivery || {};
+      var saved = result.timeChanged && result.staffChanged ? 'New time and inspector saved.'
+        : result.timeChanged ? 'New time saved.' : 'Inspector changed.';
+      if (delivery.customer === 'queued') return saved + ' The customer and inspector are being emailed.';
+      if (delivery.staff === 'queued') return saved + ' The inspector is being emailed.';
+      return saved;
+    }
+    if (action === 'updateCustomerContact' && result) {
+      var updated = Number(result.active_bookings_updated) || 0;
+      return 'Contact details saved.' + (updated === 1 ? ' The open booking uses them too.' : updated > 1 ? ' The ' + updated + ' open bookings use them too.' : '');
+    }
     var message = successMessageForAction(action);
     if (!(result && result.notificationStatus === 'queued')) return message;
     return message.replace(/ and (the customer )?emailed/, '') + ' The email is queued; its delivery shows on the record.';
@@ -6246,7 +6421,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
       if(state.page==='notifications') state.notificationActionSaved=true;
-      if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
+      forgetBookingDetail(payload.bookingId);
       markModalClean();
       invalidateCustomerActivityForPayload(payload);
       renderPatchedBookingModal(payload, response.result);
@@ -6325,6 +6500,39 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       payload.startAt = validation.startAt;
       payload.endAt = validation.endAt;
+    }
+
+    if (action === 'updateConfirmedBooking') {
+      var change = bookingChangeState(form);
+      if (!change.timeChanged && !change.staffChanged) {
+        showFieldError(errorEl, 'Change the time or the inspector first.', form.elements.date);
+        return;
+      }
+      if (change.timeChanged) {
+        var changeValidation = validateDateTimePair(String(data.get('date') || ''), String(data.get('startTime') || ''), String(data.get('endTime') || ''), data.get('dstFold'));
+        if (changeValidation.error) {
+          showFieldError(errorEl, changeValidation.error, form.elements.date);
+          return;
+        }
+        payload.startAt = changeValidation.startAt;
+        payload.endAt = changeValidation.endAt;
+      }
+      payload.notifyCustomer = change.notify;
+    }
+
+    if (action === 'updateCustomerContact') {
+      payload.displayName = String(data.get('displayName') || '').trim();
+      payload.email = String(data.get('email') || '').trim();
+      payload.phone = String(data.get('phone') || '').trim();
+      payload.preferredLanguage = data.get('preferredLanguage') === 'en' ? 'en' : 'lt';
+      if (!payload.displayName) {
+        showFieldError(errorEl, 'Enter the customer’s name.', form.elements.displayName);
+        return;
+      }
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payload.email)) {
+        showFieldError(errorEl, 'Enter a valid email address.', form.elements.email);
+        return;
+      }
     }
 
     if (['confirmBooking','recordAgreedPrice'].includes(action)) {
@@ -6488,7 +6696,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setSyncState('Saving', 'loading');
       var response = await adminAction(payload);
       if(state.page==='notifications') state.notificationActionSaved=true;
-      if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
+      forgetBookingDetail(payload.bookingId);
       if(!ensureModalRoot().contains(form)) form.reset();
       markModalClean();
       if (fromPanel) state.modalStep = null;
