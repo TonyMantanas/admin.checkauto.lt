@@ -141,7 +141,6 @@ body {
   --admin-space-6: 1.5rem;
   --admin-panel-header-padding: 0.75rem 1rem;
   --admin-panel-header-compact-padding: 0.375rem 0.75rem;
-  --admin-panel-header-workspace-padding: 0.5rem 0.75rem;
   --admin-button-weight: 600;
   --admin-segmented-button-height: 2rem;
   --admin-page-root-padding: 0.5rem 0.5rem 1.25rem;
@@ -433,11 +432,9 @@ fieldset {
   margin: 0 0 0.25rem;
   padding-inline: var(--admin-space-2);
   color: var(--admin-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-size: 0.75rem;
+  font-weight: 600;
   line-height: 1.3;
-  text-transform: uppercase;
 }
 
 .admin-nav-group a,
@@ -951,8 +948,7 @@ fieldset {
 /* Buttons, icons, fields, and filters
    ========================================================================== */
 
-.admin-button,
-.admin-page .btn {
+.admin-button {
   min-width: 0;
   min-height: var(--admin-control-height);
   padding: 0.35rem 0.9rem;
@@ -1030,8 +1026,7 @@ fieldset {
   border-color: var(--admin-danger);
 }
 
-.admin-button[disabled],
-.admin-page .btn[disabled] {
+.admin-button[disabled] {
   opacity: 0.5;
 }
 
@@ -1210,9 +1205,7 @@ fieldset {
 
 .admin-action-buttons,
 .admin-page-actions,
-.admin-quick-actions,
-.admin-slot-actions,
-.admin-privacy-buttons {
+.admin-slot-actions {
   min-width: 0;
   display: flex;
   align-items: center;
@@ -1342,8 +1335,7 @@ fieldset {
 .admin-day-schedule-form label,
 .admin-action-form label,
 .admin-repeat label,
-.admin-search,
-.admin-time-range legend {
+.admin-search {
   min-width: 0;
   display: grid;
   gap: 0.35rem;
@@ -1488,20 +1480,6 @@ fieldset {
 /* Page hierarchy and work surfaces
    ========================================================================== */
 
-.admin-page-heading {
-  min-height: 2.25rem;
-  margin-block-end: var(--admin-space-2);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-  flex-wrap: wrap;
-}
-
-.admin-page-heading-compact {
-  min-height: 2.25rem;
-}
-
 .admin-page-title {
   min-width: 0;
   display: flex;
@@ -1606,16 +1584,6 @@ fieldset {
 .admin-skeleton-account-email {
   width: min(54vw, 17rem);
   height: 0.9rem;
-}
-
-.admin-skeleton-role {
-  width: 5.75rem;
-  border-color: transparent;
-  background: transparent;
-}
-
-.admin-skeleton-role .admin-skeleton-line {
-  height: 0.65rem;
 }
 
 .admin-skeleton-control {
@@ -1859,9 +1827,6 @@ fieldset {
   white-space: nowrap;
 }
 
-.admin-workbench,
-.admin-request-layout,
-.admin-availability-layout,
 .admin-availability-calendar-layout,
 .admin-customer-layout,
 .admin-marketing-layout,
@@ -1869,8 +1834,6 @@ fieldset {
   min-width: 0;
 }
 
-.admin-workbench,
-.admin-request-layout,
 .admin-availability-calendar-layout,
 .admin-customer-layout {
   display: block;
@@ -1967,24 +1930,15 @@ fieldset {
 /* Inline links
    ========================================================================== */
 
-.admin-inline-link,
-.admin-quick-actions a,
-.admin-link-button {
+.admin-inline-link {
   color: var(--admin-link);
   font-weight: 700;
 }
 
-.admin-inline-link:hover,
-.admin-quick-actions a:hover,
-.admin-link-button:hover {
+.admin-inline-link:hover {
   color: var(--admin-accent-hover);
   text-decoration: underline;
   text-underline-offset: 0.18em;
-}
-
-.admin-link-button {
-  padding: 0;
-  background: transparent;
 }
 
 /* Dense lists and rows
@@ -2094,7 +2048,6 @@ fieldset {
 }
 
 .admin-row-primary,
-.admin-row-title,
 .admin-booking-item-header {
   min-width: 0;
 }
@@ -2122,12 +2075,9 @@ fieldset {
 }
 
 .admin-booking-meta,
-.admin-row-secondary,
 .admin-row-service,
 .admin-row-date,
-.admin-row-time,
 .admin-row-meta,
-.admin-row-contact,
 .admin-row-email,
 .admin-row-amount {
   overflow: hidden;
@@ -2138,7 +2088,6 @@ fieldset {
 }
 
 .admin-row-date,
-.admin-row-time,
 .admin-row-amount {
   font-variant-numeric: tabular-nums;
 }
@@ -2692,16 +2641,6 @@ fieldset {
   background: var(--admin-surface-subtle);
 }
 
-.admin-button-spinner {
-  width: 1.25rem;
-  height: 1.25rem;
-  display: inline-block;
-  border: 2px solid var(--admin-border-strong);
-  border-block-start-color: var(--admin-accent);
-  border-radius: 50%;
-  animation: admin-spin 0.7s linear infinite;
-}
-
 .admin-booking-decision-choices {
   margin-block: var(--admin-space-3) var(--admin-space-4);
 }
@@ -2716,12 +2655,6 @@ fieldset {
 
 .admin-booking-cancellation-panel {
   margin-block-start: var(--admin-space-4);
-}
-
-.admin-optional-date-field {
-  min-width: 0;
-  display: grid;
-  gap: var(--admin-space-2);
 }
 
 .admin-action-form .admin-checkbox-row {
@@ -2744,11 +2677,6 @@ fieldset {
   flex: 0 0 1rem;
   margin: 0;
   accent-color: var(--admin-accent);
-}
-
-.admin-optional-date-field [data-due-date-field].is-disabled {
-  color: var(--admin-text-tertiary);
-  opacity: 0.68;
 }
 
 .admin-invoice-create-form {
@@ -2827,16 +2755,6 @@ fieldset {
   color: var(--admin-text-secondary);
 }
 
-.admin-booking-action-progress {
-  min-height: var(--admin-control-height);
-  display: inline-flex;
-  align-items: center;
-  gap: var(--admin-space-2);
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
 .admin-invoice-original-amount {
   color: var(--admin-text-secondary) !important;
   font-size: var(--admin-text-sm) !important;
@@ -2880,13 +2798,6 @@ fieldset {
 .admin-expiry-compact[data-tone="urgent"],
 .admin-expiry-compact[data-tone="due"] {
   --admin-expiry-color: var(--admin-danger);
-}
-
-.admin-row-actions {
-  min-width: 0;
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--admin-space-1);
 }
 
 .admin-status-pill {
@@ -3071,14 +2982,6 @@ button.admin-mini-item::after {
   gap: var(--admin-space-4);
 }
 
-.admin-day-schedule-time-grid {
-  grid-column: 1 / -1;
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--admin-space-4);
-}
-
 .admin-day-schedule-advanced > div {
   padding-block-end: var(--admin-space-2);
   display: grid;
@@ -3199,8 +3102,7 @@ button.admin-mini-item::after {
 
 @media (max-width: 42rem) {
   .admin-skeleton-form-grid,
-.admin-skeleton-confirmation-settings,
-.admin-day-schedule-time-grid {
+.admin-skeleton-confirmation-settings {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -3407,28 +3309,21 @@ button.admin-mini-item::after {
   cursor: default;
 }
 
-.admin-calendar-agenda,
-.admin-agenda {
+.admin-calendar-agenda {
   display: none;
 }
 
 .admin-calendar.is-compact .admin-calendar-scroll,
-.admin-calendar[data-calendar-layout="agenda"] .admin-calendar-scroll,
-.admin-calendar-compact .admin-calendar-scroll {
+.admin-calendar[data-calendar-layout="agenda"] .admin-calendar-scroll {
   display: none;
 }
 
 .admin-calendar.is-compact .admin-calendar-agenda,
-.admin-calendar[data-calendar-layout="agenda"] .admin-calendar-agenda,
-.admin-calendar-compact .admin-calendar-agenda,
-.admin-calendar.is-compact .admin-agenda,
-.admin-calendar[data-calendar-layout="agenda"] .admin-agenda,
-.admin-calendar-compact .admin-agenda {
+.admin-calendar[data-calendar-layout="agenda"] .admin-calendar-agenda {
   display: grid;
 }
 
-.admin-calendar-agenda,
-.admin-agenda {
+.admin-calendar-agenda {
   background: var(--admin-surface);
 }
 
@@ -3496,21 +3391,18 @@ button.admin-mini-item::after {
   background: var(--admin-accent-soft);
 }
 
-.admin-calendar-agenda-day,
-.admin-agenda-day {
+.admin-calendar-agenda-day {
   min-width: 0;
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);
   border-block-end: 1px solid var(--admin-border);
 }
 
-.admin-calendar-agenda-day:last-child,
-.admin-agenda-day:last-child {
+.admin-calendar-agenda-day:last-child {
   border-block-end: 0;
 }
 
-.admin-calendar-agenda-date,
-.admin-agenda-date {
+.admin-calendar-agenda-date {
   padding: var(--admin-space-3);
   display: grid;
   align-content: start;
@@ -3521,20 +3413,17 @@ button.admin-mini-item::after {
   font-weight: 700;
 }
 
-.admin-calendar-agenda-date span:last-child,
-.admin-agenda-date span:last-child {
+.admin-calendar-agenda-date span:last-child {
   color: var(--admin-text-tertiary);
   font-size: 0.6875rem;
   font-weight: 600;
 }
 
-.admin-calendar-agenda-events,
-.admin-agenda-events {
+.admin-calendar-agenda-events {
   min-width: 0;
 }
 
-.admin-calendar-agenda-event,
-.admin-agenda-event {
+.admin-calendar-agenda-event {
   width: 100%;
   min-width: 0;
   min-height: 3rem;
@@ -3551,63 +3440,52 @@ button.admin-mini-item::after {
   text-align: start;
 }
 
-.admin-calendar-agenda-event:last-child,
-.admin-agenda-event:last-child {
+.admin-calendar-agenda-event:last-child {
   border-block-end: 0;
 }
 
-.admin-calendar-agenda-event:hover,
-.admin-agenda-event:hover {
+.admin-calendar-agenda-event:hover {
   background: var(--admin-surface-hover);
 }
 
-.admin-calendar-agenda-event[data-tone="pending"],
-.admin-agenda-event[data-tone="pending"] {
+.admin-calendar-agenda-event[data-tone="pending"] {
   border-inline-start-color: var(--admin-warning);
 }
 
-.admin-calendar-agenda-event[data-tone="confirmed"],
-.admin-agenda-event[data-tone="confirmed"] {
+.admin-calendar-agenda-event[data-tone="confirmed"] {
   border-inline-start-color: var(--admin-info);
 }
 
-.admin-calendar-agenda-event[data-tone="completed"],
-.admin-agenda-event[data-tone="completed"] {
+.admin-calendar-agenda-event[data-tone="completed"] {
   border-inline-start-color: var(--admin-success);
 }
 
-.admin-calendar-agenda-time,
-.admin-agenda-time {
+.admin-calendar-agenda-time {
   color: var(--admin-text);
   font-size: 0.8125rem;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
-.admin-calendar-agenda-meta,
-.admin-agenda-meta {
+.admin-calendar-agenda-meta {
   min-width: 0;
   display: grid;
   gap: 0.1rem;
 }
 
 .admin-calendar-agenda-meta strong,
-.admin-calendar-agenda-meta span,
-.admin-agenda-meta strong,
-.admin-agenda-meta span {
+.admin-calendar-agenda-meta span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.admin-calendar-agenda-meta span,
-.admin-agenda-meta span {
+.admin-calendar-agenda-meta span {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
 }
 
-.admin-calendar-agenda-empty,
-.admin-agenda-empty {
+.admin-calendar-agenda-empty {
   min-height: 3.2rem;
   padding: var(--admin-space-3);
   display: flex;
@@ -3641,17 +3519,6 @@ button.admin-mini-item::after {
 }
 
 .admin-field-wide {
-  grid-column: 1 / -1;
-}
-
-.admin-time-range {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--admin-space-3);
-}
-
-.admin-time-range legend {
   grid-column: 1 / -1;
 }
 
@@ -3702,8 +3569,7 @@ button.admin-mini-item::after {
 }
 
 .admin-form-error,
-.admin-status,
-.admin-form-status {
+.admin-status {
   min-height: 0;
   color: var(--admin-danger);
   font-size: var(--admin-text-xs);
@@ -3711,8 +3577,7 @@ button.admin-mini-item::after {
 }
 
 .admin-form-error:not(:empty),
-.admin-status:not(:empty),
-.admin-form-status:not(:empty) {
+.admin-status:not(:empty) {
   padding: 0.625rem 0.75rem;
   border: 1px solid transparent;
   border-radius: var(--admin-control-radius);
@@ -3768,8 +3633,7 @@ button.admin-mini-item::after {
   color: var(--admin-text);
 }
 
-.admin-detail-section .admin-action-buttons,
-.admin-detail-section .admin-quick-actions {
+.admin-detail-section .admin-action-buttons {
   margin-block-start: var(--admin-space-4);
 }
 
@@ -3848,11 +3712,9 @@ button.admin-mini-item::after {
 
 .admin-booking-primary-fact > span:first-child,
 .admin-booking-key-fact > span:first-child {
-  color: var(--admin-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .admin-booking-primary-fact > strong {
@@ -3947,10 +3809,8 @@ button.admin-mini-item::after {
 
 .admin-expiry-copy > span {
   color: var(--admin-text-secondary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .admin-expiry-copy strong {
@@ -4059,13 +3919,6 @@ button.admin-mini-item::after {
   background: var(--admin-surface-subtle);
 }
 
-.admin-modal-toolbar-label {
-  margin-inline-end: auto;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
 .admin-modal-alert {
   margin-block: 0 var(--admin-space-4);
 }
@@ -4101,100 +3954,6 @@ button.admin-mini-item::after {
   background: transparent;
 }
 
-.admin-customer-details-section {
-  padding-block-start: 0;
-}
-
-.admin-customer-overview-grid {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(16rem, 1.15fr) minmax(13rem, 0.85fr);
-  align-items: start;
-  gap: var(--admin-space-5);
-}
-
-.admin-customer-contact-list {
-  min-width: 0;
-  overflow: hidden;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface);
-}
-
-.admin-customer-contact-item {
-  min-width: 0;
-  min-height: 3rem;
-  padding: 0.5rem var(--admin-space-3);
-  display: grid;
-  grid-template-columns: 1.25rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--admin-space-3);
-  color: var(--admin-text);
-  text-decoration: none;
-  transition: background-color var(--admin-duration) var(--admin-ease);
-}
-
-.admin-customer-contact-item + .admin-customer-contact-item {
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-customer-contact-item:hover {
-  background: var(--admin-surface-hover);
-}
-
-.admin-customer-contact-item:focus-visible {
-  position: relative;
-  outline: 2px solid var(--admin-focus);
-  outline-offset: -2px;
-}
-
-.admin-customer-contact-icon,
-.admin-customer-contact-icon .admin-icon {
-  width: 1rem;
-  height: 1rem;
-}
-
-.admin-customer-contact-icon {
-  display: grid;
-  place-items: center;
-  color: var(--admin-accent);
-}
-
-.admin-customer-contact-copy {
-  min-width: 0;
-  display: grid;
-  gap: 0.1rem;
-}
-
-.admin-customer-contact-copy > span {
-  color: var(--admin-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-}
-
-.admin-customer-contact-copy strong {
-  overflow: hidden;
-  color: var(--admin-text);
-  font-size: var(--admin-text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.admin-customer-contact-action {
-  color: var(--admin-link);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
-.admin-customer-contact-list > .admin-customer-empty-copy {
-  padding: var(--admin-space-4);
-}
-
-.admin-customer-profile-facts {
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-}
-
 .admin-customer-bookings-section > h3 {
   margin-block-end: var(--admin-space-4);
 }
@@ -4202,32 +3961,6 @@ button.admin-mini-item::after {
 .admin-customer-empty-copy {
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
-}
-
-.admin-customer-related-group {
-  min-width: 0;
-  margin-block-start: var(--admin-space-5);
-  padding-block-start: var(--admin-space-5);
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-customer-related-disclosure > summary {
-  min-height: 2.5rem;
-  padding-block: 0.55rem;
-  cursor: pointer;
-  color: var(--admin-text);
-  font-size: var(--admin-text-sm);
-  font-weight: 700;
-}
-
-.admin-customer-related-disclosure > summary span {
-  color: var(--admin-text-tertiary);
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
-}
-
-.admin-customer-related-disclosure[open] > summary {
-  margin-block-end: var(--admin-space-3);
 }
 
 .admin-customer-booking {
@@ -4257,12 +3990,6 @@ button.admin-mini-item::after {
 .admin-customer-booking > .admin-status-pill {
   align-self: start;
   margin-inline-end: var(--admin-space-4);
-}
-
-.admin-customer-booking-vehicle {
-  grid-column: 1 / -1;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
 }
 
 .admin-customer-booking-meta {
@@ -4304,20 +4031,6 @@ button.admin-mini-item::after {
   grid-column: 1 / -1;
   color: var(--admin-text-tertiary);
   font-size: 0.6875rem;
-}
-
-.admin-customer-section-heading {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-}
-
-.admin-customer-section-heading > span {
-  color: var(--admin-text-tertiary);
-  font-size: var(--admin-text-xs);
-  white-space: nowrap;
 }
 
 .admin-customer-disclosure-meta {
@@ -4568,15 +4281,7 @@ button.admin-mini-item::after {
   font-weight: 700;
 }
 
-.admin-customer-activity-limit {
-  color: var(--admin-text-tertiary);
-  font-size: var(--admin-text-xs);
-}
-
 @media (max-width: 48rem) {
-  .admin-customer-overview-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 
   .admin-customer-activity-state {
     align-items: stretch;
@@ -4621,11 +4326,9 @@ button.admin-mini-item::after {
 
 .admin-invoice-primary-fact > span:first-child,
 .admin-invoice-context-card > span:first-child {
-  color: var(--admin-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .admin-invoice-primary-fact > strong {
@@ -4673,25 +4376,6 @@ button.admin-mini-item::after {
   font-size: var(--admin-text-xs);
 }
 
-.admin-invoice-overview-meta {
-  margin-block-start: var(--admin-space-3);
-  display: flex;
-  gap: var(--admin-space-3);
-  flex-wrap: wrap;
-  color: var(--admin-text-secondary);
-  font-size: var(--admin-text-xs);
-}
-
-.admin-invoice-overview-meta strong {
-  color: var(--admin-text);
-}
-
-.admin-workflow-section {
-  margin-inline: calc(-1 * var(--admin-space-2));
-  padding-inline: var(--admin-space-2);
-  background: transparent;
-}
-
 .admin-danger-disclosure > summary {
   color: var(--admin-danger);
 }
@@ -4720,11 +4404,9 @@ button.admin-mini-item::after {
 }
 
 .admin-privacy-status-card > span:first-child {
-  color: var(--admin-text-tertiary);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  color: var(--admin-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .admin-privacy-status-card strong {
@@ -5364,10 +5046,6 @@ button.admin-mini-item::after {
   gap: 0.5rem 1rem;
 }
 
-.admin-card-footer > :is(.admin-form-error, .admin-form-status, [role="status"]) {
-  margin: 0 auto 0 0;
-}
-
 /* A primary action that can't run yet reads as quiet, not broken. */
 .admin-button-primary:disabled:not(.is-loading) {
   color: var(--admin-text-tertiary);
@@ -5501,10 +5179,6 @@ button.admin-mini-item::after {
   background: color-mix(in srgb, var(--admin-surface) 92%, transparent);
   backdrop-filter: blur(8px);
   box-shadow: 0 -1px 0 var(--admin-border);
-}
-
-.admin-modal-footer > :is(.admin-form-error, .admin-form-status, [role="status"]) {
-  margin: 0 auto 0 0;
 }
 
 @media (max-width: 40rem) {
@@ -6822,7 +6496,29 @@ a.admin-dash-tile:hover {
 }
 
 @media (forced-colors: active) {
+  .admin-switch-track {
+    forced-color-adjust: none;
+    box-shadow: inset 0 0 0 1px CanvasText;
+    background: Canvas;
+  }
+
+  .admin-switch-track::after {
+    box-shadow: none;
+    background: CanvasText;
+  }
+
+  .admin-switch input:checked + .admin-switch-track {
+    box-shadow: none;
+    background: Highlight;
+  }
+
+  .admin-switch input:checked + .admin-switch-track::after {
+    background: HighlightText;
+  }
+
   .admin-card,
+  .admin-toast,
+  .admin-login-panel,
   .admin-dash-tile,
   .admin-dash-task,
   .admin-dash-slot,
@@ -6982,7 +6678,6 @@ a.admin-dash-tile:hover {
 }
 
 .admin-slot-form > label,
-.admin-slot-form > .admin-time-range,
 .admin-slot-form > .admin-repeat,
 .admin-slot-form > .admin-form-error,
 .admin-slot-form > .admin-action-buttons {
@@ -7003,18 +6698,17 @@ a.admin-dash-tile:hover {
 .admin-toast {
   --admin-toast-tone: var(--admin-info);
   --admin-toast-soft: var(--admin-info-soft);
-  min-height: 3rem;
-  padding: 0.65rem;
+  min-height: 3.25rem;
+  padding: 0.5rem 0.5rem 0.5rem 0.75rem;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.65rem;
-  border: 1px solid var(--admin-border);
-  border-inline-start: 3px solid var(--admin-toast-tone);
-  border-radius: var(--admin-panel-radius);
+  gap: 0.75rem;
+  border: 0;
+  border-radius: 0.875rem;
   color: var(--admin-text);
   background: var(--admin-surface);
-  box-shadow: 0 12px 30px rgb(16 24 40 / 13%);
+  box-shadow: var(--admin-shadow-popover);
   opacity: 0;
   pointer-events: auto;
   transform: translateY(0.4rem) scale(0.985);
@@ -7044,43 +6738,39 @@ a.admin-dash-tile:hover {
 }
 
 .admin-toast-icon {
-  width: 1.25rem;
-  height: 1.25rem;
+  width: 2rem;
+  height: 2rem;
   display: grid;
   place-items: center;
+  border-radius: 50%;
   color: var(--admin-toast-tone);
+  background: var(--admin-toast-soft);
 }
 
 .admin-toast-icon .admin-icon {
-  width: 1.15rem;
-  height: 1.15rem;
+  width: 1rem;
+  height: 1rem;
 }
 
 .admin-toast-message {
   min-width: 0;
   color: var(--admin-text);
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
+  font-size: var(--admin-text-sm);
+  font-weight: 500;
   line-height: 1.4;
-}
-
-.admin-toast-close,
-.admin-toast-action {
-  min-height: var(--admin-control-height);
-  border-radius: var(--admin-control-radius);
-  color: var(--admin-text-secondary);
-  background: transparent;
-  font-weight: 700;
 }
 
 .admin-toast-close {
   width: var(--admin-control-height);
   min-width: var(--admin-control-height);
+  min-height: var(--admin-control-height);
   padding: 0;
+  border-radius: 50%;
+  color: var(--admin-text-secondary);
+  background: transparent;
 }
 
-.admin-toast-close:hover,
-.admin-toast-action:hover {
+.admin-toast-close:hover {
   color: var(--admin-text);
   background: var(--admin-surface-hover);
 }
@@ -7093,50 +6783,16 @@ a.admin-dash-tile:hover {
   gap: var(--admin-space-1);
 }
 
-.admin-shell-header,
-.admin-topbar,
-.admin-preview-panel,
-.admin-workbench-detail {
-  min-width: 0;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-panel-radius);
-  background: var(--admin-surface);
-}
-
-.admin-shell-main p,
 .admin-slot-meta {
   color: var(--admin-text-secondary);
 }
 
-.admin-sticky-actions {
-  padding-block-start: var(--admin-space-3);
-  border-block-start: 1px solid var(--admin-border);
-}
-
-.admin-action-queue,
-.admin-maintenance-grid {
-  display: grid;
-  gap: var(--admin-space-2);
-}
-
-.admin-action-queue-item,
-.admin-maintenance-item,
 .admin-slot-item {
   min-width: 0;
   padding: var(--admin-space-3);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-control-radius);
   background: var(--admin-surface);
-}
-
-.admin-action-queue-item[data-tone="urgent"] {
-  border-inline-start: 3px solid var(--admin-danger);
-  background: var(--admin-danger-soft);
-}
-
-.admin-action-queue-item[data-tone="warning"] {
-  border-inline-start: 3px solid var(--admin-warning);
-  background: var(--admin-warning-soft);
 }
 
 .admin-slot-item[data-tone="available"] {
@@ -7342,12 +6998,6 @@ a.admin-dash-tile:hover {
     grid-column: 1 / -1;
   }
 
-  .admin-data-row > :is(.admin-row-primary, .admin-row-title),
-  .admin-booking-item > :is(.admin-row-primary, .admin-row-title),
-  .admin-customer-item > :is(.admin-row-primary, .admin-row-title) {
-    grid-column: 1;
-  }
-
   .admin-data-row > .admin-row-status,
   .admin-booking-item > .admin-row-status,
   .admin-customer-item > .admin-row-status {
@@ -7361,14 +7011,11 @@ a.admin-dash-tile:hover {
   }
 
   .admin-booking-meta,
-  .admin-row-secondary,
-  .admin-row-service,
-  .admin-row-date,
-  .admin-row-time,
-  .admin-row-meta,
-  .admin-row-contact,
-  .admin-row-email,
-  .admin-row-amount {
+.admin-row-service,
+.admin-row-date,
+.admin-row-meta,
+.admin-row-email,
+.admin-row-amount {
     white-space: normal;
   }
 
@@ -7504,40 +7151,27 @@ a.admin-dash-tile:hover {
     font-size: 1.15rem;
   }
 
-  .admin-page-heading {
-    min-height: 2.25rem;
-    margin-block-end: var(--admin-space-2);
-  }
-
-  .admin-page-heading h1 {
-    font-size: 1.35rem;
-  }
-
   .admin-panel-header {
     padding: var(--admin-space-3);
   }
 
-  .admin-calendar-agenda-day,
-  .admin-agenda-day {
+  .admin-calendar-agenda-day {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .admin-calendar-agenda-date,
-  .admin-agenda-date {
+  .admin-calendar-agenda-date {
     padding-block: 0.55rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
   }
 
-  .admin-calendar-agenda-event,
-  .admin-agenda-event {
+  .admin-calendar-agenda-event {
     grid-template-columns: 6.25rem minmax(0, 1fr);
     gap: var(--admin-space-2);
   }
 
-  .admin-calendar-agenda-event > .admin-status-pill,
-  .admin-agenda-event > .admin-status-pill {
+  .admin-calendar-agenda-event > .admin-status-pill {
     grid-column: 2;
   }
 
@@ -7568,15 +7202,6 @@ a.admin-dash-tile:hover {
 
   .admin-privacy-action-card .admin-button {
     width: 100%;
-  }
-
-  .admin-modal-toolbar-label {
-    width: 100%;
-    margin-inline-end: 0;
-  }
-
-  .admin-time-range {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .admin-repeat {
@@ -7639,14 +7264,6 @@ a.admin-dash-tile:hover {
     display: none;
   }
 
-  .admin-page-heading {
-    align-items: center;
-  }
-
-  .admin-time-range {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .admin-expiry-copy {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -7676,8 +7293,7 @@ a.admin-dash-tile:hover {
     grid-row: 1;
   }
 
-  .admin-action-buttons,
-  .admin-privacy-buttons {
+  .admin-action-buttons {
     justify-content: flex-end;
   }
 
@@ -7706,7 +7322,6 @@ a.admin-dash-tile:hover {
 .admin-checkbox,
 .admin-disclosure summary,
 .admin-context-action,
-.admin-customer-related-disclosure > summary,
 .admin-notification-filter {
     min-height: 2.75rem;
   }
@@ -8091,7 +7706,7 @@ a.admin-dash-tile:hover {
 .admin-notification-review[open] > summary { color:var(--admin-accent); border-color:var(--admin-accent); }
 .admin-notification-review-body .admin-action-form { display:grid; gap:.75rem; margin-top:.75rem; }
 .admin-notification-review-body .admin-action-form label { display:grid; gap:.5rem; color:var(--admin-text); font-size:.875rem; font-weight:550; }
-.admin-notification-review-body :is(input,select,textarea) { width:100%; min-width:0; min-height:var(--admin-control-height); padding:.375rem .625rem; border:1px solid var(--admin-border-strong); border-radius:var(--admin-control-radius); background:var(--admin-surface); color:var(--admin-text); font:inherit; }
+.admin-notification-review-body :is(input,select,textarea) { width:100%; min-width:0; }
 .admin-notification-review-body .admin-action-form > .admin-button { justify-self:start; }
 .admin-notification-review-body .admin-action-form textarea { min-height:5rem; }
 .admin-notification-refund { border:0; padding:0; margin:0; min-width:0; }
@@ -8186,7 +7801,7 @@ a.admin-dash-tile:hover {
   gap:.3rem;
 }
 .admin-booking-time-heading { display:flex; align-items:center; gap:.35rem; }
-.admin-booking-time-heading > span { color:var(--admin-text-tertiary); font-size:.6875rem; font-weight:750; letter-spacing:.04em; text-transform:uppercase; }
+.admin-booking-time-heading > span { color:var(--admin-text-secondary); font-size:.75rem; font-weight:500; }
 .admin-booking-time-info-toggle { width:2rem; min-width:2rem; height:2rem; min-height:2rem; border:0; border-radius:var(--admin-control-radius); color:var(--admin-text-tertiary); background:transparent; cursor:pointer; }
 .admin-booking-time-info-toggle:hover, .admin-booking-time-info-toggle[aria-expanded="true"] { color:var(--admin-text); }
 .admin-booking-time-info-toggle:focus-visible { outline:2px solid var(--admin-focus); outline-offset:2px; }
@@ -8278,12 +7893,7 @@ a.admin-dash-tile:hover {
 .admin-invoice-primary-fact { gap:.35rem; }
 .admin-invoice-document-actions { margin-block:0 .75rem; padding:0; border:0; background:transparent; }
 .admin-invoice-document-actions .admin-button { min-height:2.5rem; }
-.admin-customer-overview-grid { grid-template-columns:minmax(0,1fr); gap:.75rem; }
-.admin-customer-contact-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.25rem 1rem; border:0; background:transparent; }
-.admin-customer-contact-item { min-height:2.5rem; padding:.25rem 0; }
-.admin-customer-contact-item + .admin-customer-contact-item { border-block-start:0; }
-.admin-customer-profile-facts { display:flex; flex-wrap:wrap; gap:.375rem 1.25rem; }
-.admin-customer-profile-facts > span { flex:0 1 auto; }
+
 .admin-customer-bookings-section > h3 { margin-block-end:.5rem; }
 .admin-campaign-layout { grid-template-columns:minmax(0,1fr); }
 .admin-campaign-summary { padding-block-start:0; }
@@ -8299,23 +7909,18 @@ a.admin-dash-tile:hover {
 .admin-slot-form { gap:.75rem; }
 .admin-slot-form-time-grid { grid-column:1 / -1; min-width:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
 .admin-slot-form-time-grid > :first-child { grid-column:1 / -1; }
-.admin-slot-form-time-grid > label { min-width:0; display:grid; gap:.35rem; color:var(--admin-text); font-size:var(--admin-text-xs); font-weight:700; }
-.admin-slot-form-time-grid input { width:100%; min-height:var(--admin-control-height); padding:.45rem .6rem; border:1px solid var(--admin-border-strong); border-radius:var(--admin-control-radius); color:var(--admin-text); background:var(--admin-surface); }
+.admin-slot-form-time-grid > label { min-width:0; display:grid; gap:.35rem; color:var(--admin-text); font-size:var(--admin-text-xs); font-weight:600; }
+.admin-slot-form-time-grid input { width:100%; }
 .admin-slot-form .admin-repeat { padding:.5rem 0; border:0; border-block-start:1px solid var(--admin-border); border-radius:0; background:transparent; }
 @media (max-width:40rem) {
-  .admin-invoice-overview .admin-invoice-context-grid,
-  .admin-customer-contact-list { grid-template-columns:minmax(0,1fr); }
+  .admin-invoice-overview .admin-invoice-context-grid { grid-template-columns:minmax(0,1fr); }
   .admin-day-schedule-core-fields { grid-template-columns:repeat(2,minmax(0,1fr)); }
   .admin-day-schedule-core-fields > :first-child { grid-column:1 / -1; }
 
 }
 
 /* Task-first customer, invoice, staff, and availability dialogs. */
-.admin-customer-details-section { padding-block:0 .75rem; }
-.admin-customer-overview-grid { gap:0; }
-.admin-customer-contact-list { gap:.25rem 1rem; }
-.admin-customer-contact-item { min-height:2.5rem; padding:.25rem 0; grid-template-columns:1rem minmax(0,1fr); gap:.5rem; }
-.admin-customer-contact-copy strong { font-size:var(--admin-text-sm); font-weight:650; }
+
 .admin-customer-bookings-section { padding-block:.75rem; }
 .admin-customer-bookings-section > h3 { margin-block-end:.5rem; }
 .admin-customer-bookings-section .admin-mini-list { gap:0; }
@@ -8328,12 +7933,10 @@ a.admin-dash-tile:hover {
 .admin-customer-booking-meta { grid-column:1 / -1; color:var(--admin-text-tertiary); font-size:var(--admin-text-xs); }
 .admin-customer-booking > .admin-status-pill,
 .admin-customer-invoice > .admin-status-pill { margin-inline-end:0; }
-.admin-customer-related-group { margin-block-start:.75rem; padding-block-start:.375rem; }
-.admin-customer-profile-details,
+
 .admin-privacy-controls,
 .admin-customer-activity-section { padding-block:.35rem; }
-.admin-customer-profile-details .admin-detail-list { padding-block:.5rem .75rem; }
-.admin-customer-profile-details > summary,
+
 .admin-privacy-controls > summary,
 .admin-customer-activity-section > summary { min-height:2.75rem; }
 .admin-invoice-overview { padding-block:0 .75rem; }
