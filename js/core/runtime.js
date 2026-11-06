@@ -1,6 +1,6 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261106-6';
-import { currentAgreement, invoiceDeliveredToClient, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261106-6';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-6';
+import { currentAgreement, invoiceDeliveredToClient, bindPriceTotals } from './reliability-ui.js?v=20261106-7';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-7';
 import { ICONS } from './icons.js?v=20261106-5';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -3726,24 +3726,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return detail ? detail.data : {...state.operationsState, detail_pending:true};
   }
 
-  function bindPaymentActions(modal) {
-    $all('[data-payment-action-choice]', modal).forEach(function (button) {
-      button.addEventListener('click', function () {
-        var choice = button.dataset.paymentActionChoice;
-        var panel = $('[data-payment-action-panel="' + choice + '"]', modal);
-        var opening = panel.hidden;
-        if (!opening && panel.contains(document.activeElement)) button.focus();
-        $all('[data-payment-action-panel]', modal).forEach(function (item) {
-          item.hidden = !opening || item !== panel;
-        });
-        $all('[data-payment-action-choice]', modal).forEach(function (item) {
-          item.setAttribute('aria-expanded', opening && item === button ? 'true' : 'false');
-        });
-        if (opening) focusElement($('select, input:not([type="hidden"]), textarea, button', panel));
-      });
-    });
-  }
-
   // Booking panel ------------------------------------------------------------
   // Overview: who, when, what and the one next step for this state. Forms are
   // steps that replace the body (see openModalStep).
@@ -4229,17 +4211,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
       '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Release legal hold</button></div>' +
     '</form>';
-  }
-
-  function paymentMethodOptions(selected) {
-    return [
-      ['cash', 'Cash'],
-      ['bank_transfer', 'Bank transfer'],
-      ['card', 'Card'],
-      ['other', 'Other']
-    ].map(function (item) {
-      return '<option value="' + item[0] + '"' + (item[0] === selected ? ' selected' : '') + '>' + item[1] + '</option>';
-    }).join('');
   }
 
   function normalizeSearch(value) {
@@ -5502,164 +5473,330 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (loadMore) loadMore.disabled = state.invoiceQueryLoading;
   }
 
-  function renderMarkInvoicePaidForm(invoice) {
-    return '<form class="admin-action-form" data-admin-action-form data-action="markInvoicePaid">' +
-      hiddenInput('invoiceId', invoice.id) +
-      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml((Number(invoice.amount_cents || 0) / 100).toFixed(2)) + '" placeholder="100.00"></label>' +
-      '<div class="admin-action-grid">' +
-        '<label>Payment method<span class="admin-select-wrap"><select name="paymentMethod">' + paymentMethodOptions('bank_transfer') + '</select></span></label>' +
-        '<label>Payment note<input name="paymentNote" type="text" maxlength="500"></label>' +
+  // Invoice panel ------------------------------------------------------------
+  // What is owed, what came in, and the next step. Payments are recorded
+  // only once the invoice email is confirmed delivered; the panel says so.
+
+  var PAYMENT_METHOD_LABELS = { cash: 'Cash', bank_transfer: 'Bank transfer', card: 'Card', other: 'Other' };
+  var PAYMENT_ENTRY_LABELS = { receipt: 'Payment', refund: 'Refund', opening_receipt: 'Earlier payment', reversal: 'Reversal', correction: 'Correction' };
+
+  function vilniusNowLocalValue() {
+    var nowIso = new Date().toISOString();
+    return dateInputValue(nowIso) + 'T' + timeInputValue(nowIso);
+  }
+
+  function invoicePanelContext(invoice) {
+    var operations = invoice.booking_id ? bookingOperations(invoice.booking_id) : null;
+    var booking = invoice.booking_id ? bookingById(invoice.booking_id) : null;
+    var summary = operations?.payment_summaries?.[invoice.booking_id] || null;
+    var entries = (operations?.payment_entries || []).filter(function (entry) { return entry.booking_id === invoice.booking_id; });
+    var editable = entries.filter(function (entry) {
+      return ['receipt', 'refund', 'opening_receipt'].includes(entry.entry_kind) &&
+        !entries.some(function (other) { return other.reverses_entry_id === entry.id; });
+    });
+    var canBill = staffHasAccess(state.staff, 'billing_email.manage', ['owner', 'admin']);
+    var delivered = invoiceDeliveredToClient(invoice, operations);
+    var canRecord = Boolean(canBill && booking && booking.status === 'completed' && summary && delivered && invoice.invoice_status === 'issued');
+    return {
+      operations: operations,
+      booking: booking,
+      summary: summary,
+      entries: entries,
+      editable: editable,
+      canBill: canBill,
+      delivered: delivered,
+      canRecord: canRecord,
+      canRefund: canRecord && Number(summary && summary.net_paid_cents) > 0
+    };
+  }
+
+  function invoiceTitle(invoice) {
+    return (invoice.invoice_status === 'payment' ? 'Payment ' : 'Invoice ') + (invoice.invoice_number || '');
+  }
+
+  function invoiceChipLabel(invoice) {
+    return invoice.invoice_status === 'draft' ? 'Draft' : invoiceStatusLabel(invoice);
+  }
+
+  function invoiceAmountHtml(invoice, context) {
+    var currency = invoice.currency;
+    var total = Number(invoice.amount_cents) || 0;
+    var paid = Number(invoice.paid_amount_cents) || 0;
+    if (invoice.invoice_status === 'void') {
+      return '<p class="admin-panel-amount"><strong>' + escapeHtml(formatMoney(total, currency)) + '</strong>' +
+        '<span>' + escapeHtml(invoice.voided_at ? 'Voided ' + formatDateTime(invoice.voided_at) : 'Voided') + '</span></p>';
+    }
+    if (invoice.invoice_status === 'payment') {
+      return '<p class="admin-panel-amount"><strong>' + escapeHtml(formatMoney(paid || total, currency)) + ' received</strong>' +
+        (invoice.paid_at ? '<span>' + escapeHtml(formatDateTime(invoice.paid_at)) + '</span>' : '') + '</p>';
+    }
+    if (invoice.payment_status === 'paid') {
+      return '<p class="admin-panel-amount"><strong>Paid ' + escapeHtml(formatMoney(paid || total, currency)) + '</strong>' +
+        (invoice.paid_at ? '<span>on ' + escapeHtml(formatDateTime(invoice.paid_at)) + '</span>' : '') + '</p>';
+    }
+    var remaining = context.summary && context.summary.agreed_or_invoiced_cents !== null && context.summary.remaining_cents != null
+      ? Number(context.summary.remaining_cents)
+      : Math.max(0, total - paid);
+    var dueText = invoice.due_date ? formatDueDate(invoice.due_date) : '';
+    var overdue = invoiceIsOverdue(invoice);
+    var sub = [];
+    if (paid > 0) sub.push(formatMoney(paid, currency) + ' of ' + formatMoney(total, currency) + ' paid');
+    if (dueText) sub.push((overdue ? 'Was due ' : 'Due ') + dueText);
+    return '<p class="admin-panel-amount' + (overdue ? ' is-overdue' : '') + '"><strong>' + escapeHtml(formatMoney(remaining, currency)) + ' due</strong>' +
+      (sub.length ? '<span>' + escapeHtml(sub.join(' · ')) + '</span>' : '') + '</p>';
+  }
+
+  function invoiceEmailFact(invoice, context) {
+    if (invoice.invoice_status === 'payment') return '';
+    var notification = (context.operations?.notifications || []).filter(function (item) {
+      return item.invoice_id === invoice.id && item.kind === 'invoice_customer';
+    }).slice(-1)[0];
+    var recipient = notification?.recipient_email || invoice.customer_email;
+    var status = notification ? notification.status : invoice.email_status;
+    if (!status || status === 'not_sent' || status === 'skipped') {
+      return factHtml('Email', '<span>' + (recipient ? 'Not emailed' : 'Not emailed · the customer has no email address') + '</span>');
+    }
+    var label = EMAIL_STATUS_LABELS[status] || emailStatusLabel(status);
+    var line = '<span class="admin-email-line' + (emailIsProblem(status) ? ' is-problem' : '') + '">' +
+      escapeHtml('Emailed to ' + (recipient || 'customer') + (invoice.last_sent_at ? ' on ' + formatDateTime(invoice.last_sent_at) : '')) + ' · <strong>' + escapeHtml(label) + '</strong></span>';
+    var error = invoice.last_email_error && status !== 'delivered'
+      ? '<span class="admin-fact-sub admin-fact-problem">' + escapeHtml(invoice.last_email_error) + '</span>'
+      : '';
+    return factHtml('Email', line + error);
+  }
+
+  function paymentEntryLine(entry, entries, options) {
+    var reversed = entries.some(function (other) { return other.reverses_entry_id === entry.id; });
+    var staff = entry.actor_staff_id ? staffById(entry.actor_staff_id) : null;
+    var when = entry.occurred_at_is_estimate ? 'Date unknown' : formatDateTime(entry.occurred_at);
+    var detail = [when, PAYMENT_METHOD_LABELS[entry.method] || '', staff ? staff.display_name : (entry.actor_staff_id ? '' : 'Imported')].filter(Boolean).join(' · ');
+    var canCorrect = !(options && options.noAction) && ['receipt', 'refund', 'opening_receipt'].includes(entry.entry_kind) && !reversed;
+    return '<li class="admin-payment-entry' + (reversed ? ' is-reversed' : '') + '">' +
+      '<div><strong>' + escapeHtml(PAYMENT_ENTRY_LABELS[entry.entry_kind] || 'Entry') + (reversed ? ' · corrected' : '') + '</strong>' +
+        '<span>' + escapeHtml(detail) + '</span>' +
+        (entry.reason ? '<span>' + escapeHtml(entry.reason) + '</span>' : '') +
       '</div>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Mark invoice paid</button></div>' +
-    '</form>';
+      '<div class="admin-payment-entry-side"><strong>' + escapeHtml(formatMoney(entry.signed_amount_cents, 'EUR')) + '</strong>' +
+        (canCorrect ? '<button class="admin-context-action" type="button" data-admin-step="correct" data-admin-step-data="' + escapeHtml(entry.id) + '">Correct…</button>' : '') +
+      '</div>' +
+    '</li>';
   }
 
-  function renderUpdateInvoicePaidAmountForm(invoice) {
-    var amount = Number(invoice.paid_amount_cents || invoice.amount_cents || 0) / 100;
-    return '<form class="admin-action-form admin-inline-edit-form" data-admin-action-form data-action="updateInvoicePaidAmount">' +
-      hiddenInput('invoiceId', invoice.id) +
-      '<label><span class="admin-field-label">Amount paid <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount.toFixed(2)) + '" placeholder="100.00"></label>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Update paid amount</button></div>' +
-    '</form>';
+  function invoicePaymentsHtml(invoice, context) {
+    if (!context.canBill || !context.booking || invoice.invoice_status === 'draft') return '';
+    var summary = context.summary;
+    var parts = [];
+    if (invoice.invoice_status === 'issued' && !context.delivered) {
+      var status = invoice.email_status;
+      var reason = !invoice.customer_email
+        ? 'The customer has no email address, so the invoice wasn’t emailed.'
+        : (emailIsProblem(status) || status === 'failed' || status === 'bounced')
+          ? 'The invoice email didn’t arrive. Email it again or contact the customer.'
+          : 'Delivery of the invoice email isn’t confirmed yet.';
+      parts.push('<p class="admin-step-note">Payments can be recorded once the invoice email is delivered. ' + escapeHtml(reason) + '</p>');
+    }
+    if (context.entries.length) {
+      parts.push('<ul class="admin-payment-entries">' + context.entries.map(function (entry) { return paymentEntryLine(entry, context.entries); }).join('') + '</ul>');
+    }
+    // Totals only add something once money has moved; the amount line above
+    // already says what is due.
+    if (summary && (context.entries.length || Number(summary.received_cents) > 0 || Number(summary.credit_cents) > 0)) {
+      var totals = ['Received ' + formatMoney(summary.received_cents, 'EUR')];
+      if (Number(summary.refunded_cents) > 0) totals.push('refunded ' + formatMoney(summary.refunded_cents, 'EUR'));
+      if (summary.agreed_or_invoiced_cents !== null && Number(summary.remaining_cents) > 0) totals.push(formatMoney(summary.remaining_cents, 'EUR') + ' still due');
+      if (Number(summary.credit_cents) > 0) totals.push(formatMoney(summary.credit_cents, 'EUR') + ' credit');
+      parts.push('<p class="admin-payment-totals">' + escapeHtml(totals.join(' · ')) + '</p>');
+      if (summary.unallocated_cents) parts.push('<p class="admin-step-note is-warning" role="alert">' + escapeHtml(formatMoney(summary.unallocated_cents, 'EUR')) + ' isn’t tied to an invoice yet.</p>');
+    } else if (!summary && !context.operations?.detail_pending && invoice.invoice_status === 'issued') {
+      parts.push('<p class="admin-step-note">The payment balance isn’t available right now.</p>');
+    }
+    if (!parts.length) return '';
+    return '<section class="admin-panel-section admin-invoice-payments"><h3>Payments</h3>' + parts.join('') + '</section>';
   }
 
-  function renderVoidInvoiceForm(invoice) {
-    if (invoice.invoice_status === 'void') return '';
-    var isPaymentOnly = invoice.invoice_status === 'payment';
-    return '<form class="admin-action-form" data-admin-action-form data-action="voidInvoice">' +
-      hiddenInput('invoiceId', invoice.id) +
-      '<label><span class="admin-field-label">Void reason <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="voidReason" maxlength="700" required placeholder="Why this record is being voided"></textarea></label>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</button></div>' +
-    '</form>';
+  function invoiceFooterHtml(invoice, context) {
+    if (!context.canBill) {
+      return invoice.pdf_path ? '<div class="admin-modal-footer admin-panel-footer"><button class="admin-button admin-button-secondary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">View PDF</button></div>' : '';
+    }
+    var issued = invoice.invoice_status === 'issued';
+    var unpaid = issued && invoice.payment_status !== 'paid';
+    var deliveryFailed = issued && invoice.customer_email && !context.delivered && ['failed', 'bounced', 'needs_review', 'suppressed'].includes(invoice.email_status);
+    var primary = '';
+    if (unpaid && context.canRecord) primary = '<button class="admin-button admin-button-primary" type="button" data-admin-step="payment">Record payment…</button>';
+    else if (deliveryFailed) primary = '<button class="admin-button admin-button-primary" type="button" data-resend-invoice="' + escapeHtml(invoice.id) + '">Email invoice again</button>';
+    var secondary = invoice.pdf_path ? '<button class="admin-button admin-button-secondary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">View PDF</button>' : '';
+    var more = [];
+    if (unpaid && !deliveryFailed && invoice.customer_email) more.push({ label: 'Email invoice again', attrs: 'data-resend-invoice="' + escapeHtml(invoice.id) + '"' });
+    if (context.canRefund) more.push({ label: 'Record refund…', attrs: 'data-admin-step="refund"' });
+    if (invoice.invoice_status !== 'void') more.push({ label: invoice.invoice_status === 'payment' ? 'Void payment record…' : 'Void invoice…', attrs: 'data-admin-step="void"', danger: true });
+    if (!primary && !secondary && !more.length) return '';
+    return '<div class="admin-modal-footer admin-panel-footer">' + moreMenuHtml(more) + secondary + primary + '</div>';
+  }
+
+  function invoiceOverviewHtml(invoice, context) {
+    var customer = customerById(invoice.customer_id);
+    var customerName = customer ? customer.display_name : invoice.customer_name;
+    var booking = context.booking;
+    var customerHtml = '<strong>' + escapeHtml(customerName || 'Name not given') + '</strong>' +
+      (invoice.customer_email ? '<span class="admin-fact-sub">' + escapeHtml(invoice.customer_email) + '</span>' : (invoice.customer_phone ? '<span class="admin-fact-sub">' + escapeHtml(invoice.customer_phone) + '</span>' : '')) +
+      (customer ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Open customer</span></button></span>' : '');
+    var bookingHtml = booking
+      ? '<strong>' + escapeHtml(booking.public_reference) + '</strong><span class="admin-fact-links"><button class="admin-context-action" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' + ICON_BOOKING + '<span>Open booking</span></button></span>'
+      : '<span>No booking</span>';
+    var vat = Number(invoice.tax_cents) > 0 ? 'Included · ' + formatMoney(invoice.tax_cents, invoice.currency) : 'No VAT';
+    return panelHeaderHtml({
+        title: invoiceTitle(invoice),
+        chips: '<span class="admin-status-pill" data-status="' + escapeHtml(invoice.invoice_status === 'draft' ? 'pending' : invoiceTone(invoice)) + '">' + escapeHtml(invoiceChipLabel(invoice)) + '</span>',
+        meta: escapeHtml([customerName, booking ? booking.public_reference : ''].filter(Boolean).join(' · ')),
+        closeLabel: 'Close invoice'
+      }) +
+      panelNoticeHtml('invoice', invoice.id) +
+      invoiceAmountHtml(invoice, context) +
+      '<dl class="admin-facts">' +
+        factHtml('Customer', customerHtml) +
+        factHtml('Booking', bookingHtml) +
+        (invoice.service_description ? factHtml('Description', escapeHtml(invoice.service_description)) : '') +
+        (invoice.invoice_status !== 'payment' ? factHtml('VAT', escapeHtml(vat)) : '') +
+        (invoice.issued_at ? factHtml('Issued', escapeHtml(formatDateTime(invoice.issued_at))) : '') +
+        invoiceEmailFact(invoice, context) +
+      '</dl>' +
+      invoicePaymentsHtml(invoice, context) +
+      invoiceFooterHtml(invoice, context);
+  }
+
+  function methodChoiceHtml(selected) {
+    return '<div class="admin-choice-group" role="radiogroup" aria-label="Method">' +
+      Object.keys(PAYMENT_METHOD_LABELS).map(function (key) {
+        return '<label><input type="radio" name="paymentMethod" value="' + key + '"' + (key === selected ? ' checked' : '') + '><span>' + escapeHtml(PAYMENT_METHOD_LABELS[key]) + '</span></label>';
+      }).join('') +
+    '</div>';
+  }
+
+  function movementFieldsHtml(dateLabel, value) {
+    return '<label>' + requiredLabel(dateLabel) + '<input name="occurredLocal" type="datetime-local" required value="' + escapeHtml(value || vilniusNowLocalValue()) + '"></label>' +
+      '<label hidden>When clocks go back<span class="admin-select-wrap"><select name="paymentFold"><option value="">Choose if a time repeats</option><option value="first">First occurrence (summer time)</option><option value="second">Second occurrence (winter time)</option></select></span></label>';
+  }
+
+  function invoiceMoneyStepHtml(invoice, context, kind) {
+    var refund = kind === 'refund';
+    var summary = context.summary || {};
+    var amountCents = refund ? Number(summary.net_paid_cents) || 0 : (summary.agreed_or_invoiced_cents !== null && Number(summary.remaining_cents) > 0 ? Number(summary.remaining_cents) : Math.max(0, invoice.amount_cents - (invoice.paid_amount_cents || 0)));
+    return panelStepHeaderHtml(refund ? 'Record refund' : 'Record payment', { meta: escapeHtml(invoiceTitle(invoice)) }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="' + (refund ? 'recordRefund' : 'recordPayment') + '" data-no-confirm data-money-label="' + (refund ? 'refund' : 'payment') + '">' +
+        hiddenInput('bookingId', invoice.booking_id) +
+        '<label>' + requiredLabel('Amount (€)') + '<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amountCents ? (amountCents / 100).toFixed(2) : '') + '" placeholder="0.00"></label>' +
+        '<div class="admin-step-section"><span class="admin-field-label">Method</span>' + methodChoiceHtml('bank_transfer') + '</div>' +
+        movementFieldsHtml(refund ? 'Refunded on' : 'Received on') +
+        '<label>' + (refund ? requiredLabel('Reason') : optionalLabel('Note')) + '<textarea name="paymentNote" maxlength="1000"' + (refund ? ' required' : '') + '></textarea></label>' +
+        stepFooterHtml('Back', refund ? 'Record refund' : 'Record payment') +
+      '</form>';
+  }
+
+  function invoiceCorrectStepHtml(invoice, context, entryId) {
+    var entry = context.editable.find(function (item) { return item.id === entryId; });
+    var header = panelStepHeaderHtml('Correct entry', { meta: escapeHtml(invoiceTitle(invoice)) });
+    if (!entry) return header + '<p class="admin-step-blocked">This entry was already corrected.</p>';
+    var amount = (Math.abs(Number(entry.signed_amount_cents) || 0) / 100).toFixed(2);
+    return header +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="correctPayment" data-no-confirm data-entry-method="' + escapeHtml(entry.method || 'unknown') + '" data-entry-occurred-at="' + escapeHtml(entry.occurred_at || '') + '">' +
+        hiddenInput('bookingId', invoice.booking_id) +
+        hiddenInput('paymentEntryId', entry.id) +
+        '<ul class="admin-payment-entries">' + paymentEntryLine(entry, [], { noAction: true }) + '</ul>' +
+        '<div class="admin-choice-group" role="radiogroup" aria-label="Correction">' +
+          '<label><input type="radio" name="correctionMode" value="change" checked><span>Change the amount</span></label>' +
+          '<label><input type="radio" name="correctionMode" value="remove"><span>Remove this entry</span></label>' +
+        '</div>' +
+        '<div class="admin-step-section" data-correction-fields>' +
+          '<label>' + requiredLabel('Correct amount (€)') + '<input name="paidAmount" type="text" inputmode="decimal" required value="' + escapeHtml(amount) + '"></label>' +
+          '<div class="admin-step-section"><span class="admin-field-label">Method</span>' + methodChoiceHtml(PAYMENT_METHOD_LABELS[entry.method] ? entry.method : 'bank_transfer') + '</div>' +
+          movementFieldsHtml('Date', entry.occurred_at ? dateInputValue(entry.occurred_at) + 'T' + timeInputValue(entry.occurred_at) : '') +
+        '</div>' +
+        '<label>' + requiredLabel('Reason') + '<textarea name="paymentNote" maxlength="1000" required></textarea></label>' +
+        stepFooterHtml('Back', 'Save correction') +
+      '</form>';
+  }
+
+  function invoiceVoidStepHtml(invoice) {
+    var paymentOnly = invoice.invoice_status === 'payment';
+    return panelStepHeaderHtml(paymentOnly ? 'Void payment record' : 'Void invoice', { meta: escapeHtml(invoiceTitle(invoice)) }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="voidInvoice" data-no-confirm' + (invoice.payment_status === 'paid' && !paymentOnly ? ' data-paid-warning' : '') + '>' +
+        hiddenInput('invoiceId', invoice.id) +
+        '<p class="admin-step-note">' + escapeHtml(paymentOnly
+          ? 'The recorded money stays in the payment history.'
+          : 'The number and PDF are kept for accounting. A voided invoice can’t be reopened.') + '</p>' +
+        '<label>' + requiredLabel('Reason') + '<textarea name="voidReason" maxlength="700" required></textarea></label>' +
+        stepFooterHtml('Back', paymentOnly ? 'Void payment record' : 'Void invoice', 'admin-button-danger') +
+      '</form>';
   }
 
   function renderInvoiceModal(invoiceId) {
     var invoice = invoiceById(invoiceId);
     if (!invoice) return;
     state.selectedInvoiceId = invoice.id;
-    var booking = bookingById(invoice.booking_id);
-    var operations=bookingOperations(invoice.booking_id);
-    var customer = customerById(invoice.customer_id);
-    var customerName = customer ? customer.display_name : invoice.customer_name;
-    var invoiceAmount = formatMoney(invoice.amount_cents, invoice.currency);
-    var remainingAmount = operations?.payment_summaries?.[invoice.booking_id]?.remaining_cents;
-    var amountDue = remainingAmount == null ? invoiceAmount : formatMoney(remainingAmount,invoice.currency);
-    var paidAmount = formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency);
-    var invoiceLabel = invoiceStatusLabel(invoice);
-    var isUnpaidIssued = invoice.invoice_status === 'issued' && invoice.payment_status !== 'paid';
-    var isPaid = invoice.payment_status === 'paid' && invoice.invoice_status !== 'void';
-    var isPaymentOnly = invoice.invoice_status === 'payment';
-    var amountLabel = isPaid ? 'Amount paid' : (isUnpaidIssued ? 'Amount due' : 'Invoice amount');
-    var dueSummary = invoice.invoice_status === 'void'
-      ? 'Document voided; recorded money remains in the ledger'
-      : (invoice.payment_status === 'paid' ? '' : 'Due ' + (formatDueDate(invoice.due_date) || 'date not set'));
-    var customerActions =
-      (customer
-        ? '<button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Customer profile</span></button>'
-        : '');
-    var bookingActions = booking
-      ? '<button class="admin-context-action" type="button" data-open-booking="' + escapeHtml(booking.id) + '">' + ICON_BOOKING + '<span>Open booking</span></button>'
-      : '';
-    var documentActions =
-      (invoice.pdf_path
-        ? '<button class="admin-button admin-button-primary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>View PDF</span></button>'
-        : '') +
-      (invoice.invoice_status === 'issued'
-        ? '<button class="admin-button admin-button-secondary" type="button" data-resend-invoice="' + escapeHtml(invoice.id) + '">' + ICON_REFRESH + '<span>Resend invoice</span></button>'
-        : '');
-    var html =
-      '<div class="admin-modal-header">' +
-        '<div>' +
-          '<h2>' + escapeHtml(invoice.invoice_number) + '</h2>' +
-          '<div class="admin-modal-status-line">' +
-            '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
-          '</div>' +
-        '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close invoice" title="Close">' + ICON_CLOSE + '</button>' +
-      '</div>' +
-      '<section class="admin-detail-section admin-invoice-overview" aria-label="Invoice overview">' +
-        '<div class="admin-invoice-overview-grid">' +
-          '<div class="admin-invoice-primary-fact">' +
-            '<span>' + escapeHtml(amountLabel) + '</span>' +
-            '<strong>' + escapeHtml(isPaid ? paidAmount : (isUnpaidIssued ? amountDue : invoiceAmount)) + '</strong>' +
-            (isPaid && !isPaymentOnly && paidAmount !== invoiceAmount ? '<span class="admin-invoice-original-amount">Invoice amount ' + escapeHtml(invoiceAmount) + '</span>' : '') +
-            (dueSummary ? '<span>' + escapeHtml(dueSummary) + '</span>' : '') +
-          '</div>' +
-          '<div class="admin-invoice-context-grid">' +
-            '<div class="admin-invoice-context-card">' +
-              '<span>Customer</span>' +
-              '<strong>' + escapeHtml(customerName || 'Not provided') + '</strong>' +
-              (invoice.customer_email
-                ? '<a class="admin-invoice-contact-link" href="mailto:' + escapeHtml(invoice.customer_email) + '">' + escapeHtml(invoice.customer_email) + '</a>'
-                : (invoice.customer_phone ? '<a class="admin-invoice-contact-link" href="tel:' + escapeHtml(invoice.customer_phone) + '">' + escapeHtml(invoice.customer_phone) + '</a>' : '<span>Contact not provided</span>')) +
-              (customerActions ? '<div class="admin-context-actions">' + customerActions + '</div>' : '') +
-            '</div>' +
-            '<div class="admin-invoice-context-card">' +
-              '<span>Booking</span>' +
-              '<strong>' + escapeHtml(booking ? booking.public_reference : 'No linked booking') + '</strong>' +
-              '<span>' + escapeHtml(invoice.service_description || 'Service not provided') + '</span>' +
-              (bookingActions ? '<div class="admin-context-actions">' + bookingActions + '</div>' : '') +
-            '</div>' +
-          '</div>' +
-        '</div>' +
-      '</section>' +
-      (documentActions
-        ? '<div class="admin-modal-toolbar admin-invoice-document-actions" aria-label="Invoice document actions">' + documentActions + '</div>'
-        : '') +
-      (invoice.last_email_error
-        ? '<p class="admin-detail-note admin-detail-note-warning admin-modal-alert">Last delivery failed: ' + escapeHtml(invoice.last_email_error) + '</p>'
-        : '') +
-      (booking ? (invoiceDeliveredToClient(invoice, operations) ? paymentSection(booking, operations, staffHasAccess(state.staff, 'billing_email.manage'), true) : '') + communicationSection(booking, operations) : '<p>Payment details are unavailable for this record.</p>') +
-      '<details class="admin-detail-section admin-disclosure">' +
-        '<summary>Invoice record details</summary>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Record state', invoice.invoice_status === 'issued' ? 'Issued invoice' : (isPaymentOnly ? 'Payment without invoice' : invoiceLabel)) +
-          detailRow('Payment state', paymentLabel(invoice.payment_status)) +
-          (isPaid ? detailRow('Amount paid', paidAmount) : '') +
-          (!isPaymentOnly ? detailRow('Invoice amount', invoiceAmount) : '') +
-          detailRow('Due date', formatDueDate(invoice.due_date)) +
-          detailRow('VAT', formatMoney(invoice.tax_cents, invoice.currency)) +
-          detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
-          detailRow('Retention until', invoice.retention_hold_until) +
-          (invoice.last_sent_at ? detailRow('Last sent', formatDateTime(invoice.last_sent_at)) : '') +
-        '</div>' +
-      '</details>' +
-      (invoice.invoice_status !== 'void'
-        ? '<details class="admin-detail-section admin-disclosure admin-danger-disclosure">' +
-            '<summary>Void ' + (isPaymentOnly ? 'payment record' : 'invoice') + '</summary>' +
-            '<p class="admin-detail-note">' + (isPaymentOnly ? 'Voiding preserves the recorded money. Resolve its allocation, replacement invoice, or actual refund separately.' : 'Voiding cancels this invoice for accounting. The invoice number and PDF remain retained, and the action cannot be undone.') + '</p>' +
-            renderVoidInvoiceForm(invoice) +
-          '</details>'
-        : '');
+    var context = invoicePanelContext(invoice);
+    var step = currentModalStep('invoice', invoice.id);
+    var html;
+    if (step === 'payment' && context.canRecord) html = invoiceMoneyStepHtml(invoice, context, 'payment');
+    else if (step === 'refund' && context.canRefund) html = invoiceMoneyStepHtml(invoice, context, 'refund');
+    else if (step === 'correct' && context.canBill) html = invoiceCorrectStepHtml(invoice, context, currentModalStepData('invoice', invoice.id));
+    else if (step === 'void' && context.canBill && invoice.invoice_status !== 'void') html = invoiceVoidStepHtml(invoice);
+    else {
+      if (step) state.modalStep = null;
+      html = invoiceOverviewHtml(invoice, context);
+    }
 
     var modal = openModal(html, 'panel');
     renderInvoiceList();
-    bindPriceTotals(modal); installTimeChoices(modal); bindPaymentActions(modal);
+    bindPriceTotals(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
     });
-    var customerButton = $('[data-open-customer]', modal);
-    if (customerButton) {
-      customerButton.addEventListener('click', function () {
-        navigateToModal('customer', customerButton.dataset.openCustomer);
-      });
+
+    // Money steps name the amount on the button.
+    var moneyForm = $('form[data-money-label]', modal);
+    if (moneyForm) {
+      var moneySubmit = $('[data-step-submit]', moneyForm);
+      var syncMoney = function () {
+        var cents = moneyCents(moneyForm.elements.paidAmount.value, false);
+        var noun = moneyForm.dataset.moneyLabel;
+        moneySubmit.textContent = 'Record ' + (cents ? formatMoney(cents, 'EUR') + ' ' : '') + noun;
+      };
+      moneyForm.elements.paidAmount.addEventListener('input', syncMoney);
+      syncMoney();
     }
-    var bookingButton = $('[data-open-booking]', modal);
-    if (bookingButton) {
-      bookingButton.addEventListener('click', function () {
-        navigateToModal('booking', bookingButton.dataset.openBooking);
-      });
+
+    var correctForm = $('form[data-action="correctPayment"]', modal);
+    if (correctForm) {
+      var fields = $('[data-correction-fields]', correctForm);
+      var syncCorrection = function () {
+        var remove = correctForm.elements.correctionMode.value === 'remove';
+        fields.hidden = remove;
+        $all('input, select', fields).forEach(function (field) { field.disabled = remove; });
+        $('[data-step-submit]', correctForm).textContent = remove ? 'Remove entry' : 'Save correction';
+      };
+      $all('input[name="correctionMode"]', correctForm).forEach(function (input) { input.addEventListener('change', syncCorrection); });
+      syncCorrection();
     }
-    var resendButton = $('[data-resend-invoice]', modal);
-    if (resendButton) {
-      resendButton.addEventListener('click', function () {
-        runAction({ action: 'resendInvoice', invoiceId: resendButton.dataset.resendInvoice }, 'resendInvoice', resendButton);
+
+    $all('[data-open-customer]', modal).forEach(function (button) {
+      button.addEventListener('click', function () { navigateToModal('customer', button.dataset.openCustomer); });
+    });
+    $all('[data-open-booking]', modal).forEach(function (button) {
+      button.addEventListener('click', function () { navigateToModal('booking', button.dataset.openBooking); });
+    });
+    $all('[data-resend-invoice]', modal).forEach(function (button) {
+      button.addEventListener('click', function () {
+        runAction({ action: 'resendInvoice', invoiceId: button.dataset.resendInvoice }, 'resendInvoice', button, {
+          confirm: {
+            title: 'Email ' + invoiceTitle(invoice) + ' again?',
+            message: 'The PDF goes to ' + (invoice.customer_email || 'the customer') + ' again.',
+            cancelLabel: 'Don’t send',
+            confirmLabel: 'Email again'
+          }
+        });
       });
-    }
+    });
     var pdfButton = $('[data-view-invoice-pdf]', modal);
     if (pdfButton) {
       pdfButton.addEventListener('click', async function () {
@@ -6198,16 +6335,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
     }
     if (['recordPayment','recordRefund','correctPayment'].includes(action)) {
-      var local = String(data.get('occurredLocal') || '').split('T');
-      payload.occurredAt = vilniusInstant(local[0] || '',local[1] || '',data.get('paymentFold'));
       payload.paymentEntryId = data.get('paymentEntryId') || null;
-      if(action==='correctPayment' && moneyCents(payload.paidAmount,true)===0) {
-        var originalOption=form.elements.paymentEntryId?.selectedOptions[0];
-        payload.occurredAt=originalOption?.dataset.occurredAt || null;
-        payload.paymentMethod=originalOption?.dataset.method || 'unknown';
+      // Removing an entry is a correction to zero at the original time.
+      var removingEntry = action === 'correctPayment' && (data.get('correctionMode') === 'remove' || moneyCents(payload.paidAmount, true) === 0);
+      if (removingEntry) {
+        payload.paidAmount = '0';
+        payload.occurredAt = form.dataset.entryOccurredAt || null;
+        payload.paymentMethod = form.dataset.entryMethod || 'unknown';
+      } else {
+        var local = String(data.get('occurredLocal') || '').split('T');
+        payload.occurredAt = vilniusInstant(local[0] || '',local[1] || '',data.get('paymentFold'));
       }
       if (!payload.occurredAt || moneyCents(payload.paidAmount,action==='correctPayment') === null) {
-        showFieldError(errorEl,'Enter the actual amount and a valid Vilnius date/time. Choose an occurrence if the time repeats.');return;
+        showFieldError(errorEl,'Enter the amount and when the money moved. If the time repeats when clocks go back, choose which one.');return;
       }
     }
     if (action==='resolvePaymentReconciliation' && data.get('disposition')==='already_refunded') {
@@ -6312,8 +6452,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     if (action === 'voidInvoice' && !String(data.get('voidReason') || '').trim()) {
-      showFieldError(errorEl, 'Void reason is required.', form.elements.voidReason);
+      showFieldError(errorEl, 'Enter why it is being voided.', form.elements.voidReason);
       return;
+    }
+    if (action === 'voidInvoice' && form.hasAttribute('data-paid-warning')) {
+      var voidPaid = await openConfirmDialog({
+        title: 'This invoice is paid. Void it anyway?',
+        message: 'The money stays recorded. If you return it, record a refund separately.',
+        cancelLabel: 'Keep invoice',
+        confirmLabel: 'Void invoice',
+        danger: true
+      });
+      if (!voidPaid) return;
     }
 
     if (action === 'sendMarketingCampaign') {

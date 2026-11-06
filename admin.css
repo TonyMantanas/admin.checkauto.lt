@@ -7132,6 +7132,116 @@ a.admin-dash-tile:hover {
   margin-block-start: 1.75rem;
 }
 
+/* Invoice panel: the amount that matters right now, then payments. */
+.admin-panel-amount {
+  margin: 0 0 1.25rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.admin-panel-amount strong {
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-panel-amount span {
+  color: var(--admin-text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-panel-amount.is-overdue span {
+  color: var(--admin-danger);
+  font-weight: 500;
+}
+
+.admin-fact-problem {
+  color: var(--admin-danger);
+}
+
+.admin-step-note {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.admin-step-note.is-warning {
+  color: var(--admin-warning);
+  font-weight: 500;
+}
+
+.admin-invoice-payments {
+  margin-block: 0.25rem 1.5rem;
+  display: grid;
+  gap: 0.625rem;
+}
+
+.admin-payment-entries {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.375rem;
+  list-style: none;
+}
+
+.admin-payment-entry {
+  min-width: 0;
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-radius: 0.75rem;
+  background: var(--admin-surface-subtle);
+}
+
+.admin-payment-entry > div:first-child {
+  min-width: 0;
+  display: grid;
+  gap: 0.1rem;
+}
+
+.admin-payment-entry span {
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-payment-entry-side {
+  flex: none;
+  display: grid;
+  justify-items: end;
+  gap: 0.1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-payment-entry-side .admin-context-action {
+  min-height: 1.5rem;
+  padding: 0;
+  border: 0;
+  color: var(--admin-link);
+  background: transparent;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.admin-payment-entry.is-reversed {
+  opacity: 0.6;
+}
+
+.admin-payment-entry.is-reversed .admin-payment-entry-side strong {
+  text-decoration: line-through;
+}
+
+.admin-payment-totals {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
 /* Narrower screens: the panel becomes a modal over the page. */
 @media (max-width: 60rem) {
   .admin-modal-root[data-mode="panel"] {
