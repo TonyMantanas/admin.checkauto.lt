@@ -4619,8 +4619,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var dataAction = '';
     if (!customer.pii_redacted_at) {
       var eraseBlockers = customerBlockers(customer, linkedBookings, false);
-      dataStatus = '<strong>Stored</strong>' + (eraseBlockers.length ? '<span class="admin-fact-sub">Can’t erase yet: ' + escapeHtml(eraseBlockers.join(' · ')) + '</span>' : '');
+      dataStatus = '<strong>Stored</strong>' +
+        (customer.erasure_requested_at ? '<span class="admin-fact-sub">Erasure requested ' + escapeHtml(displayDay(customer.erasure_requested_at)) + '</span>' : '') +
+        (eraseBlockers.length ? '<span class="admin-fact-sub">Can’t erase yet: ' + escapeHtml(eraseBlockers.join(' · ')) + '</span>' : '');
       if (!eraseBlockers.length) dataAction = '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-customer-erase>Erase personal data…</button>';
+      // While erasing is blocked, the customer's request can still be put on record.
+      else if (!customer.erasure_requested_at) dataAction = '<button class="admin-button admin-button-secondary" type="button" data-customer-erasure-request>Record erasure request…</button>';
     } else {
       var deleteBlockers = customerBlockers(customer, linkedBookings, true);
       dataStatus = '<strong>Erased ' + escapeHtml(displayDay(customer.pii_redacted_at)) + '</strong>' + (deleteBlockers.length ? '<span class="admin-fact-sub">Can’t delete the profile yet: ' + escapeHtml(deleteBlockers.join(' · ')) + '</span>' : '');
@@ -4781,6 +4785,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (release) release.addEventListener('click', function () {
       runAction({ action: 'releaseCustomerLegalHold', customerId: customer.id }, 'releaseCustomerLegalHold', release, {
         confirm: { title: 'Release the legal hold?', message: 'Nothing is deleted now. Erasing ' + name + '’s personal data becomes possible again once nothing else blocks it.', cancelLabel: 'Keep hold', confirmLabel: 'Release hold' }
+      });
+    });
+    var erasureRequest = $('[data-customer-erasure-request]', modal);
+    if (erasureRequest) erasureRequest.addEventListener('click', function () {
+      runAction({ action: 'markCustomerErasureRequest', customerId: customer.id }, 'markCustomerErasureRequest', erasureRequest, {
+        confirm: { title: 'Record that ' + name + ' asked to be erased?', message: 'Nothing is erased yet. Erase their data once nothing blocks it.', cancelLabel: 'Go back', confirmLabel: 'Record request' }
       });
     });
     var erase = $('[data-customer-erase]', modal);
@@ -5620,6 +5630,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '<dl class="admin-facts">' +
         factHtml('Customer', customerHtml) +
         factHtml('Booking', bookingHtml) +
+        (invoice.customer_billing_details && invoice.customer_billing_details.notes ? factHtml('Bill to', '<span class="admin-fact-text">' + escapeHtml(invoice.customer_billing_details.notes) + '</span>') : '') +
         (invoice.service_description ? factHtml('Description', escapeHtml(invoice.service_description)) : '') +
         (invoice.invoice_status !== 'payment' ? factHtml('VAT', escapeHtml(vat)) : '') +
         (invoice.issued_at ? factHtml('Issued', escapeHtml(formatDateTime(invoice.issued_at))) : '') +
@@ -6020,6 +6031,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setCustomerLegalHold: 'Legal hold started.',
       releaseCustomerLegalHold: 'Legal hold released.',
       withdrawCustomerMarketingConsent: 'Unsubscribed from marketing emails.',
+      markCustomerErasureRequest: 'Erasure request recorded.',
       redactCustomerPii: 'Personal data erased.',
       deleteCustomerProfile: 'Profile deleted.',
       sendMarketingCampaign: 'Marketing campaign sent.',
@@ -6174,6 +6186,17 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var booking = bookingById(payload.bookingId);
       if (booking) renderBookingModal(booking);
     }
+  }
+
+  function billingDetailsLine(company, booking) {
+    var english = String(booking && booking.customer_language || '').toLowerCase() === 'en';
+    var oneLine = function (value) { return String(value || '').replace(/\s*\n\s*/g, ', ').trim(); };
+    return [
+      oneLine(company.name),
+      (english ? 'company code ' : 'įmonės kodas ') + oneLine(company.code),
+      company.vat ? (english ? 'VAT number ' : 'PVM mokėtojo kodas ') + oneLine(company.vat) : '',
+      oneLine(company.address)
+    ].filter(Boolean).join(', ');
   }
 
   function actionSuccessMessage(action, result) {
@@ -6392,15 +6415,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           showFieldError(errorEl, 'Enter the company name, company code and address.', form.elements[missingCompany]);
           return;
         }
-        // Sent as the buyer block the server prints on the invoice.
-        payload.billingDetails = [
-          company.name,
-          'Company code: ' + company.code,
-          company.vat ? 'VAT code: ' + company.vat : '',
-          company.address
-        ].filter(Boolean).join('\n');
+        // The PDF prints this under the buyer's name as one wrapped
+        // paragraph in the invoice's language, so it is one line with the
+        // same labels the PDF uses for the seller.
+        payload.billingDetails = billingDetailsLine(company, bookingById(payload.bookingId));
       } else if (billTo === 'private') {
-        payload.billingDetails = String(data.get('privateAddress') || '').trim() || null;
+        payload.billingDetails = String(data.get('privateAddress') || '').replace(/\s*\n\s*/g, ', ').trim() || null;
       } else {
         payload.billingDetails = data.get('billingDetails') || null;
       }
