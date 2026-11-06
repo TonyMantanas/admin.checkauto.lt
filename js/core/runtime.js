@@ -2073,11 +2073,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         }
       }
     }
-    var activityDisclosure = $('[data-customer-activity-disclosure]', panel);
+    var activityTab = $('[data-customer-activity-tab]', panel);
     if (
       route.type === 'customer' &&
-      activityDisclosure &&
-      activityDisclosure.open &&
+      activityTab &&
+      !activityTab.hidden &&
       customerActivityCacheEntry(route.id).status === 'idle'
     ) {
       loadCustomerActivity(route.id).catch(function () {});
@@ -4181,38 +4181,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<input type="hidden" name="' + escapeHtml(name) + '" value="' + escapeHtml(value || '') + '">';
   }
 
-  function renderInlineActionForm(action, label, buttonClass, fields, disabled, title) {
-    var inputs = Object.keys(fields).map(function (name) {
-      return hiddenInput(name, fields[name]);
-    }).join('');
-    return '<form class="admin-inline-action-form" data-admin-action-form data-action="' + escapeHtml(action) + '">' +
-      inputs +
-      '<button class="admin-button ' + escapeHtml(buttonClass) + '" type="submit"' + (disabled ? ' disabled' : '') + (title ? ' title="' + escapeHtml(title) + '"' : '') + '>' + escapeHtml(label) + '</button>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-    '</form>';
-  }
-
-  function renderSetHoldForm(customer, holdDefaultDate) {
-    return '<form class="admin-action-form admin-privacy-form" data-admin-action-form data-action="setCustomerLegalHold">' +
-      hiddenInput('customerId', customer.id) +
-      '<div class="admin-action-grid">' +
-        '<label><span class="admin-field-label">Hold until date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="holdUntilDate" type="text" inputmode="numeric" required value="' + escapeHtml(holdDefaultDate) + '" placeholder="2026-12-31"></label>' +
-        '<label><span class="admin-field-label">Hold until time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
-      '</div>' +
-      '<label><span class="admin-field-label">Reason <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="legalHoldReason" maxlength="500" required placeholder="Legal or dispute reason"></textarea></label>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Start legal hold</button></div>' +
-    '</form>';
-  }
-
-  function renderReleaseHoldForm(customer) {
-    return '<form class="admin-action-form admin-privacy-form" data-admin-action-form data-action="releaseCustomerLegalHold">' +
-      hiddenInput('customerId', customer.id) +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-secondary" type="submit">Release legal hold</button></div>' +
-    '</form>';
-  }
-
   function normalizeSearch(value) {
     return String(value || '').toLowerCase().trim();
   }
@@ -4527,12 +4495,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       recordedEvents
     );
     panel.scrollTop = previousScrollTop;
-    var summaryMeta = $('[data-customer-activity-summary]', panel.closest('[data-customer-activity-disclosure]'));
-    if (summaryMeta) {
-      summaryMeta.innerHTML = cache.status === 'loading'
-        ? skeletons.block('admin-skeleton-line admin-skeleton-count')
-        : escapeHtml(customerActivitySummaryMeta(cache, events.length));
-    }
   }
 
   async function loadCustomerActivity(customerId, options) {
@@ -4679,6 +4641,132 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     customerIds.forEach(invalidateCustomerActivity);
   }
 
+  // Customer panel -----------------------------------------------------------
+  // Overview, activity and privacy as tabs. Privacy is one row per topic
+  // with its status and its own action; blocked actions say what blocks them.
+
+  var LANGUAGE_LABELS = { lt: 'Lithuanian', en: 'English', ru: 'Russian', pl: 'Polish', lv: 'Latvian', de: 'German' };
+
+  function languageLabel(code) {
+    var value = String(code || '').toLowerCase();
+    return LANGUAGE_LABELS[value] || (value ? value.toUpperCase() : '');
+  }
+
+  function wordsFromCode(value) {
+    var text = String(value || '').replace(/_/g, ' ').trim();
+    return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+  }
+
+  function customerPanelTab(customerId) {
+    var saved = state.customerPanelTab;
+    return saved && saved.id === customerId ? saved.tab : 'overview';
+  }
+
+  function marketingStatusHtml(customer) {
+    var status = customer.marketing_consent_status;
+    if (status === 'opted_in') {
+      var since = customer.marketing_consent_at ? 'since ' + displayDay(customer.marketing_consent_at) : '';
+      var source = customer.marketing_consent_source ? wordsFromCode(customer.marketing_consent_source).toLowerCase() : '';
+      return '<strong>Subscribed</strong>' + ([since, source ? 'via ' + source : ''].filter(Boolean).length
+        ? '<span class="admin-fact-sub">' + escapeHtml([since, source ? 'via ' + source : ''].filter(Boolean).join(' · ')) + '</span>' : '');
+    }
+    return '<strong>' + escapeHtml({ withdrawn: 'Unsubscribed', suppressed: 'Blocked' }[status] || 'Not subscribed') + '</strong>';
+  }
+
+  // Block reasons as short phrases a person can act on.
+  function customerBlockers(customer, bookings, forDelete) {
+    var blockers = [];
+    if (forDelete && !customer.pii_redacted_at) blockers.push('erase the personal data first');
+    if (hasActiveLegalHold(customer)) blockers.push('a legal hold is active');
+    if (customer.marketing_consent_status === 'opted_in') blockers.push('still subscribed to marketing emails');
+    var active = bookings.filter(function (booking) { return ['pending', 'confirmed'].includes(booking.status); }).length;
+    if (active) blockers.push(active + (active === 1 ? ' active booking' : ' active bookings'));
+    if (bookings.some(function (booking) { return hasActiveLegalHold(booking); })) blockers.push('a booking is on legal hold');
+    if (forDelete && customer.pii_redacted_at && bookings.some(function (booking) { return !booking.pii_redacted_at; })) blockers.push('a booking still has personal data');
+    return blockers;
+  }
+
+  function privacyRowHtml(label, statusHtml, actionHtml) {
+    return '<div class="admin-privacy-row">' +
+      '<div class="admin-privacy-row-label">' + escapeHtml(label) + '</div>' +
+      '<div class="admin-privacy-row-status">' + statusHtml + '</div>' +
+      (actionHtml ? '<div class="admin-privacy-row-action">' + actionHtml + '</div>' : '') +
+    '</div>';
+  }
+
+  function customerPrivacyHtml(customer, linkedBookings) {
+    var holdActive = hasActiveLegalHold(customer);
+    var marketingAction = customer.marketing_consent_status === 'opted_in'
+      ? '<button class="admin-button admin-button-secondary" type="button" data-customer-unsubscribe>Unsubscribe…</button>'
+      : '';
+    var holdStatus = holdActive
+      ? '<strong>Until ' + escapeHtml(formatDateTime(customer.legal_hold_until)) + '</strong>' +
+        (customer.legal_hold_reason ? '<span class="admin-fact-sub">' + escapeHtml(customer.legal_hold_reason) + '</span>' : '') +
+        (customer.legal_hold_review_at ? '<span class="admin-fact-sub">Review ' + escapeHtml(displayDay(customer.legal_hold_review_at)) + '</span>' : '')
+      : '<strong>None</strong>';
+    var holdAction = holdActive
+      ? '<button class="admin-button admin-button-secondary" type="button" data-customer-release-hold>Release…</button>'
+      : '<button class="admin-button admin-button-secondary" type="button" data-admin-step="hold">Start legal hold…</button>';
+
+    var dataStatus;
+    var dataAction = '';
+    if (!customer.pii_redacted_at) {
+      var eraseBlockers = customerBlockers(customer, linkedBookings, false);
+      dataStatus = '<strong>Stored</strong>' + (eraseBlockers.length ? '<span class="admin-fact-sub">Can’t erase yet: ' + escapeHtml(eraseBlockers.join(' · ')) + '</span>' : '');
+      if (!eraseBlockers.length) dataAction = '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-customer-erase>Erase personal data…</button>';
+    } else {
+      var deleteBlockers = customerBlockers(customer, linkedBookings, true);
+      dataStatus = '<strong>Erased ' + escapeHtml(displayDay(customer.pii_redacted_at)) + '</strong>' + (deleteBlockers.length ? '<span class="admin-fact-sub">Can’t delete the profile yet: ' + escapeHtml(deleteBlockers.join(' · ')) + '</span>' : '');
+      if (!deleteBlockers.length) dataAction = '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-customer-delete>Delete profile…</button>';
+    }
+
+    var consentFact = function (label, at, version, extra) {
+      if (!at) return factHtml(label, '<span>Not recorded</span>');
+      return factHtml(label, '<span>' + escapeHtml(displayDay(at)) + '</span>' +
+        ([version ? 'version ' + version : '', extra].filter(Boolean).length ? '<span class="admin-fact-sub">' + escapeHtml([version ? 'Version ' + version : '', extra].filter(Boolean).join(' · ')) + '</span>' : ''));
+    };
+
+    return '<div class="admin-privacy-rows">' +
+        privacyRowHtml('Marketing emails', marketingStatusHtml(customer), marketingAction) +
+        privacyRowHtml('Legal hold', holdStatus, holdAction) +
+        privacyRowHtml('Personal data', dataStatus, dataAction) +
+      '</div>' +
+      '<section class="admin-panel-section admin-consent-records"><h3>Consent records</h3><dl class="admin-facts">' +
+        consentFact('Terms', customer.terms_accepted_at, customer.terms_text_version) +
+        consentFact('Privacy policy', customer.privacy_accepted_at, customer.privacy_text_version) +
+        consentFact('Marketing', customer.marketing_consent_at, customer.marketing_consent_text_version, customer.marketing_consent_source ? 'Via ' + wordsFromCode(customer.marketing_consent_source).toLowerCase() : '') +
+        (customer.marketing_repermission_due_at ? factHtml('Ask again by', escapeHtml(displayDay(customer.marketing_repermission_due_at))) : '') +
+      '</dl></section>';
+  }
+
+  function customerHoldStepHtml(customer) {
+    return panelStepHeaderHtml('Start legal hold', { meta: escapeHtml(customer.display_name || 'Customer') }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="setCustomerLegalHold" data-no-confirm>' +
+        hiddenInput('customerId', customer.id) +
+        '<p class="admin-step-note">While the hold lasts, this customer’s personal data can’t be erased or deleted.</p>' +
+        '<div class="admin-form-row">' +
+          '<label>' + requiredLabel('Until') + '<input name="holdUntilDate" type="date" required min="' + escapeHtml(addDaysYmd(todayYmd(), 1)) + '" value="' + escapeHtml(addDaysYmd(todayYmd(), 180)) + '"></label>' +
+          '<label>' + requiredLabel('Time') + '<input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
+        '</div>' +
+        '<div data-dst-slot hidden></div>' +
+        '<label>' + requiredLabel('Reason') + '<textarea name="legalHoldReason" maxlength="500" required></textarea></label>' +
+        stepFooterHtml('Back', 'Start legal hold') +
+      '</form>';
+  }
+
+  function customerOverviewHtml(customer, bookings, invoices) {
+    var contactLinks =
+      (customer.phone ? '<a class="admin-context-action" href="tel:' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(customer.phone) + '</span></a>' : '') +
+      (customer.email ? '<a class="admin-context-action" href="mailto:' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(customer.email) + '</span></a>' : '');
+    return '<dl class="admin-facts">' +
+        factHtml('Contact', contactLinks ? '<span class="admin-fact-links admin-fact-links-stacked">' + contactLinks + '</span>' : '<span>No contact details</span>') +
+        (customer.preferred_language ? factHtml('Language', escapeHtml(languageLabel(customer.preferred_language))) : '') +
+        factHtml('Marketing emails', marketingStatusHtml(customer)) +
+      '</dl>' +
+      '<section class="admin-panel-section"><h3>Bookings <span class="admin-count-inline">' + bookings.length + '</span></h3>' + renderCustomerBookings(bookings) + '</section>' +
+      '<section class="admin-panel-section"><h3>Invoices <span class="admin-count-inline">' + invoices.length + '</span></h3>' + renderCustomerInvoices(invoices) + '</section>';
+  }
+
   function renderCustomerModal(customerId) {
     var customer = customerById(customerId);
     if (!customer) return;
@@ -4689,170 +4777,140 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
     var linkedBookings = allBookingsForCustomer(customer.id);
     var invoices = invoicesForCustomer(customer.id);
-    var activityCache = customerActivityCacheEntry(customer.id);
-    var initialActivityEvents = Array.isArray(activityCache.events) ? activityCache.events : [];
-    var holdActive = hasActiveLegalHold(customer);
-    var redactionBlockReasons = customerRedactionBlockReasons(customer, bookings);
-    var redactionDisabled = redactionBlockReasons.length > 0;
-    var redactionBlockText = redactionDisabled ? 'Unavailable: ' + redactionBlockReasons.join('; ') + '.' : '';
-    var deleteBlockReasons = customerDeleteBlockReasons(customer, linkedBookings);
-    var deleteDisabled = deleteBlockReasons.length > 0;
-    var deleteBlockText = deleteDisabled ? 'Unavailable: ' + deleteBlockReasons.join('; ') + '.' : '';
-    var holdStatus = holdActive
-      ? 'Active until ' + formatDateTime(customer.legal_hold_until)
-      : 'No active legal hold';
-    var profileStatus = customer.pii_redacted_at
-      ? 'Redacted ' + formatDateTime(customer.pii_redacted_at)
-      : 'Personal data present';
+    var step = currentModalStep('customer', customer.id);
+    var html;
 
-    var html =
-      '<div class="admin-modal-header admin-customer-modal-header" data-customer-modal="' + escapeHtml(customer.id) + '">' +
-        '<div class="admin-customer-header-primary">' +
-          '<h2>' + escapeHtml(customer.display_name || 'Unnamed customer') + '</h2>' +
-          '<div class="admin-customer-header-contact" aria-label="Contact customer">' +
-            (customer.phone ? '<a class="admin-customer-contact-link" href="tel:' + escapeHtml(customer.phone) + '" aria-label="Call ' + escapeHtml(customer.phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(customer.phone) + '</span></a>' : '') +
-            (customer.email ? '<a class="admin-customer-contact-link" href="mailto:' + escapeHtml(customer.email) + '" aria-label="Email ' + escapeHtml(customer.email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(customer.email) + '</span></a>' : '') +
+    if (step === 'hold' && !hasActiveLegalHold(customer)) {
+      html = customerHoldStepHtml(customer);
+    } else {
+      if (step) state.modalStep = null;
+      var tab = customerPanelTab(customer.id);
+      var activityCache = customerActivityCacheEntry(customer.id);
+      var chips =
+        (hasActiveLegalHold(customer) ? '<span class="admin-status-pill" data-status="pending">Legal hold</span>' : '') +
+        (customer.pii_redacted_at ? '<span class="admin-status-pill" data-status="cancelled">Erased</span>' : '');
+      var tabs = [['overview', 'Overview'], ['activity', 'Activity'], ['privacy', 'Privacy']];
+      html = panelHeaderHtml({
+          title: customer.display_name || 'Unnamed customer',
+          chips: chips,
+          meta: customer.created_at ? escapeHtml('Customer since ' + displayDay(customer.created_at)) : '',
+          closeLabel: 'Close customer'
+        }) +
+        panelNoticeHtml('customer', customer.id) +
+        '<div class="admin-segmented admin-panel-tabs" role="tablist" aria-label="Customer sections">' +
+          tabs.map(function (item) {
+            var selected = item[0] === tab;
+            return '<button type="button" role="tab" id="customer-tab-' + item[0] + '" aria-controls="customer-panel-' + item[0] + '" aria-selected="' + selected + '"' + (selected ? ' class="is-active"' : ' tabindex="-1"') + ' data-customer-tab="' + item[0] + '">' + item[1] + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div role="tabpanel" id="customer-panel-overview" aria-labelledby="customer-tab-overview"' + (tab === 'overview' ? '' : ' hidden') + '>' +
+          customerOverviewHtml(customer, bookings, invoices) +
+        '</div>' +
+        '<div role="tabpanel" id="customer-panel-activity" aria-labelledby="customer-tab-activity" data-customer-activity-tab' + (tab === 'activity' ? '' : ' hidden') + '>' +
+          '<div class="admin-customer-activity-scroll" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
+            (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
           '</div>' +
         '</div>' +
-        '<div class="admin-customer-header-utility">' +
-          '<div class="admin-customer-profile-menu">' +
-            '<button class="admin-icon-button admin-customer-header-icon admin-customer-profile-toggle" type="button" aria-label="Profile details" aria-describedby="admin-customer-profile-tooltip">' + ICON_INFO + '</button>' +
-            '<div class="admin-customer-profile-popover" id="admin-customer-profile-tooltip" role="tooltip">' +
-              '<strong>Profile details</strong>' +
-              '<div class="admin-detail-list">' +
-                detailRow('Language', customer.preferred_language) +
-                detailRow('Customer since', customer.created_at ? formatDateTime(customer.created_at) : '') +
-                detailRow('Last booking', customer.last_booking_at ? formatDateTime(customer.last_booking_at) : '') +
-                detailRow('Last invoice', customer.last_invoice_at ? formatDateTime(customer.last_invoice_at) : '') +
-              '</div>' +
-            '</div>' +
-          '</div>' +
-          '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close customer" title="Close">' + ICON_CLOSE + '</button>' +
-        '</div>' +
-      '</div>' +
-      '<section class="admin-detail-section admin-customer-bookings-section" aria-labelledby="admin-customer-bookings-title">' +
-        '<h3 id="admin-customer-bookings-title">Bookings (' + escapeHtml(String(bookings.length)) + ')</h3>' +
-        renderCustomerBookings(bookings) +
-      '</section>' +
-      '<details class="admin-detail-section admin-disclosure admin-customer-invoices-section" data-disclosure-key="customer-invoices">' +
-        '<summary>Invoices <span>' + escapeHtml(String(invoices.length)) + '</span></summary>' +
-        renderCustomerInvoices(invoices) +
-      '</details>' +
-      '<details class="admin-detail-section admin-disclosure admin-customer-activity-section" data-customer-activity-disclosure data-disclosure-key="customer-activity">' +
-        '<summary id="admin-customer-activity-title"><span>Customer activity</span><span class="admin-customer-disclosure-meta" data-customer-activity-summary>' +
-          (activityCache.status === 'loading'
-            ? skeletons.block('admin-skeleton-line admin-skeleton-count')
-            : escapeHtml(customerActivitySummaryMeta(activityCache, initialActivityEvents.length))) +
-        '</span></summary>' +
-        '<div role="region" aria-labelledby="admin-customer-activity-title" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
-          (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
-        '</div>' +
-      '</details>' +
-      '<details class="admin-detail-section admin-disclosure admin-privacy-controls" data-disclosure-key="privacy-controls">' +
-        '<summary>Privacy and records</summary>' +
-        '<div class="admin-privacy-overview">' +
-          '<div class="admin-privacy-status-grid">' +
-              '<div class="admin-privacy-status-card"><span>Legal hold</span><strong>' + escapeHtml(holdStatus) + '</strong></div>' +
-              '<div class="admin-privacy-status-card"><span>Profile data</span><strong>' + escapeHtml(profileStatus) + '</strong></div>' +
-              '<div class="admin-privacy-status-card admin-privacy-marketing-card"><span>Marketing permission</span><strong>' + escapeHtml(marketingLabel(customer.marketing_consent_status)) + '</strong>' +
-                (customer.marketing_consent_status === 'opted_in'
-                  ? renderInlineActionForm('withdrawCustomerMarketingConsent', 'Withdraw permission', 'admin-button-secondary', { customerId: customer.id })
-                  : '') +
-              '</div>' +
-          '</div>' +
-          '<details class="admin-privacy-record-details admin-disclosure" data-disclosure-key="consent-dates">' +
-            '<summary>View consent and retention dates</summary>' +
-            '<div class="admin-detail-list">' +
-              detailRow('Terms accepted', customer.terms_accepted_at ? formatDateTime(customer.terms_accepted_at) : 'Not recorded') +
-              detailRow('Terms version', customer.terms_text_version) +
-              detailRow('Privacy accepted', customer.privacy_accepted_at ? formatDateTime(customer.privacy_accepted_at) : 'Not recorded') +
-              detailRow('Privacy version', customer.privacy_text_version) +
-              detailRow('Marketing consent recorded', customer.marketing_consent_at ? formatDateTime(customer.marketing_consent_at) : 'Not recorded') +
-              detailRow('Marketing consent source', customer.marketing_consent_source) +
-              detailRow('Marketing consent version', customer.marketing_consent_text_version) +
-              detailRow('Re-permission due', customer.marketing_repermission_due_at ? formatDateTime(customer.marketing_repermission_due_at) : '') +
-              detailRow('Legal hold review', customer.legal_hold_review_at ? formatDateTime(customer.legal_hold_review_at) : 'Not scheduled') +
-            '</div>' +
-          '</details>' +
-          '<details class="admin-disclosure admin-privacy-actions-disclosure">' +
-            '<summary>Data controls</summary>' +
-            '<div class="admin-privacy-action-list">' +
-              '<div class="admin-privacy-action-card">' +
-                '<div class="admin-privacy-action-heading"><h4>' + (holdActive ? 'Release legal hold' : 'Start a legal hold') + '</h4><p>' +
-                  (holdActive
-                    ? 'Allows eligible redaction and deletion checks to proceed again. Releasing the hold does not delete data.'
-                    : 'Temporarily blocks redaction and deletion for a legal, dispute, or retention reason.') +
-                '</p></div>' +
-                (holdActive ? renderReleaseHoldForm(customer) : renderSetHoldForm(customer, addDaysYmd(todayYmd(), 180))) +
-              '</div>' +
-              '<div class="admin-privacy-action-card" data-tone="danger">' +
-                '<div class="admin-privacy-action-heading"><h4>Redact personal data</h4><p>Irreversibly removes direct identifiers from this profile and linked non-active bookings. Invoice records remain retained.</p></div>' +
-                renderInlineActionForm('redactCustomerPii', 'Redact personal data', 'admin-button-danger', { customerId: customer.id }, redactionDisabled, redactionBlockText) +
-                (redactionDisabled ? '<p class="admin-action-meta" data-tone="warning">' + escapeHtml(redactionBlockText) + '</p>' : '') +
-              '</div>' +
-              '<div class="admin-privacy-action-card" data-tone="danger">' +
-                '<div class="admin-privacy-action-heading"><h4>Delete the redacted profile</h4><p>Irreversibly removes an eligible redacted profile and linked non-active bookings. Retained invoices are not deleted.</p></div>' +
-                renderInlineActionForm('deleteCustomerProfile', 'Delete redacted profile', 'admin-button-danger', { customerId: customer.id }, deleteDisabled, deleteBlockText) +
-                (deleteDisabled ? '<p class="admin-action-meta" data-tone="warning">' + escapeHtml(deleteBlockText) + '</p>' : '') +
-              '</div>' +
-            '</div>' +
-          '</details>' +
-        '</div>' +
-      '</details>';
+        '<div role="tabpanel" id="customer-panel-privacy" aria-labelledby="customer-tab-privacy"' + (tab === 'privacy' ? '' : ' hidden') + '>' +
+          customerPrivacyHtml(customer, linkedBookings) +
+        '</div>';
+    }
 
     var modal = openModal(html, 'panel');
-    $('.admin-modal-panel', modal).classList.add('admin-customer-modal');
     renderCustomerList();
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
     });
+
+    var activityTab = $('[data-customer-activity-tab]', modal);
+    var loadActivityIfNeeded = function () {
+      if (!activityTab || activityTab.hidden) return;
+      if (customerActivityCacheEntry(customer.id).status === 'idle') loadCustomerActivity(customer.id).catch(function () {});
+    };
+    var tabButtons = $all('[data-customer-tab]', modal);
+    var selectTab = function (button, focus) {
+      tabButtons.forEach(function (item) {
+        var selected = item === button;
+        item.setAttribute('aria-selected', selected ? 'true' : 'false');
+        item.classList.toggle('is-active', selected);
+        item.tabIndex = selected ? 0 : -1;
+        var tabPanel = document.getElementById(item.getAttribute('aria-controls'));
+        if (tabPanel) tabPanel.hidden = !selected;
+      });
+      state.customerPanelTab = { id: customer.id, tab: button.dataset.customerTab };
+      if (focus) button.focus();
+      loadActivityIfNeeded();
+    };
+    tabButtons.forEach(function (button, index) {
+      button.addEventListener('click', function () { selectTab(button, false); });
+      button.addEventListener('keydown', function (event) {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        var next = event.key === 'Home' ? 0 : event.key === 'End' ? tabButtons.length - 1
+          : (index + (event.key === 'ArrowRight' ? 1 : -1) + tabButtons.length) % tabButtons.length;
+        selectTab(tabButtons[next], true);
+      });
+    });
+    loadActivityIfNeeded();
+
     $all('[data-open-booking]', modal).forEach(function (button) {
       if (button.closest('[data-customer-activity-panel]')) return;
-      button.addEventListener('click', function () {
-        navigateToModal('booking', button.dataset.openBooking);
-      });
+      button.addEventListener('click', function () { navigateToModal('booking', button.dataset.openBooking); });
     });
     $all('[data-open-invoice]', modal).forEach(function (button) {
       if (button.closest('[data-customer-activity-panel]')) return;
-      button.addEventListener('click', function () {
-        navigateToModal('invoice', button.dataset.openInvoice);
+      button.addEventListener('click', function () { navigateToModal('invoice', button.dataset.openInvoice); });
+    });
+
+    var name = customer.display_name || 'this customer';
+    var unsubscribe = $('[data-customer-unsubscribe]', modal);
+    if (unsubscribe) unsubscribe.addEventListener('click', function () {
+      runAction({ action: 'withdrawCustomerMarketingConsent', customerId: customer.id }, 'withdrawCustomerMarketingConsent', unsubscribe, {
+        confirm: { title: 'Unsubscribe ' + name + ' from marketing emails?', message: 'Booking and invoice emails still go out. Only the customer can subscribe again.', cancelLabel: 'Keep subscribed', confirmLabel: 'Unsubscribe', danger: true }
       });
     });
-    var activityDisclosure = $('[data-customer-activity-disclosure]', modal);
-    if (activityDisclosure) {
-      activityDisclosure.addEventListener('toggle', function () {
-        if (!activityDisclosure.open) return;
-        var cache = customerActivityCacheEntry(customer.id);
-        if (cache.status === 'idle') {
-          loadCustomerActivity(customer.id).catch(function () {});
-        }
+    var release = $('[data-customer-release-hold]', modal);
+    if (release) release.addEventListener('click', function () {
+      runAction({ action: 'releaseCustomerLegalHold', customerId: customer.id }, 'releaseCustomerLegalHold', release, {
+        confirm: { title: 'Release the legal hold?', message: 'Nothing is deleted now. Erasing ' + name + '’s personal data becomes possible again once nothing else blocks it.', cancelLabel: 'Keep hold', confirmLabel: 'Release hold' }
       });
-    }
-    if (activityDisclosure) activityDisclosure.addEventListener('click', function (event) {
-      if (!event.target || typeof event.target.closest !== 'function') return;
-      var retry = event.target.closest('[data-customer-activity-retry]');
-      var activityPanel = event.target.closest('[data-customer-activity-panel]');
-      if (retry && activityDisclosure.open && activityPanel && activityPanel.dataset.customerId === customer.id) {
-        var retryCache = customerActivityCacheEntry(customer.id);
-        loadCustomerActivity(customer.id, retryCache.events.length ? { append: true } : { force: true }).catch(function () {});
-        return;
-      }
-      if (!activityPanel || activityPanel.dataset.customerId !== customer.id) return;
-      var bookingButton = event.target.closest('[data-open-booking]');
-      if (bookingButton && bookingById(bookingButton.dataset.openBooking)) {
-        navigateToModal('booking', bookingButton.dataset.openBooking);
-        return;
-      }
-      var invoiceButton = event.target.closest('[data-open-invoice]');
-      if (invoiceButton && invoiceById(invoiceButton.dataset.openInvoice)) {
-        navigateToModal('invoice', invoiceButton.dataset.openInvoice);
-      }
     });
+    var erase = $('[data-customer-erase]', modal);
+    if (erase) erase.addEventListener('click', function () {
+      runAction({ action: 'redactCustomerPii', customerId: customer.id }, 'redactCustomerPii', erase, {
+        confirm: { title: 'Erase ' + name + '’s personal data?', message: 'Name, email and phone are removed from this profile and its finished bookings. Invoices are kept for accounting. This can’t be undone.', cancelLabel: 'Keep data', confirmLabel: 'Erase data', danger: true }
+      });
+    });
+    var del = $('[data-customer-delete]', modal);
+    if (del) del.addEventListener('click', function () {
+      runAction({ action: 'deleteCustomerProfile', customerId: customer.id }, 'deleteCustomerProfile', del, {
+        confirm: { title: 'Delete this profile?', message: 'The erased profile and its finished bookings are deleted. Invoices are kept. This can’t be undone.', cancelLabel: 'Keep profile', confirmLabel: 'Delete profile', danger: true }
+      });
+    });
+
     var activityPanel = $('[data-customer-activity-panel]', modal);
     if (activityPanel) {
+      activityPanel.addEventListener('click', function (event) {
+        if (!event.target || typeof event.target.closest !== 'function') return;
+        var retry = event.target.closest('[data-customer-activity-retry]');
+        if (retry) {
+          var retryCache = customerActivityCacheEntry(customer.id);
+          loadCustomerActivity(customer.id, retryCache.events.length ? { append: true } : { force: true }).catch(function () {});
+          return;
+        }
+        var bookingButton = event.target.closest('[data-open-booking]');
+        if (bookingButton && bookingById(bookingButton.dataset.openBooking)) {
+          navigateToModal('booking', bookingButton.dataset.openBooking);
+          return;
+        }
+        var invoiceButton = event.target.closest('[data-open-invoice]');
+        if (invoiceButton && invoiceById(invoiceButton.dataset.openInvoice)) {
+          navigateToModal('invoice', invoiceButton.dataset.openInvoice);
+        }
+      });
       activityPanel.addEventListener('scroll', function () {
-        if (!activityDisclosure || !activityDisclosure.open) return;
+        if (activityTab && activityTab.hidden) return;
         if (activityPanel.scrollHeight - activityPanel.scrollTop - activityPanel.clientHeight > 160) return;
         var cache = customerActivityCacheEntry(customer.id);
         if (cache.status === 'loaded' && cache.has_more) {
@@ -4987,7 +5045,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         addCustomerActivityEvent(events, {
           id: 'booking:' + booking.id + ':confirmed',
           event_type: 'booking_confirmed',
-          title: 'Booking approved',
+          title: 'Booking confirmed',
           message: approvedMessage,
           created_at: booking.confirmed_at,
           booking_id: booking.id
@@ -6363,11 +6421,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var holdTime = String(data.get('holdUntilTime') || '');
       var holdUntil = isoFromVilniusInput(holdDate, holdTime, data.get('dstFold'));
       if (!holdUntil || new Date(holdUntil) <= new Date()) {
-        showFieldError(errorEl, 'Use a future legal hold date and time in YYYY-MM-DD and HH:mm format.', form.elements.holdUntilDate);
+        showFieldError(errorEl, 'Choose a future date and time for the hold to end.', form.elements.holdUntilDate);
         return;
       }
       if (!String(data.get('legalHoldReason') || '').trim()) {
-        showFieldError(errorEl, 'Legal hold reason is required.', form.elements.legalHoldReason);
+        showFieldError(errorEl, 'Enter why the data is being held.', form.elements.legalHoldReason);
         return;
       }
       payload.holdUntil = holdUntil;

@@ -7242,6 +7242,61 @@ a.admin-dash-tile:hover {
   font-weight: 500;
 }
 
+/* Customer panel: tabs, then one row per privacy topic with its action. */
+.admin-panel-tabs {
+  margin-block-end: 1.25rem;
+  width: fit-content;
+}
+
+.admin-count-inline {
+  margin-inline-start: 0.25rem;
+  color: var(--admin-text-tertiary);
+  font-weight: 500;
+}
+
+.admin-privacy-rows {
+  display: grid;
+  margin-block-end: 1.75rem;
+}
+
+.admin-privacy-row {
+  min-width: 0;
+  padding-block: 0.875rem;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0.75rem;
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-privacy-row:first-child {
+  border-block-start: 0;
+  padding-block-start: 0.25rem;
+}
+
+.admin-privacy-row-label {
+  padding-block-start: 0.1rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-privacy-row-status {
+  min-width: 0;
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-privacy-row-action .admin-button {
+  min-height: 2.25rem;
+  white-space: nowrap;
+}
+
+.admin-customer-activity-scroll {
+  max-height: min(31rem, 56dvh);
+  overflow: auto;
+}
+
 /* Narrower screens: the panel becomes a modal over the page. */
 @media (max-width: 60rem) {
   .admin-modal-root[data-mode="panel"] {
@@ -7270,6 +7325,14 @@ a.admin-dash-tile:hover {
   .admin-form-row,
   .admin-form-row-time {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .admin-privacy-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .admin-privacy-row-label {
+    grid-column: 1 / -1;
   }
 }
 
