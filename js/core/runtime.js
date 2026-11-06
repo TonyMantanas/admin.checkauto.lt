@@ -2506,7 +2506,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         if (!frame || audienceCount < 1) return;
         if (sendButton) sendButton.disabled = true;
         if (previewRetry) previewRetry.disabled = true;
-        setPreviewState('loading', 'Loading email preview...', false);
+        setPreviewState('loading', 'Loading email preview…', false);
         adminAction({
           action: 'previewMarketingEmail',
           marketingSubject: subject,
@@ -5586,30 +5586,30 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function busyLabelForAction(action) {
     return {
-      confirmBooking: 'Confirming...',
-      rejectBooking: 'Rejecting...',
-      cancelBooking: 'Cancelling...',
-      completeBooking: 'Marking...',
-      createAndSendInvoice: 'Creating...',
-      markBookingPaid: 'Saving...',
-      markInvoicePaid: 'Saving...',
-      updateInvoicePaidAmount: 'Updating...',
-      resendInvoice: 'Sending...',
-      voidInvoice: 'Voiding...',
-      deleteSlot: 'Cancelling...',
-      deleteSlotSeries: 'Cancelling...',
-      updateSlot: 'Saving...',
-      createSlot: 'Creating...',
-      setCustomerLegalHold: 'Saving...',
-      releaseCustomerLegalHold: 'Saving...',
-      markCustomerErasureRequest: 'Saving...',
-      withdrawCustomerMarketingConsent: 'Saving...',
-      redactBookingPii: 'Redacting...',
-      redactCustomerPii: 'Redacting...',
-      deleteCustomerProfile: 'Deleting...',
-      sendMarketingCampaign: 'Sending...',
-      getInvoicePdfUrl: 'Opening...'
-    }[action] || 'Working...';
+      confirmBooking: 'Confirming…',
+      rejectBooking: 'Rejecting…',
+      cancelBooking: 'Cancelling…',
+      completeBooking: 'Marking…',
+      createAndSendInvoice: 'Creating…',
+      markBookingPaid: 'Saving…',
+      markInvoicePaid: 'Saving…',
+      updateInvoicePaidAmount: 'Updating…',
+      resendInvoice: 'Sending…',
+      voidInvoice: 'Voiding…',
+      deleteSlot: 'Cancelling…',
+      deleteSlotSeries: 'Cancelling…',
+      updateSlot: 'Saving…',
+      createSlot: 'Creating…',
+      setCustomerLegalHold: 'Saving…',
+      releaseCustomerLegalHold: 'Saving…',
+      markCustomerErasureRequest: 'Saving…',
+      withdrawCustomerMarketingConsent: 'Saving…',
+      redactBookingPii: 'Redacting…',
+      redactCustomerPii: 'Redacting…',
+      deleteCustomerProfile: 'Deleting…',
+      sendMarketingCampaign: 'Sending…',
+      getInvoicePdfUrl: 'Opening…'
+    }[action] || 'Working…';
   }
 
   function successMessageForAction(action) {
@@ -5652,8 +5652,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       button.disabled = true;
       button.classList.add('is-loading');
       button.setAttribute('aria-busy', 'true');
-      button.setAttribute('aria-label', label || 'Working...');
-      button.textContent = button.classList.contains('admin-icon-button') ? '' : (label || 'Working...');
+      button.setAttribute('aria-label', label || 'Working…');
+      button.textContent = button.classList.contains('admin-icon-button') ? '' : (label || 'Working…');
       return;
     }
 
@@ -6327,7 +6327,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     try {
-      setFormBusy(form, true, 'Saving...');
+      setFormBusy(form, true, 'Saving…');
       setSyncState('Saving', 'loading');
       var response = await adminAction({
         action: 'updateOrganizationSettings',
@@ -6609,7 +6609,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     try {
-      setFormBusy(form, true, 'Saving...');
+      setFormBusy(form, true, 'Saving…');
       setSyncState('Saving', 'loading');
       var response = await adminAction({
         action: 'updateConfirmationSchedule',
@@ -6870,7 +6870,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
-    setFormBusy(form, true, 'Creating...');
+    setFormBusy(form, true, 'Creating…');
     setSyncState('Saving', 'loading');
     var response;
     try {
@@ -7675,7 +7675,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
       if (title) {
         title.textContent = heading || 'Sign in';
-        title.hidden = step !== passwordForm;
+        title.hidden = false;
       }
       if (sessionStatus) {
         sessionStatus.hidden = !sessionStatus.textContent;
@@ -7863,7 +7863,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         secretTarget.textContent = String(activeFactor && activeFactor.totp && activeFactor.totp.secret || '');
       }
       if (sessionStatus) sessionStatus.textContent = '';
-      showLoginStep(enrollStep, 'Secure your account');
+      showLoginStep(enrollStep, 'Set up two-step sign-in');
     }
 
     async function completeMfa(verificationCode, rememberDevice, status, codeInput) {
@@ -7880,7 +7880,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         verificationCode
       );
       if (!verifiedSession || auth.assuranceLevel(verifiedSession) !== 'aal2') {
-        throw new Error('MFA verification did not upgrade the session. Try signing in again.');
+        throw new Error('Verification didn’t finish. Sign in again.');
       }
 
       storeSession(verifiedSession, rememberDevice);
@@ -7894,18 +7894,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         result=response && response.result;
         if (result?.acknowledgementRequired) firstMfaEnrollment=true;
         if (firstMfaEnrollment && (!result || !result.created || !result.codes?.length)) {
-          throw new Error('Recovery codes were not received. Regenerate them to finish setup.');
+          throw new Error('The recovery codes didn’t arrive. Create new ones to finish.');
         }
       } catch(error) {
-        showLoginStep(codesStep,'Finish account security');
+        showLoginStep(codesStep,'Save your recovery codes');
         recoveryCodes=[];
         var list=$('[data-admin-mfa-code-list]'); if(list) list.replaceChildren();
         var status=$('[data-recovery-generation-status]',codesStep);
-        if(!status){status=document.createElement('p');status.dataset.recoveryGenerationStatus='';status.setAttribute('role','alert');codesStep.prepend(status);}
-        status.textContent=error instanceof Error ? error.message : 'Recovery codes could not be generated.';
-        var finish=$('[data-admin-mfa-finish]'); if(finish) finish.disabled=true;
+        if(!status){status=document.createElement('p');status.className='admin-status';status.dataset.recoveryGenerationStatus='';status.setAttribute('role','alert');codesStep.prepend(status);}
+        status.textContent=error instanceof Error ? error.message : 'Recovery codes could not be created. Try again.';
+        var finish=$('[data-admin-mfa-finish]'); if(finish){finish.disabled=true;finish.hidden=true;}
         var retry=$('[data-recovery-regenerate]',codesStep);
-        if(!retry){retry=document.createElement('button');retry.type='button';retry.className='admin-button admin-button-secondary';retry.dataset.recoveryRegenerate='';retry.textContent='Regenerate recovery codes';codesStep.append(retry);retry.addEventListener('click',async function(){retry.disabled=true;await showMfaRecoveryCodesOrContinue(true);retry.disabled=false;});}
+        if(!retry){retry=document.createElement('button');retry.type='button';retry.className='admin-button admin-button-primary';retry.dataset.recoveryRegenerate='';retry.textContent='Create new codes';if(finish)finish.before(retry);else codesStep.append(retry);retry.addEventListener('click',async function(){retry.disabled=true;await showMfaRecoveryCodesOrContinue(true);retry.disabled=false;});}
         return;
       }
       await loadDashboard('auth',{force:true});
@@ -7913,10 +7913,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         recoveryCodes=result.codes.slice();
         var list=$('[data-admin-mfa-code-list]'); if(list){list.replaceChildren();recoveryCodes.forEach(function(code){var item=document.createElement('li');item.textContent=code;list.appendChild(item);});}
         var status=$('[data-recovery-generation-status]',codesStep);if(status)status.remove();
+        var retry=$('[data-recovery-regenerate]',codesStep);if(retry)retry.remove();
         showLoginStep(codesStep,'Save your recovery codes');
-        var finish=$('[data-admin-mfa-finish]');if(finish)finish.disabled=true;
+        var finish=$('[data-admin-mfa-finish]');if(finish){finish.disabled=true;finish.hidden=false;}
         var acknowledgement=$('[data-recovery-acknowledgement]',codesStep);
-        if(!acknowledgement){var label=document.createElement('label');label.className='admin-checkbox-row';label.innerHTML='<input type="checkbox" data-recovery-acknowledgement><span>I have saved these recovery codes in a private place.</span>';finish.parentElement.insertBefore(label,finish);acknowledgement=$('input',label);acknowledgement.addEventListener('change',function(){if(finish)finish.disabled=!acknowledgement.checked;});}
+        if(!acknowledgement){var label=document.createElement('label');label.className='admin-checkbox admin-mfa-acknowledge';label.innerHTML='<input type="checkbox" data-recovery-acknowledgement><span>I’ve saved these codes somewhere safe</span>';var actions=finish.parentElement;actions.parentElement.insertBefore(label,actions);acknowledgement=$('input',label);acknowledgement.addEventListener('change',function(){if(finish)finish.disabled=!acknowledgement.checked;});}
         acknowledgement.checked=false;
         return;
       }
@@ -7965,7 +7966,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           return;
         }
 
-        setFormBusy(temporaryPasswordForm, true, 'Changing password...');
+        setFormBusy(temporaryPasswordForm, true, 'Changing password…');
         if (temporaryPasswordSignOut) temporaryPasswordSignOut.disabled = true;
         try {
           var result = await requestTemporaryPasswordChange(password);
@@ -7982,8 +7983,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           }
           if (sessionStatus) {
             sessionStatus.textContent = result && result.requires_reauthentication === true
-              ? 'Password changed. Sign in with your new password to continue to MFA.'
-              : 'Password changed. Sign in again to continue to MFA.';
+              ? 'Password changed. Sign in with your new password.'
+              : 'Password changed. Sign in again.';
           }
           showLoginStep(passwordForm, 'Sign in');
           focusElement($('[name="password"]', passwordForm));
@@ -8056,7 +8057,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         focusElement(passwordInput);
         return;
       }
-      setFormBusy(passwordForm, true, 'Signing in...');
+      setFormBusy(passwordForm, true, 'Signing in…');
 
       try {
         var session = await auth.signInWithPassword(email, password);
@@ -8079,7 +8080,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var temporaryPasswordSignOut = $('[data-admin-temp-password-sign-out]');
     if (temporaryPasswordSignOut) {
       temporaryPasswordSignOut.addEventListener('click', async function () {
-        setButtonBusy(temporaryPasswordSignOut, true, 'Signing out...');
+        setButtonBusy(temporaryPasswordSignOut, true, 'Signing out…');
         try {
           await revokeAndClearSession();
           activeUser = null;
@@ -8102,7 +8103,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         var codeInput = $('[name="verificationCode"]', enrollForm);
         var data = new FormData(enrollForm);
         setStatus(status, '', codeInput);
-        setFormBusy(enrollForm, true, 'Verifying...');
+        setFormBusy(enrollForm, true, 'Verifying…');
         try {
           await completeMfa(
             normalizeVerificationCode(data.get('verificationCode')),
@@ -8126,7 +8127,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         var codeInput = $('[name="verificationCode"]', challengeForm);
         var data = new FormData(challengeForm);
         setStatus(status, '', codeInput);
-        setFormBusy(challengeForm, true, 'Verifying...');
+        setFormBusy(challengeForm, true, 'Verifying…');
         try {
           await completeMfa(
             normalizeVerificationCode(data.get('verificationCode')),
@@ -8169,7 +8170,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           focusElement(codeInput);
           return;
         }
-        setFormBusy(recoveryForm, true, 'Recovering...');
+        setFormBusy(recoveryForm, true, 'Recovering…');
         try {
           var response = await fetch(MFA_RECOVERY_ENDPOINT, {
             method: 'POST',
@@ -8208,6 +8209,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           copyButton.textContent = 'Copied';
         } catch (error) {
           copyButton.textContent = 'Select and copy the key';
+        }
+      });
+    }
+
+    var copyCodesButton = $('[data-admin-mfa-copy-codes]');
+    if (copyCodesButton) {
+      copyCodesButton.addEventListener('click', async function () {
+        if (!recoveryCodes.length) return;
+        try {
+          await navigator.clipboard.writeText(recoveryCodes.join('\n'));
+          copyCodesButton.textContent = 'Copied';
+        } catch (error) {
+          copyCodesButton.textContent = 'Select and copy the codes';
         }
       });
     }
@@ -8337,7 +8351,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           danger: true
         });
         if (!confirmed) return;
-        setButtonBusy(logoutButton, true, 'Signing out...');
+        setButtonBusy(logoutButton, true, 'Signing out…');
         await revokeAndClearSession();
         redirectTo(PATHS.login);
       });
@@ -8938,7 +8952,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           }
         }
         await revokeAndClearSession(state.session);
-        setupLoginEvents('For your security, sign in again and verify with MFA.');
+        setupLoginEvents('For your security, sign in again.');
       } else {
         setupLoginEvents();
       }

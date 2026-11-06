@@ -103,8 +103,13 @@ function setOnlyVisible(section) {
     if (item) item.hidden = item !== section;
   }
   const isSuccess = section === successSection;
+  const isError = section === target('[data-reset-error]');
   const pageTitle = target('[data-reset-page-title]');
-  if (pageTitle) pageTitle.textContent = isSuccess ? 'Password changed' : 'Reset password';
+  if (pageTitle) {
+    pageTitle.textContent = isSuccess
+      ? 'Password changed'
+      : isError ? 'This reset link can’t be used' : 'Reset password';
+  }
   document.title = isSuccess
     ? 'Password changed · checkauto.lt'
     : 'Reset password · checkauto.lt';
@@ -112,7 +117,7 @@ function setOnlyVisible(section) {
   const visibleSelect = sectionSelect && !sectionSelect.closest('[hidden]')
     ? sectionSelect
     : null;
-  const focusTarget = isSuccess
+  const focusTarget = isSuccess || isError
     ? pageTitle
     : section && (
       visibleSelect ||
@@ -334,7 +339,7 @@ if (mfaForm) {
         code
       );
       if (!verifiedSession || !isRecentRecoverySession(verifiedSession, true)) {
-        throw new Error('MFA verification did not produce a valid recovery session.');
+        throw new Error('Verification didn’t finish. Request a new reset email.');
       }
       recoveryUser = await auth.getUser(verifiedSession);
       recoverySession = verifiedSession;

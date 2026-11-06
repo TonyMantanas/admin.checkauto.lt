@@ -285,14 +285,19 @@ fieldset {
   border-radius: var(--admin-control-radius);
   color: var(--admin-text);
   background: var(--admin-surface);
-  box-shadow: var(--admin-shadow-popover);
   font-weight: 700;
   transform: translateY(calc(-100% - 2rem));
   transition: transform var(--admin-duration) var(--admin-ease);
 }
 
 .admin-skip-link:focus {
+  box-shadow: var(--admin-shadow-popover);
   transform: translateY(0);
+}
+
+/* Headings and regions that only receive focus from script get no ring. */
+.admin-page [tabindex="-1"]:focus {
+  outline: none;
 }
 
 /* Shell and authentication
@@ -755,44 +760,50 @@ fieldset {
   background: var(--admin-canvas);
 }
 
+/* Sign-in, two-step and reset: the wordmark above one borderless card,
+   one heading per step, full-width actions stacked under the fields. */
+.admin-login-stack {
+  width: min(100%, 25rem);
+  display: grid;
+  gap: 1.5rem;
+}
+
+.admin-login-brand {
+  justify-self: center;
+  font-size: 1.25rem;
+}
+
 .admin-login-panel {
-  width: min(100%, 27rem);
-  padding: clamp(1rem, 3vw, 1.5rem);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-panel-radius);
+  min-width: 0;
+  padding: clamp(1.25rem, 5vw, 2rem);
+  border-radius: var(--admin-tile-radius);
   background: var(--admin-surface);
-  box-shadow: 0 8px 24px rgb(16 24 40 / 6%);
 }
 
 .admin-login-panel h1 {
-  margin-block: 1rem 0.5rem;
+  margin: 0;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
 }
 
 .admin-login-session {
-  min-height: 1.35rem;
+  margin: var(--admin-space-2) 0 0;
+  color: var(--admin-text-secondary);
 }
 
 .admin-login-panel form {
-  margin-block-start: 1rem;
+  margin-block-start: 1.25rem;
   display: grid;
-  gap: 0.875rem;
+  gap: 1rem;
 }
 
-.admin-login-panel .admin-button {
-  justify-self: end;
-}
-
-.admin-mfa-step {
-  margin-block-start: 1rem;
-}
-
-.admin-mfa-step h2 {
-  margin: 0 0 var(--admin-space-2);
-  font-size: clamp(1.125rem, 3vw, 1.25rem);
+.admin-login-panel form > .admin-button,
+.admin-mfa-actions .admin-button {
+  width: 100%;
 }
 
 .admin-mfa-step > p {
-  margin: 0;
+  margin: var(--admin-space-2) 0 0;
   color: var(--admin-text-secondary);
   line-height: 1.55;
 }
@@ -801,18 +812,17 @@ fieldset {
   margin: calc(var(--admin-space-2) * -1) 0 0;
   color: var(--admin-text-secondary);
   font-size: var(--admin-text-xs);
-  line-height: 1.45;
 }
 
+/* The code stays on white in dark mode so phones can read it. */
 .admin-mfa-qr {
-  width: min(100%, 13rem);
+  width: min(100%, 12rem);
   aspect-ratio: 1;
-  margin: var(--admin-space-5) auto;
-  padding: var(--admin-space-2);
+  margin: 1.25rem auto 0;
+  padding: var(--admin-space-3);
   display: grid;
   place-items: center;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
+  border-radius: 0.75rem;
   background: #fff;
 }
 
@@ -823,47 +833,43 @@ fieldset {
 }
 
 .admin-mfa-manual {
-  margin-block: var(--admin-space-4);
-  color: var(--admin-text-secondary);
+  margin-block-start: var(--admin-space-3);
+  text-align: center;
 }
 
 .admin-mfa-manual summary {
   min-height: var(--admin-control-height);
-  display: flex;
+  display: inline-flex;
   align-items: center;
   color: var(--admin-link);
   font-size: var(--admin-text-sm);
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-}
-
-.admin-mfa-manual p {
-  margin-block: var(--admin-space-2);
-  font-size: var(--admin-text-sm);
 }
 
 .admin-mfa-secret {
   min-width: 0;
+  margin-block-start: var(--admin-space-2);
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
+  text-align: start;
 }
 
 .admin-mfa-secret code {
   min-width: 0;
   flex: 1;
-  padding: var(--admin-space-2);
+  padding: 0.625rem 0.75rem;
   overflow-wrap: anywhere;
-  border: 1px solid var(--admin-border);
   border-radius: var(--admin-control-radius);
-  background: var(--admin-surface-subtle);
+  background: var(--admin-field);
   color: var(--admin-text);
   font-family: var(--admin-font-mono);
   font-size: var(--admin-text-xs);
 }
 
 .admin-mfa-trust {
-  align-items: start;
+  align-items: start !important;
 }
 
 .admin-mfa-trust input {
@@ -871,55 +877,18 @@ fieldset {
 }
 
 .admin-mfa-actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: var(--admin-space-2);
-}
-
-.admin-mfa-codes-warning {
-  margin-block-start: var(--admin-space-4);
-  padding: var(--admin-space-3);
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
   gap: var(--admin-space-2);
-  border: 1px solid color-mix(in srgb, var(--admin-warning) 35%, var(--admin-border));
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-warning-soft);
-}
-
-.admin-mfa-codes-warning-mark {
-  width: 1.5rem;
-  height: 1.5rem;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: var(--admin-warning-soft);
-  background: var(--admin-warning);
-  font-weight: 700;
-  line-height: 1;
-}
-
-.admin-mfa-codes-warning p {
-  margin: 0;
-  color: var(--admin-text);
-  line-height: 1.45;
-}
-
-.admin-mfa-codes-warning strong {
-  display: block;
 }
 
 .admin-mfa-code-list {
-  margin: var(--admin-space-5) 0;
-  padding: var(--admin-space-4) var(--admin-space-4) var(--admin-space-4) 3rem;
+  margin: 1.25rem 0 0;
+  padding: 1rem 1rem 1rem 2.5rem;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--admin-space-2);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface-subtle);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem 2.5rem;
+  border-radius: 0.75rem;
+  background: var(--admin-field);
 }
 
 .admin-mfa-code-list li {
@@ -932,22 +901,50 @@ fieldset {
 }
 
 .admin-mfa-code-list li::marker {
-  color: var(--admin-text-secondary);
+  color: var(--admin-text-tertiary);
   font-family: var(--admin-font);
-  font-weight: 700;
+  font-size: var(--admin-text-xs);
 }
 
-@media (max-width: 34rem) {
-  .admin-mfa-secret,
-  .admin-mfa-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
+.admin-mfa-code-tools {
+  margin-block-start: var(--admin-space-3);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--admin-space-2);
+}
 
-  .admin-mfa-secret .admin-button,
-  .admin-mfa-actions .admin-button {
-    width: 100%;
-    justify-self: stretch;
+.admin-mfa-acknowledge {
+  margin-block-start: 1rem;
+  align-items: start !important;
+}
+
+.admin-mfa-acknowledge input {
+  margin-block-start: 0.15rem;
+}
+
+[data-admin-mfa-codes] > .admin-mfa-actions {
+  margin-block-start: 1rem;
+}
+
+[data-admin-mfa-codes] > .admin-status:not(:empty) {
+  margin-block-start: var(--admin-space-3);
+}
+
+/* When the codes failed to arrive only the error and "Create new codes" show. */
+.admin-mfa-code-list:empty,
+[data-admin-mfa-codes]:has(.admin-mfa-code-list:empty) .admin-mfa-code-tools,
+[data-admin-mfa-codes]:has(.admin-mfa-code-list:empty) .admin-mfa-acknowledge,
+[data-admin-mfa-codes]:has(.admin-mfa-code-list:empty) > p:not(.admin-status) {
+  display: none !important;
+}
+
+[data-admin-mfa-codes] > .admin-status:first-child:not(:empty) {
+  margin-block: 1rem;
+}
+
+@media (max-width: 22rem) {
+  .admin-mfa-code-list {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1469,35 +1466,28 @@ fieldset {
   appearance: none;
 }
 
-/* Account settings and password recovery
+/* Password reset
    ========================================================================== */
 
-.admin-reset-panel {
-  width: min(100%, 32rem);
-}
-
-.admin-reset-panel > .admin-login-session {
-  margin-block-start: var(--admin-space-5);
-  color: var(--admin-text-secondary);
-}
-
-.admin-reset-panel .admin-mfa-step form {
-  margin-block-start: 0;
-}
-
 .admin-reset-result {
-  margin-block-start: var(--admin-space-5);
+  margin-block-start: var(--admin-space-3);
   display: grid;
-  gap: var(--admin-space-3);
+  gap: var(--admin-space-2);
+}
+
+.admin-reset-result h2 {
+  margin: 0;
+  font-size: var(--admin-text-md);
 }
 
 .admin-reset-result p {
+  margin: 0;
   color: var(--admin-text-secondary);
 }
 
 .admin-reset-result .admin-button {
-  margin-block-start: var(--admin-space-2);
-  justify-self: start;
+  width: 100%;
+  margin-block-start: var(--admin-space-3);
 }
 
 /* Page hierarchy and work surfaces
@@ -3811,8 +3801,8 @@ button.admin-mini-item::after {
 .admin-form-error:not(:empty),
 .admin-status:not(:empty),
 .admin-form-status:not(:empty) {
-  padding: 0.55rem 0.65rem;
-  border: 1px solid color-mix(in srgb, var(--admin-danger) 30%, var(--admin-border));
+  padding: 0.625rem 0.75rem;
+  border: 1px solid transparent;
   border-radius: var(--admin-control-radius);
   background: var(--admin-danger-soft);
 }
@@ -3820,7 +3810,7 @@ button.admin-mini-item::after {
 .admin-form-error.is-success:not(:empty) {
   color: var(--admin-success);
   background: var(--admin-success-soft);
-  border-color: color-mix(in srgb, var(--admin-success) 30%, var(--admin-border));
+  border-color: transparent;
 }
 
 .admin-detail {
@@ -7186,13 +7176,6 @@ a.admin-dash-tile:hover {
   background: var(--admin-backdrop);
 }
 
-.section-label,
-.admin-login-kicker {
-  color: var(--admin-link);
-  font-size: var(--admin-text-xs);
-  font-weight: 700;
-}
-
 /* Responsive layout
    ========================================================================== */
 
@@ -7988,7 +7971,7 @@ a.admin-dash-tile:hover {
 .admin-nav a,
 .admin-nav-unavailable,
 .admin-nav-info,
-.admin-login-panel input,
+.admin-login-panel input:not([type="checkbox"]),
 .admin-login-panel select,
 .admin-slot-form input,
 .admin-action-form input,
@@ -8193,10 +8176,6 @@ a.admin-dash-tile:hover {
     --admin-backdrop: rgb(0 0 0 / 68%);
     --admin-shadow-popover: 0 14px 36px rgb(0 0 0 / 42%);
     --admin-shadow-modal: 0 24px 72px rgb(0 0 0 / 60%);
-  }
-
-  .admin-login-panel {
-    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
   }
 
   .admin-calendar-event:hover,
