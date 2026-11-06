@@ -3773,6 +3773,20 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<div class="admin-modal-footer admin-panel-footer">' + moreHtml + buttons + '</div>';
   }
 
+  // What staff told the customer when rejecting or cancelling, with when.
+  function bookingDecisionMessageFact(booking) {
+    var rejected = booking.status === 'rejected';
+    var cancelled = booking.status === 'cancelled';
+    if (!rejected && !cancelled) return '';
+    var message = rejected ? booking.rejection_reason_customer : booking.cancellation_reason_customer;
+    var at = rejected ? booking.rejected_at : booking.cancelled_at;
+    var by = staffById(rejected ? booking.rejected_by_staff_id : booking.cancelled_by_staff_id);
+    var when = [at ? formatDateTime(at) : '', by ? by.display_name : ''].filter(Boolean).join(' · ');
+    return factHtml(rejected ? 'Rejected' : 'Cancelled',
+      (message ? '<span class="admin-fact-text">“' + escapeHtml(message) + '”</span>' : '<span>No message to the customer</span>') +
+      (when ? '<span class="admin-fact-sub">' + escapeHtml(when) + '</span>' : ''));
+  }
+
   function bookingOverviewHtml(booking) {
     var operations = bookingOperations(booking.id);
     var permissions = bookingPermissions();
@@ -3823,6 +3837,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         factHtml('Customer', customerHtml) +
         factHtml('Vehicle', vehicleHtml) +
         (booking.customer_message ? factHtml('Customer note', '<span class="admin-fact-text">' + escapeHtml(booking.customer_message) + '</span>') : '') +
+        bookingDecisionMessageFact(booking) +
         bookingPriceFact(booking, operations, permissions.manage) +
         (permissions.bill && booking.status === 'completed' ? bookingInvoiceFact(booking) : '') +
         (emailsHtml ? factHtml('Emails', emailsHtml) : '') +
