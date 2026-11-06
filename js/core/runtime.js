@@ -1,12 +1,12 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
 import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261105-7';
-import { ICONS } from './icons.js?v=20260802-1';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-5';
+import { ICONS } from './icons.js?v=20261106-5';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261105-7';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261106-5';
 import { skeletons } from './skeletons.js?v=20261106-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -117,6 +117,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   var ICON_REFRESH = ICONS.refresh;
   var ICON_SUCCESS = ICONS.check;
   var ICON_USER = ICONS.user;
+  var ICON_MORE = ICONS.more;
 
   function $(selector, root) {
     return (root || document).querySelector(selector);
@@ -222,8 +223,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
-  function bindDialogKeyboard(root, onEscape) {
+  function bindDialogKeyboard(root, onEscape, options) {
     if (!root) return;
+    var trap = !(options && options.trap === false);
     if (root._adminDialogKeydown) {
       root.removeEventListener('keydown', root._adminDialogKeydown);
     }
@@ -234,7 +236,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         if (onEscape) onEscape();
         return;
       }
-      if (event.key !== 'Tab') return;
+      if (event.key !== 'Tab' || !trap) return;
       var items = focusableElements(root);
       if (!items.length) {
         event.preventDefault();
@@ -1712,7 +1714,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     root.hidden = true;
     root.innerHTML = '';
     setUnderlyingModalBlocked(false);
-    if (ensureModalRoot().hidden) {
+    if (!modalBlocksPage()) {
       document.body.classList.remove('admin-modal-open');
       setPageInteractionBlocked(false);
     }
@@ -1808,6 +1810,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var root = ensureModalRoot();
     root.hidden = true;
     root.innerHTML = '';
+    root.dataset.mode = '';
+    root._adminOpenRouteKey = '';
+    document.body.classList.remove('admin-panel-docked');
     root.dataset.dirty = 'false';
     root._adminDataSignature = null;
     root._adminDraftBaseline = null;
@@ -1858,18 +1863,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return Number(history.state && history.state.adminModalDepth || 0);
   }
 
-  function modalHistoryState(route, depth, historyIndex) {
+  function modalHistoryState(route, depth, historyIndex, baseIndex) {
     var currentIndex = Number(history.state && history.state.adminHistoryIndex);
     var nextIndex = Number.isFinite(Number(historyIndex))
       ? Number(historyIndex)
       : (Number.isFinite(currentIndex) ? currentIndex : Number(state.historyIndex || 0));
+    // The page entry a modal was first pushed from, so closing can step back
+    // to it and the browser Back button doesn't land on a duplicate entry.
+    var base = arguments.length >= 4 ? baseIndex : (history.state && history.state.adminModalBaseIndex);
     return Object.assign({}, history.state && history.state.checkautoAdmin ? history.state : {}, {
       checkautoAdmin: true,
       adminPage: state.page,
       adminScrollY: Number(history.state && history.state.adminScrollY || 0),
       adminHistoryIndex: nextIndex,
       adminModalRoute: route || null,
-      adminModalDepth: Math.max(0, Number(depth || 0))
+      adminModalDepth: Math.max(0, Number(depth || 0)),
+      adminModalBaseIndex: route && typeof base === 'number' ? base : null
     });
   }
 
@@ -1895,6 +1904,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   }
 
   function renderModalRoute(route) {
+    if (state.modalStep && (!route || state.modalStep.type !== route.type || String(state.modalStep.id) !== String(route.id))) {
+      state.modalStep = null;
+    }
+    if (state.modalNotice && (!route || state.modalNotice.type !== route.type || String(state.modalNotice.id) !== String(route.id))) {
+      state.modalNotice = null;
+    }
     if (!route) {
       closeModal({ restoreFocus: true });
       return;
@@ -2272,7 +2287,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!current) rememberModalReturnFocus(document.activeElement);
     saveCurrentScrollPosition();
     var nextHistoryIndex = state.historyIndex + 1;
-    history.pushState(modalHistoryState(route, modalHistoryDepth() + 1, nextHistoryIndex), '', modalUrl(route));
+    var baseIndex = current
+      ? (history.state && typeof history.state.adminModalBaseIndex === 'number' ? history.state.adminModalBaseIndex : null)
+      : state.historyIndex;
+    history.pushState(modalHistoryState(route, modalHistoryDepth() + 1, nextHistoryIndex, baseIndex), '', modalUrl(route));
     state.historyIndex = nextHistoryIndex;
     applyUrlModalState();
   }
@@ -2291,7 +2309,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       markModalClean();
     }
 
+    var baseIndex = history.state && history.state.adminModalBaseIndex;
+    if (modalRouteFromUrl() && typeof baseIndex === 'number' && baseIndex < state.historyIndex) {
+      state.modalStep = null;
+      markModalClean();
+      history.go(baseIndex - state.historyIndex);
+      return;
+    }
     if (modalRouteFromUrl()) {
+      state.modalStep = null;
       history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       syncSelectedModalState(null);
       closeModal({ restoreFocus: true });
@@ -2301,10 +2327,197 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     closeModal({ restoreFocus: true });
   }
 
+  // Records open in a side panel. On wide screens it sits beside the page,
+  // which stays usable; on narrow screens it becomes a modal sheet.
+  var panelSheetQuery = window.matchMedia ? window.matchMedia('(max-width: 60rem)') : null;
+
+  function panelIsSheet() {
+    return Boolean(panelSheetQuery && panelSheetQuery.matches);
+  }
+
+  function modalBlocksPage() {
+    var root = $('[data-admin-modal-root]');
+    if (!root || root.hidden) return false;
+    return root.dataset.mode !== 'panel' || panelIsSheet();
+  }
+
+  function syncPanelMode() {
+    var root = $('[data-admin-modal-root]');
+    var panel = root && $('.admin-modal-panel', root);
+    if (!root || root.hidden || !panel || root.dataset.mode !== 'panel') return;
+    var blocks = panelIsSheet() || !ensureConfirmRoot().hidden;
+    document.body.classList.toggle('admin-panel-docked', !panelIsSheet());
+    panel.setAttribute('aria-modal', panelIsSheet() ? 'true' : 'false');
+    document.body.classList.toggle('admin-modal-open', blocks);
+    setPageInteractionBlocked(blocks);
+    bindDialogKeyboard(root, handleModalEscape, { trap: panelIsSheet() });
+  }
+
+  if (panelSheetQuery) {
+    if (typeof panelSheetQuery.addEventListener === 'function') panelSheetQuery.addEventListener('change', syncPanelMode);
+    else if (typeof panelSheetQuery.addListener === 'function') panelSheetQuery.addListener(syncPanelMode);
+  }
+
+  // Escape with focus on the page (not in a field or menu) closes a side panel.
+  document.addEventListener('keydown', function (event) {
+    if (event.key !== 'Escape' || event.defaultPrevented) return;
+    var root = $('[data-admin-modal-root]');
+    if (!root || root.hidden || root.dataset.mode !== 'panel' || !ensureConfirmRoot().hidden) return;
+    if (root.contains(event.target)) return;
+    var target = event.target;
+    if (target && target.closest && target.closest('input, textarea, select, details[open], [role="menu"], [role="dialog"]')) return;
+    handleModalEscape();
+  });
+
+  function handleModalEscape() {
+    var route = modalRouteFromUrl();
+    if (route && currentModalStep(route.type, route.id)) closeModalStep();
+    else closeModalRoute();
+  }
+
+  // Steps: a form that replaces the panel body ("Confirm", "Record payment").
+  // The step lives in state, so a live refresh re-renders the same step and
+  // the draft survives.
+  function currentModalStep(type, id) {
+    var step = state.modalStep;
+    return step && step.type === type && String(step.id) === String(id) ? step.step : '';
+  }
+
+  function currentModalStepData(type, id) {
+    return currentModalStep(type, id) ? state.modalStep.data : null;
+  }
+
+  async function openModalStep(step, data) {
+    var route = modalRouteFromUrl();
+    if (!route || !step) return;
+    if (modalIsDirty()) {
+      var discard = await openConfirmDialog({
+        title: 'Discard changes?',
+        message: 'What you entered here will be lost.',
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard changes',
+        danger: true
+      });
+      if (!discard) return;
+      markModalClean();
+    }
+    state.modalStep = { type: route.type, id: route.id, step: step, data: data == null ? null : data };
+    state.modalNotice = null;
+    renderModalRoute(route);
+  }
+
+  async function closeModalStep(options) {
+    var opts = options || {};
+    var route = modalRouteFromUrl();
+    if (!route) return;
+    if (modalIsDirty() && !opts.force) {
+      var discard = await openConfirmDialog({
+        title: 'Discard changes?',
+        message: 'Go back and discard what you entered?',
+        cancelLabel: 'Keep editing',
+        confirmLabel: 'Discard changes',
+        danger: true
+      });
+      if (!discard) return;
+    }
+    markModalClean();
+    state.modalStep = null;
+    state.modalNotice = opts.notice ? { type: route.type, id: route.id, text: opts.notice } : null;
+    renderModalRoute(route);
+  }
+
+  function panelNoticeHtml(type, id) {
+    var notice = state.modalNotice;
+    if (!notice || notice.type !== type || String(notice.id) !== String(id)) return '';
+    return '<p class="admin-panel-notice" role="status">' + ICON_SUCCESS + '<span>' + escapeHtml(notice.text) + '</span></p>';
+  }
+
+  // Shared panel markup: title with one state chip, a meta line, close.
+  function panelHeaderHtml(opts) {
+    return '<header class="admin-panel-head">' +
+      '<div class="admin-panel-heading"><h2>' + escapeHtml(opts.title || '') + '</h2>' + (opts.chips || '') + '</div>' +
+      (opts.meta ? '<p class="admin-panel-meta">' + opts.meta + '</p>' : '') +
+      '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="' + escapeHtml(opts.closeLabel || 'Close') + '" title="Close">' + ICON_CLOSE + '</button>' +
+    '</header>';
+  }
+
+  function panelStepHeaderHtml(title, opts) {
+    var o = opts || {};
+    return '<header class="admin-panel-head admin-panel-step-head">' +
+      '<button class="admin-icon-button admin-panel-back" type="button" data-admin-step-back aria-label="' + escapeHtml(o.backLabel || 'Back') + '" title="' + escapeHtml(o.backLabel || 'Back') + '">' + ICON_BACK + '</button>' +
+      '<div class="admin-panel-heading"><h2>' + escapeHtml(title) + '</h2></div>' +
+      (o.meta ? '<p class="admin-panel-meta">' + o.meta + '</p>' : '') +
+    '</header>';
+  }
+
+  // Rare and dangerous actions live behind "More", away from the primary.
+  function moreMenuHtml(items) {
+    var list = (items || []).filter(Boolean);
+    if (!list.length) return '';
+    return '<div class="admin-more" data-admin-more>' +
+      '<button class="admin-button admin-button-secondary admin-icon-button" type="button" data-admin-more-toggle aria-haspopup="menu" aria-expanded="false" aria-label="More actions" title="More actions">' + ICON_MORE + '</button>' +
+      '<div class="admin-more-menu" role="menu" hidden>' +
+        list.map(function (item) {
+          return '<button class="admin-more-item' + (item.danger ? ' is-danger' : '') + '" type="button" role="menuitem" tabindex="-1" ' + (item.attrs || '') + '>' + escapeHtml(item.label) + '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+  }
+
+  function bindMoreMenus(root) {
+    $all('[data-admin-more]', root).forEach(function (wrap) {
+      var toggle = $('[data-admin-more-toggle]', wrap);
+      var menu = $('[role="menu"]', wrap);
+      if (!toggle || !menu) return;
+      function outside(event) {
+        if (!wrap.contains(event.target)) close(false);
+      }
+      function close(focusToggle) {
+        menu.hidden = true;
+        toggle.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('pointerdown', outside, true);
+        if (focusToggle) toggle.focus();
+      }
+      toggle.addEventListener('click', function () {
+        if (!menu.hidden) { close(true); return; }
+        menu.hidden = false;
+        toggle.setAttribute('aria-expanded', 'true');
+        document.addEventListener('pointerdown', outside, true);
+        var first = $('[role="menuitem"]', menu);
+        if (first) first.focus();
+      });
+      menu.addEventListener('keydown', function (event) {
+        var items = $all('[role="menuitem"]', menu);
+        var index = items.indexOf(document.activeElement);
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          close(true);
+        } else if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          items[(index + 1) % items.length].focus();
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          items[(index - 1 + items.length) % items.length].focus();
+        } else if (event.key === 'Tab') {
+          close(false);
+        }
+      });
+      menu.addEventListener('click', function (event) {
+        if (event.target.closest('[role="menuitem"]')) close(false);
+      });
+    });
+  }
+
   function openModal(html, size) {
     var root = ensureModalRoot();
     var route = modalRouteFromUrl();
-    var canGoBack = Boolean(route && modalHistoryDepth() > 1);
+    var isPanel = size === 'panel';
+    var blocksPage = !isPanel || panelIsSheet();
+    var routeKey = route ? route.type + ':' + route.id : 'none';
+    var isRefresh = !root.hidden && root._adminOpenRouteKey === routeKey;
+    var focusWasInside = root.contains(document.activeElement);
+    var canGoBack = Boolean(route && modalHistoryDepth() > 1 && !(route && currentModalStep(route.type, route.id)));
     var navHtml = canGoBack
       ? '<div class="admin-modal-nav">' +
           '<button class="admin-button admin-button-secondary admin-icon-button admin-modal-back" type="button" data-admin-modal-back aria-label="Back" title="Back">' + ICON_BACK + '</button>' +
@@ -2312,13 +2525,21 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       : '';
 
     root.hidden = false;
+    root.dataset.mode = isPanel ? 'panel' : 'dialog';
+    document.body.classList.toggle('admin-panel-docked', isPanel && !panelIsSheet());
+    root._adminOpenRouteKey = routeKey;
     root.innerHTML = '<div class="admin-modal-backdrop" data-admin-modal-close></div>' +
-      '<section class="admin-modal-panel" data-size="' + escapeHtml(size || 'md') + '" role="dialog" aria-modal="true">' +
+      '<section class="admin-modal-panel" data-size="' + escapeHtml(size || 'md') + '" role="dialog" aria-modal="' + (blocksPage ? 'true' : 'false') + '">' +
         navHtml +
         html +
       '</section>';
-    document.body.classList.add('admin-modal-open');
-    setPageInteractionBlocked(true);
+    if (blocksPage) {
+      document.body.classList.add('admin-modal-open');
+      setPageInteractionBlocked(true);
+    } else if (ensureConfirmRoot().hidden) {
+      document.body.classList.remove('admin-modal-open');
+      setPageInteractionBlocked(false);
+    }
     root.dataset.dirty = 'false';
     root._adminDataSignature = modalDataSignature(route);
     root._adminRenderedConflictSignature = modalConflictSignature(route);
@@ -2338,6 +2559,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         history.back();
       });
     }
+    $all('[data-admin-step-back]', root).forEach(function (item) {
+      item.addEventListener('click', function () { closeModalStep(); });
+    });
+    $all('[data-admin-step]', root).forEach(function (item) {
+      item.addEventListener('click', function () {
+        openModalStep(item.dataset.adminStep, item.dataset.adminStepData || null);
+      });
+    });
+    bindMoreMenus(root);
     if (root._adminDirtyInput) root.removeEventListener('input', root._adminDirtyInput);
     if (root._adminDirtyChange) root.removeEventListener('change', root._adminDirtyChange);
     root._adminDirtyInput = function (event) {
@@ -2359,12 +2589,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       };
       root.addEventListener('submit', root._adminStaleSubmit, true);
     }
-    bindDialogKeyboard(root, function () {
-      closeModalRoute();
-    });
-    var firstInput = $('[data-admin-modal-back], [autofocus], input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), a[href]', root);
-    if (firstInput) firstInput.focus();
-    else if (panel) panel.focus();
+    bindDialogKeyboard(root, handleModalEscape, { trap: blocksPage });
+    // Focus goes to the heading, not the first link or the close button.
+    // A background refresh leaves focus where the user is working.
+    if (!isRefresh || focusWasInside) {
+      var autofocus = $('[autofocus]', panel);
+      var heading = panel && $('h1, h2, h3', panel);
+      if (autofocus) autofocus.focus();
+      else if (heading) {
+        heading.setAttribute('tabindex', '-1');
+        heading.focus({ preventScroll: true });
+      } else if (panel) panel.focus();
+    }
     return root;
   }
 
@@ -2373,7 +2609,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var root = ensureConfirmRoot();
       confirmReturnFocus = document.activeElement;
       root.hidden = false;
-      root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
+      root.innerHTML = '<div class="admin-modal-backdrop" data-confirm-dismiss></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
             '<div><h2>' + escapeHtml(options.title || 'Confirm action') + '</h2></div>' +
@@ -2402,6 +2638,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
 
       $('[data-confirm-no]', root).addEventListener('click', function () { finish(false); });
+      $('[data-confirm-dismiss]', root).addEventListener('click', function () { finish(false); });
       $('[data-confirm-yes]', root).addEventListener('click', function () { finish(true); });
       bindDialogKeyboard(root, function () { finish(false); });
       $('[data-confirm-no]', root).focus();
@@ -3637,7 +3874,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
       (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
 
-    var modal = openModal(html, 'lg');
+    var modal = openModal(html, 'panel');
     $('.admin-modal-panel', modal).classList.add('admin-booking-review-panel');
     bindPriceTotals(modal); installTimeChoices(modal);
     updateExpiryCountdowns();
@@ -4549,7 +4786,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '</div>' +
       '</details>';
 
-    var modal = openModal(html, 'lg');
+    var modal = openModal(html, 'panel');
     $('.admin-modal-panel', modal).classList.add('admin-customer-modal');
     renderCustomerList();
 
@@ -5355,7 +5592,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</details>'
         : '');
 
-    var modal = openModal(html, 'lg');
+    var modal = openModal(html, 'panel');
     renderInvoiceList();
     bindPriceTotals(modal); installTimeChoices(modal); bindPaymentActions(modal);
 
@@ -7633,6 +7870,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     state.historyIndex = targetHistoryIndex;
     if (page === state.page) {
       applyCurrentPageUrlParameters(page);
+      syncSelectedModalState(modalRouteFromUrl());
       renderPage();
       renderModalFromCurrentUrl();
       window.requestAnimationFrame(function () {

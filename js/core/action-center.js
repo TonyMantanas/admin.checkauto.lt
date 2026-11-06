@@ -1,6 +1,6 @@
 import { esc, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
 import { PATHS } from './routes.js?v=20261105-7';
-import { ICONS } from './icons.js?v=20260802-1';
+import { ICONS } from './icons.js?v=20261106-5';
 import { formatMoney, formatDateTime, formatDay, relativeDateTime } from './formatting.js?v=20261105-3';
 
 const money = cents => formatMoney(cents, 'EUR');

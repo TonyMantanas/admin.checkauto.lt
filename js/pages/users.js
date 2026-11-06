@@ -1,5 +1,5 @@
 import { api } from '../core/api.js?v=20260804-1';
-import { ICONS } from '../core/icons.js?v=20260802-1';
+import { ICONS } from '../core/icons.js?v=20261106-5';
 import { modals } from '../core/modals.js?v=20260804-1';
 import { toast } from '../core/toast.js?v=20260804-1';
 import { relativeDateTime } from '../core/formatting.js?v=20261105-3';
@@ -918,13 +918,13 @@ export function renderModal(route, { state }) {
   if (typeof modals.open !== 'function') return false;
 
   if (route.id === 'new') {
-    const root = modals.open(createUserModalHtml(), 'lg');
+    const root = modals.open(createUserModalHtml(), 'panel');
     bindModalEvents(root, state, null);
     return true;
   }
 
   if (!state.staffUsersLoadedAt) {
-    modals.open(loadingUserModalHtml(), 'lg');
+    modals.open(loadingUserModalHtml(), 'panel');
     maybeLoadUsers(state);
     return true;
   }
@@ -935,7 +935,7 @@ export function renderModal(route, { state }) {
     return true;
   }
 
-  const root = modals.open(editUserModalHtml(user, state), 'lg');
+  const root = modals.open(editUserModalHtml(user, state), 'panel');
   bindModalEvents(root, state, user);
   return true;
 }

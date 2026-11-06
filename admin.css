@@ -1198,6 +1198,11 @@ fieldset {
   mask-image: url("icons/x.svg");
 }
 
+.admin-icon-dots {
+  -webkit-mask-image: url("icons/dots.svg");
+  mask-image: url("icons/dots.svg");
+}
+
 .admin-icon-user {
   -webkit-mask-image: url("icons/user.svg");
   mask-image: url("icons/user.svg");
@@ -4843,6 +4848,7 @@ button.admin-mini-item::after {
 }
 
 .admin-list-card {
+  container: admin-list / inline-size;
   display: flex;
   flex-direction: column;
   /* Filter popovers hang below the toolbar, so the card itself can't clip. */
@@ -6548,6 +6554,8 @@ a.admin-dash-tile:hover {
   .admin-card,
   .admin-toast,
   .admin-login-panel,
+  .admin-modal-panel,
+  .admin-more-menu,
   .admin-dash-tile,
   .admin-dash-task,
   .admin-dash-slot,
@@ -6695,6 +6703,267 @@ a.admin-dash-tile:hover {
 
 .admin-confirm-panel p {
   color: var(--admin-text-secondary);
+}
+
+/* Side panel for records
+   ========================================================================== */
+
+/* On wide screens the panel sits on the right and the page behind it stays
+   usable: the root lets clicks through and nothing is dimmed. */
+.admin-modal-root[data-mode="panel"] {
+  padding: 0;
+  pointer-events: none;
+}
+
+.admin-modal-root[data-mode="panel"] > .admin-modal-backdrop {
+  display: none;
+}
+
+.admin-modal-root[data-mode="panel"] > .admin-modal-panel {
+  --admin-modal-padding: 1.5rem;
+  position: fixed;
+  inset-block: 0.5rem;
+  inset-inline-end: 0.5rem;
+  width: min(33rem, calc(100vw - 1rem));
+  max-height: none;
+  pointer-events: auto;
+  box-shadow: 0 0 0 1px var(--admin-border), var(--admin-shadow-modal);
+  animation: admin-panel-in 200ms var(--admin-ease);
+}
+
+@keyframes admin-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+}
+
+/* Header: title with one state chip, one meta line, close. It stays in
+   view while the body scrolls. */
+.admin-panel-head {
+  position: sticky;
+  z-index: 3;
+  inset-block-start: calc(-1 * var(--admin-modal-padding, 1.5rem));
+  margin: calc(-1 * var(--admin-modal-padding, 1.5rem)) calc(-1 * var(--admin-modal-padding, 1.5rem)) 1.25rem;
+  padding: var(--admin-modal-padding, 1.5rem) 4rem 1rem var(--admin-modal-padding, 1.5rem);
+  display: grid;
+  gap: 0.375rem;
+  background: var(--admin-surface);
+}
+
+.admin-modal-nav + .admin-panel-head {
+  margin-block-start: 0;
+  padding-block-start: 0.25rem;
+}
+
+.admin-panel-head > .admin-preview-close {
+  position: absolute;
+  inset-block-start: 1.125rem;
+  inset-inline-end: 1.125rem;
+}
+
+.admin-panel-heading {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.375rem 0.625rem;
+}
+
+.admin-panel-heading h2 {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.admin-panel-meta {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-panel-step-head {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: 0.5rem;
+  padding-inline-end: var(--admin-modal-padding, 1.5rem);
+}
+
+.admin-panel-step-head > .admin-panel-meta {
+  grid-column: 2;
+}
+
+.admin-panel-step-head .admin-panel-heading h2 {
+  font-size: 1.125rem;
+}
+
+.admin-panel-back {
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  margin-inline-start: -0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--admin-text-secondary);
+  background: transparent;
+}
+
+.admin-panel-back:hover {
+  color: var(--admin-text);
+  background: var(--admin-surface-hover);
+}
+
+/* Shown once after a step succeeds, in place of a toast. */
+.admin-panel-notice {
+  margin: 0 0 1.25rem;
+  padding: 0.625rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  color: var(--admin-success);
+  background: var(--admin-success-soft);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admin-panel-notice .admin-icon {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+}
+
+/* Facts: one label and value per row. */
+.admin-panel-section + .admin-panel-section {
+  margin-block-start: 1.5rem;
+}
+
+.admin-panel-section > h3 {
+  margin: 0 0 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.admin-facts {
+  margin: 0;
+  display: grid;
+}
+
+.admin-fact {
+  min-width: 0;
+  padding-block: 0.625rem;
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-fact:first-child {
+  border-block-start: 0;
+}
+
+.admin-fact > dt {
+  color: var(--admin-text-secondary);
+  font-size: 0.875rem;
+}
+
+.admin-fact > dd {
+  min-width: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-fact-sub {
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.admin-fact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+}
+
+/* Footer: "More" on the left, the next step on the right. */
+.admin-panel-footer > .admin-more {
+  margin-inline-end: auto;
+}
+
+.admin-more {
+  position: relative;
+}
+
+.admin-more-menu {
+  position: absolute;
+  z-index: 5;
+  inset-block-end: calc(100% + 0.5rem);
+  inset-inline-start: 0;
+  min-width: 13.5rem;
+  padding: 0.375rem;
+  display: grid;
+  gap: 0.125rem;
+  border-radius: 0.875rem;
+  background: var(--admin-surface);
+  box-shadow: 0 0 0 1px var(--admin-border), var(--admin-shadow-popover);
+}
+
+.admin-more-menu[hidden] {
+  display: none;
+}
+
+.admin-more-item {
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 0.625rem;
+  color: var(--admin-text);
+  background: transparent;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+}
+
+.admin-more-item:hover,
+.admin-more-item:focus-visible {
+  outline: none;
+  background: var(--admin-surface-hover);
+}
+
+.admin-more-item.is-danger {
+  color: var(--admin-danger);
+}
+
+/* Narrower screens: the panel becomes a modal over the page. */
+@media (max-width: 60rem) {
+  .admin-modal-root[data-mode="panel"] {
+    pointer-events: auto;
+  }
+
+  .admin-modal-root[data-mode="panel"] > .admin-modal-backdrop {
+    display: block;
+  }
+}
+
+@media (max-width: 40rem) {
+  .admin-modal-root[data-mode="panel"] > .admin-modal-panel {
+    --admin-modal-padding: 1rem;
+    position: relative;
+    inset: auto;
+    width: 100%;
+    animation: admin-sheet-in 220ms var(--admin-ease);
+  }
+
+  .admin-fact {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.2rem;
+  }
 }
 
 .admin-slot-editor-root[hidden],
@@ -7002,15 +7271,16 @@ a.admin-dash-tile:hover {
   }
 }
 
-@media (max-width: 75rem) {
+/* List rows follow the width of their list, not the window, so they also
+   compact when a side panel takes part of the page. */
+@container admin-list (max-width: 59rem) {
   .admin-data-head,
   .admin-booking-data-head {
     display: none;
   }
 }
 
-@media (max-width: 68.75rem) {
-
+@container admin-list (max-width: 53rem) {
   .admin-data-row,
   .admin-booking-item,
   .admin-customer-item {
@@ -7124,6 +7394,9 @@ a.admin-dash-tile:hover {
     flex-basis: 100%;
     margin-inline-start: 0;
   }
+}
+
+@media (max-width: 68.75rem) {
 
   .admin-mini-item {
     grid-template-columns: minmax(0, 1fr) auto;
@@ -7472,6 +7745,12 @@ a.admin-dash-tile:hover {
     flex: 1 1 auto;
   }
 
+  /* With a record panel docked on the right, list pages make room for it so
+     search, filters and every row stay reachable. */
+  body.admin-panel-docked:is([data-admin-page="bookings"], [data-admin-page="invoices"], [data-admin-page="customers"], [data-admin-page="users"]) [data-page-root] {
+    padding-inline-end: calc(min(33rem, 100vw - 1rem) + 0.5rem);
+  }
+
   .admin-availability-calendar-panel > .admin-calendar {
     min-height: 0;
     flex: 1 1 auto;
@@ -7485,9 +7764,11 @@ a.admin-dash-tile:hover {
 }
 
 /* Day labels stick just under the column head while it is shown. */
-@media (min-width: 75.0625rem) {
-  .admin-list-scroll {
-    --admin-list-head-offset: calc(2.25rem + 1px);
+@media (min-width: 60.0625rem) {
+  @container admin-list (min-width: 59.0625rem) {
+    .admin-list-scroll {
+      --admin-list-head-offset: calc(2.25rem + 1px);
+    }
   }
 }
 
@@ -7507,6 +7788,13 @@ a.admin-dash-tile:hover {
     inset-inline-end: 0;
   }
 
+  .admin-invoice-settings-warning {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
+@container admin-list (max-width: 46rem) {
   .admin-booking-row-shell {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -7518,11 +7806,6 @@ a.admin-dash-tile:hover {
 
   .admin-booking-row-action:empty {
     display: none;
-  }
-
-  .admin-invoice-settings-warning {
-    align-items: stretch;
-    flex-direction: column;
   }
 }
 

@@ -1,5 +1,5 @@
 import { skeletons } from '../core/skeletons.js?v=20261106-4';
-import { ICONS } from '../core/icons.js?v=20260802-1';
+import { ICONS } from '../core/icons.js?v=20261106-5';
 
 export const page = 'invoices';
 

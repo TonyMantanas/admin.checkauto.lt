@@ -10,6 +10,7 @@ export const ICONS = Object.freeze({
   booking: icon('calendar-event'),
   check: icon('circle-check'),
   close: icon('x'),
+  more: icon('dots'),
   email: icon('mail'),
   external: icon('external-link'),
   invoice: icon('file-invoice'),
