@@ -1,6 +1,6 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261106-6';
 import { currentAgreement, invoiceDeliveredToClient, bindPriceTotals } from './reliability-ui.js?v=20261106-7';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-7';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-9';
 import { ICONS } from './icons.js?v=20261106-5';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -1940,17 +1940,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    // Booking-request hours live on the Organization page only; old links
+    // to the pop-up go there.
     if (route.type === 'confirmationSchedule') {
-      if (
-        state.page === 'availability' &&
-        staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])
-      ) {
-        renderConfirmationScheduleModal();
-      } else {
-        history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
-        syncSelectedModalState(null);
-        closeModal({ restoreFocus: true });
-      }
+      history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
+      syncSelectedModalState(null);
+      closeModal({ restoreFocus: false });
+      if (staffCanAccessPage(state.staff, 'organization')) redirectTo(PATHS.organization);
       return;
     }
 
@@ -2566,7 +2562,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           '</div>' +
           '<p data-confirm-message>' + escapeHtml(options.message || 'Continue?') + '</p>' +
           '<div class="admin-action-buttons admin-modal-actions">' +
-            '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>' + escapeHtml(options.cancelLabel || 'Cancel') + '</button>' +
+            '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>' + escapeHtml(options.cancelLabel || 'Go back') + '</button>' +
             '<button class="admin-button ' + escapeHtml(options.danger ? 'admin-button-danger' : 'admin-button-primary') + '" type="button" data-confirm-yes>' + escapeHtml(options.confirmLabel || 'Continue') + '</button>' +
           '</div>' +
         '</section>';
@@ -2606,23 +2602,23 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var root = ensureConfirmRoot();
       confirmReturnFocus = document.activeElement;
       root.hidden = false;
-      root.innerHTML = '<div class="admin-modal-backdrop"></div>' +
+      root.innerHTML = '<div class="admin-modal-backdrop" data-confirm-dismiss></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-          '<div><h2>Cancel availability</h2></div>' +
+          '<div><h2>Delete the slot on ' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '?</h2></div>' +
           '</div>' +
-          '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + ' is part of a weekly series. Cancelled availability remains in history.</p>' +
-          '<div class="admin-action-buttons admin-modal-actions">' +
-            '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Cancel</button>' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Cancel this slot</button>' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Cancel series</button>' +
+          '<p data-confirm-message>It repeats every week. Booked times stay as they are.</p>' +
+          '<div class="admin-action-buttons admin-modal-actions admin-confirm-stack">' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Delete this slot only</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Delete all future slots in the series</button>' +
+            '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Keep slot</button>' +
           '</div>' +
         '</section>';
       document.body.classList.add('admin-modal-open');
       setPageInteractionBlocked(true);
       setUnderlyingModalBlocked(true);
       var panel = $('.admin-confirm-panel', root);
-      labelDialog(panel, 'Cancel availability');
+      labelDialog(panel, 'Delete slot');
       var message = $('[data-confirm-message]', root);
       if (panel && message) {
         dialogId += 1;
@@ -2636,6 +2632,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
 
       $('[data-confirm-no]', root).addEventListener('click', function () { finish(null); });
+      $('[data-confirm-dismiss]', root).addEventListener('click', function () { finish(null); });
       $('[data-confirm-single]', root).addEventListener('click', function () { finish('single'); });
       $('[data-confirm-series]', root).addEventListener('click', function () { finish('series'); });
       bindDialogKeyboard(root, function () { finish(null); });
@@ -2732,116 +2729,26 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
+  // Fallback wording for actions that confirm without their own dialog.
+  // Titles ask the question, messages give the consequence, and the
+  // dismiss button says what stays as it is.
   function confirmOptionsForAction(action) {
     return {
-      confirmBooking: {
-        title: 'Confirm booking',
-        message: 'Confirm this booking and send the confirmation email?',
-        confirmLabel: 'Confirm booking'
-      },
-      rejectBooking: {
-        title: 'Reject booking',
-        message: 'Reject this booking and email the customer?',
-        confirmLabel: 'Reject booking',
-        danger: true
-      },
-      cancelBooking: {
-        title: 'Cancel booking',
-        message: 'Cancel this booking and email the customer?',
-        confirmLabel: 'Cancel booking',
-        danger: true
-      },
-      completeBooking: {
-        title: 'Mark done',
-        message: 'Mark this booking as done?',
-        confirmLabel: 'Mark done'
-      },
-      markCustomerErasureRequest: {
-        title: 'Record erasure request',
-        message: 'Record that this customer requested erasure? This documents the request only. It does not redact or delete retained invoice, legal-hold, or active operational records.',
-        confirmLabel: 'Record request'
-      },
-      setCustomerLegalHold: {
-        title: 'Start legal hold',
-        message: 'Start this legal hold? Redaction and deletion will be blocked until the hold is released or expires.',
-        confirmLabel: 'Start legal hold'
-      },
-      releaseCustomerLegalHold: {
-        title: 'Release legal hold',
-        message: 'Release this legal hold? Eligible redaction and deletion actions can become available again. No data is deleted by this action.',
-        confirmLabel: 'Release hold'
-      },
-      withdrawCustomerMarketingConsent: {
-        title: 'Withdraw marketing permission',
-        message: 'Stop future marketing emails to this customer? Transactional booking and invoice messages are unaffected.',
-        confirmLabel: 'Withdraw permission'
-      },
-      createAndSendInvoice: {
-        title: 'Create and send invoice',
-        message: 'Create an invoice PDF, send it to the customer, and mark it unpaid?',
-        confirmLabel: 'Create invoice'
-      },
-      markBookingPaid: {
-        title: 'Mark booking paid',
-        message: 'Mark this Done booking as paid without creating an invoice?',
-        confirmLabel: 'Mark paid'
-      },
-      markInvoicePaid: {
-        title: 'Mark invoice paid',
-        message: 'Mark this invoice as paid?',
-        confirmLabel: 'Mark paid'
-      },
-      updateInvoicePaidAmount: {
-        title: 'Update paid amount',
-        message: 'Replace the currently recorded paid amount with this value?',
-        confirmLabel: 'Update amount'
-      },
-      resendInvoice: {
-        title: 'Resend invoice',
-        message: 'Send this invoice PDF to the customer again?',
-        confirmLabel: 'Resend invoice'
-      },
-      voidInvoice: {
-        title: 'Void invoice',
-        message: 'Void this invoice? The number and PDF stay retained and this cannot be undone.',
-        confirmLabel: 'Void invoice',
-        danger: true
-      },
-      deleteSlot: {
-        title: 'Cancel availability',
-        message: 'Cancel this availability slot?',
-        confirmLabel: 'Cancel slot',
-        danger: true
-      },
-      deleteSlotSeries: {
-        title: 'Cancel availability series',
-        message: 'Cancel every open slot in this weekly series?',
-        confirmLabel: 'Cancel series',
-        danger: true
-      },
-      redactBookingPii: {
-        title: 'Redact booking PII',
-        message: 'Redact personal data from this booking? This cannot be undone.',
-        confirmLabel: 'Redact booking',
-        danger: true
-      },
-      redactCustomerPii: {
-        title: 'Redact personal data',
-        message: 'Permanently remove direct identifiers from this profile and linked non-active bookings? Invoice records remain retained. This cannot be undone.',
-        confirmLabel: 'Redact personal data',
-        danger: true
-      },
-      deleteCustomerProfile: {
-        title: 'Delete redacted profile',
-        message: 'Permanently delete this eligible redacted profile and linked non-active bookings? Retained invoices are not deleted. This cannot be undone.',
-        confirmLabel: 'Delete redacted profile',
-        danger: true
-      },
-      sendMarketingCampaign: {
-        title: 'Send marketing email',
-        message: 'Send this email to every customer with active marketing consent?',
-        confirmLabel: 'Send campaign'
-      }
+      confirmBooking: { title: 'Confirm this booking?', message: 'The customer gets a confirmation email.', cancelLabel: 'Go back', confirmLabel: 'Confirm booking' },
+      rejectBooking: { title: 'Reject this request?', message: 'The customer gets an email saying it was rejected.', cancelLabel: 'Go back', confirmLabel: 'Reject request', danger: true },
+      cancelBooking: { title: 'Cancel this booking?', message: 'The customer gets an email saying it was cancelled.', cancelLabel: 'Keep booking', confirmLabel: 'Cancel booking', danger: true },
+      completeBooking: { title: 'Mark this booking completed?', message: 'The inspection is done and ready to invoice.', cancelLabel: 'Not yet', confirmLabel: 'Mark completed' },
+      setCustomerLegalHold: { title: 'Start a legal hold?', message: 'While it lasts, this customer’s personal data can’t be erased or deleted.', cancelLabel: 'Go back', confirmLabel: 'Start legal hold' },
+      releaseCustomerLegalHold: { title: 'Release the legal hold?', message: 'Nothing is deleted now.', cancelLabel: 'Keep hold', confirmLabel: 'Release hold' },
+      withdrawCustomerMarketingConsent: { title: 'Unsubscribe from marketing emails?', message: 'Booking and invoice emails still go out. Only the customer can subscribe again.', cancelLabel: 'Keep subscribed', confirmLabel: 'Unsubscribe', danger: true },
+      createAndSendInvoice: { title: 'Create and email this invoice?', message: 'The customer gets the PDF by email.', cancelLabel: 'Go back', confirmLabel: 'Create invoice' },
+      resendInvoice: { title: 'Email this invoice again?', message: 'The customer gets the PDF again.', cancelLabel: 'Don’t send', confirmLabel: 'Email again' },
+      voidInvoice: { title: 'Void this invoice?', message: 'The number and PDF are kept. A voided invoice can’t be reopened.', cancelLabel: 'Keep invoice', confirmLabel: 'Void invoice', danger: true },
+      deleteSlot: { title: 'Delete this slot?', message: 'Customers can no longer book this time.', cancelLabel: 'Keep slot', confirmLabel: 'Delete slot', danger: true },
+      deleteSlotSeries: { title: 'Delete every open slot in this series?', message: 'Booked times stay as they are.', cancelLabel: 'Keep series', confirmLabel: 'Delete series', danger: true },
+      redactCustomerPii: { title: 'Erase personal data?', message: 'Name, email and phone are removed. Invoices are kept. This can’t be undone.', cancelLabel: 'Keep data', confirmLabel: 'Erase data', danger: true },
+      deleteCustomerProfile: { title: 'Delete this profile?', message: 'Invoices are kept. This can’t be undone.', cancelLabel: 'Keep profile', confirmLabel: 'Delete profile', danger: true },
+      sendMarketingCampaign: { title: 'Send this marketing email?', message: 'It goes to every customer subscribed to marketing emails.', cancelLabel: 'Don’t send', confirmLabel: 'Send email' }
     }[action] || null;
   }
 
@@ -6077,21 +5984,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       cancelBooking: 'Cancelling…',
       completeBooking: 'Marking…',
       createAndSendInvoice: 'Creating…',
-      markBookingPaid: 'Saving…',
-      markInvoicePaid: 'Saving…',
-      updateInvoicePaidAmount: 'Updating…',
       resendInvoice: 'Sending…',
       voidInvoice: 'Voiding…',
-      deleteSlot: 'Cancelling…',
-      deleteSlotSeries: 'Cancelling…',
+      deleteSlot: 'Deleting…',
+      deleteSlotSeries: 'Deleting…',
       updateSlot: 'Saving…',
       createSlot: 'Creating…',
       setCustomerLegalHold: 'Saving…',
       releaseCustomerLegalHold: 'Saving…',
-      markCustomerErasureRequest: 'Saving…',
       withdrawCustomerMarketingConsent: 'Saving…',
-      redactBookingPii: 'Redacting…',
-      redactCustomerPii: 'Redacting…',
+      redactCustomerPii: 'Erasing…',
       deleteCustomerProfile: 'Deleting…',
       sendMarketingCampaign: 'Sending…',
       getInvoicePdfUrl: 'Opening…'
@@ -6120,7 +6022,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       withdrawCustomerMarketingConsent: 'Unsubscribed from marketing emails.',
       redactCustomerPii: 'Personal data erased.',
       deleteCustomerProfile: 'Profile deleted.',
-      sendMarketingCampaign: 'Marketing campaign sent.'
+      sendMarketingCampaign: 'Marketing campaign sent.',
+      resolvePaymentReconciliation: 'Payment outcome saved.',
+      retryNotification: 'Email sent again.',
+      acknowledgeContact: 'Marked as handled.',
+      resolveInquiry: 'Inquiry resolved.'
     }[action] || 'Saved.';
   }
 
@@ -6308,7 +6214,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       renderPatchedBookingModal(payload, response.result);
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
-      if(state.page==='notifications') { showToast('Action saved.','success');return true; }
+      if(state.page==='notifications') { showToast(successMessageForAction(confirmAction || payload.action),'success');return true; }
       var message = actionSuccessMessage(confirmAction || payload.action, response.result);
       // Actions started from a list row stay on the list; actions in a panel
       // re-render that record and say so inside it.
@@ -6558,7 +6464,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
-      if(state.page==='notifications') { showToast('Action saved.','success');return; }
+      if(state.page==='notifications') { showToast(successMessageForAction(action),'success');return; }
       var message = actionSuccessMessage(action, response.result);
       if (action === 'deleteCustomerProfile') {
         closeModal({ restoreFocus: true });
@@ -6938,42 +6844,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return Array.isArray(settings.hours) ? settings.hours : [];
   }
 
-  function confirmationScheduleFormHtml() {
-    return '<div class="admin-modal-header">' +
-        '<div>' +
-          '<h2>Booking requests</h2>' +
-          '<p>How long you have to accept a new request, and when that time counts.</p>' +
-        '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking request settings" title="Close">' + ICON_CLOSE + '</button>' +
-      '</div>' +
-      '<form class="admin-booking-request-form admin-form-plain" data-confirmation-schedule-form novalidate>' +
-        bookingRequestFieldsHtml() +
-        '<div class="admin-modal-footer">' +
-          '<p class="admin-form-error" data-confirmation-schedule-status role="status" aria-live="polite"></p>' +
-          '<button class="admin-button admin-button-primary" type="submit" data-confirmation-schedule-submit disabled>Save</button>' +
-        '</div>' +
-      '</form>';
-  }
-
-  function renderConfirmationScheduleModal() {
-    if (!staffHasAccess(state.staff, 'confirmation_schedule.manage', ['owner'])) return;
-    var modal = openModal(confirmationScheduleFormHtml(), 'lg');
-    var form = $('[data-confirmation-schedule-form]', modal);
-    if (!form) return;
-
-    renderConfirmationSchedule();
-    $all('[data-confirmation-day]', form).forEach(function (row) {
-      var toggle = $('[data-confirmation-day-enabled]', row);
-      if (toggle) {
-        toggle.addEventListener('change', function () {
-          updateConfirmationDayState(row);
-        });
-      }
-    });
-    bindConfirmationScheduleChanges(form);
-    form.addEventListener('submit', handleConfirmationScheduleSubmit);
-  }
-
   // Reads every named control, disabled ones included: the form is fully
   // disabled while saving, which FormData would silently skip.
   function confirmationScheduleSnapshot(form) {
@@ -7196,7 +7066,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function dayScheduleStaffOptions(selectedId) {
     var canManageOthers = canManageOtherStaffAvailability();
     var candidates = state.staffList.filter(function (staff) {
-      return staff.is_active && rolesForStaff(staff).some(function (role) {
+      return staff.is_active !== false && rolesForStaff(staff).some(function (role) {
         return ['owner', 'admin', 'inspector'].includes(role);
       });
     });
@@ -7237,31 +7107,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return ranges;
   }
 
-  function dayScheduleResultHtml(result) {
-    if (!result || typeof result !== 'object') return '';
-    var created = Number(result.created_count) || 0;
-    var skipped = Number(result.skipped_count) || 0;
-    var conflicts = Array.isArray(result.conflicts) ? result.conflicts : [];
-    var reasonLabels = {
-      existing_availability: 'overlaps existing availability',
-      existing_booking: 'overlaps an active booking',
-      blocked_time: 'overlaps blocked time'
-    };
-    var conflictHtml = conflicts.map(function (conflict) {
-      var label = reasonLabels[conflict.reason_code] || 'could not be created';
-      return '<li><time>' + escapeHtml(formatTime(conflict.start_at)) + '-' + escapeHtml(formatTime(conflict.end_at)) + '</time><span>' + escapeHtml(label) + '</span></li>';
-    }).join('');
-    var summary = created === 1 ? '1 availability slot created.' : created + ' availability slots created.';
-    if (skipped) summary += ' ' + skipped + (skipped === 1 ? ' slot was skipped.' : ' slots were skipped.');
-
-    return '<section class="admin-day-schedule-result" data-tone="' + (created ? 'success' : 'warning') + '" aria-labelledby="admin-day-schedule-result-title">' +
-      '<strong id="admin-day-schedule-result-title">' + escapeHtml(summary) + '</strong>' +
-      (conflictHtml
-        ? '<details class="admin-disclosure" open><summary>Review conflicts</summary><ul>' + conflictHtml + '</ul></details>'
-        : '') +
-    '</section>';
-  }
-
   function dayScheduleFormHtml() {
     var defaultDate = addDaysYmd(todayYmd(), 1);
     var selectedStaffId = dayScheduleLastResult && dayScheduleLastResult.assigned_staff_id
@@ -7269,51 +7114,40 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       : String(state.staff && state.staff.id || '');
     var canManageOthers = canManageOtherStaffAvailability();
     var staffOptionsHtml = dayScheduleStaffOptions(selectedStaffId);
+    var durationOptions = function (values, selected, zeroLabel) {
+      return values.map(function (minutes) {
+        var label = minutes === 0 ? zeroLabel : minutes < 60 ? minutes + ' min' : (minutes % 60 ? Math.floor(minutes / 60) + ' h ' + (minutes % 60) + ' min' : (minutes / 60) + (minutes === 60 ? ' hour' : ' hours'));
+        return '<option value="' + minutes + '"' + (minutes === selected ? ' selected' : '') + '>' + label + '</option>';
+      }).join('');
+    };
 
     return '<div class="admin-modal-header">' +
-        '<div>' +
-          '<h2>Create day schedule</h2>' +
-        '</div>' +
-        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close day schedule" title="Close">' + ICON_CLOSE + '</button>' +
+        '<div><h2>Create schedule</h2></div>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
-      dayScheduleResultHtml(dayScheduleLastResult) +
-      '<form class="admin-day-schedule-form" data-admin-day-schedule-form novalidate>' +
-        '<div class="admin-day-schedule-core-fields">' +
-          '<label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
-          '<label><span class="admin-field-label">Start time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
-          '<label><span class="admin-field-label">End time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
-          '<label class="admin-day-schedule-inspector"><span class="admin-field-label">Inspector <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
-          (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
+      '<form class="admin-day-schedule-form admin-form-plain" data-admin-day-schedule-form novalidate>' +
+        '<div class="admin-form-row admin-form-row-time">' +
+          '<label><span class="admin-field-label">Date</span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
+          '<label><span class="admin-field-label">From</span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
+          '<label><span class="admin-field-label">Until</span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
         '</div>' +
-        '<details class="admin-disclosure admin-day-schedule-advanced">' +
-          '<summary>Duration settings</summary>' +
-          '<div>' +
-            '<label>Inspection duration<span class="admin-select-wrap"><select name="inspectionDurationMinutes" data-admin-day-schedule-duration>' +
-              '<option value="30">30 minutes</option>' +
-              '<option value="45">45 minutes</option>' +
-              '<option value="60" selected>1 hour</option>' +
-              '<option value="90">1 hour 30 minutes</option>' +
-              '<option value="120">2 hours</option>' +
-            '</select></span></label>' +
-            '<label>Travel buffer<span class="admin-select-wrap"><select name="bufferDurationMinutes" data-admin-day-schedule-buffer>' +
-              '<option value="0">No buffer</option>' +
-              '<option value="30">30 minutes</option>' +
-              '<option value="45">45 minutes</option>' +
-              '<option value="60" selected>1 hour</option>' +
-              '<option value="90">1 hour 30 minutes</option>' +
-              '<option value="120">2 hours</option>' +
-            '</select></span></label>' +
-          '</div>' +
-        '</details>' +
+        '<label><span class="admin-field-label">Inspector</span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
+        (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
+        '<div class="admin-form-row">' +
+          '<label><span class="admin-field-label">Each inspection</span><span class="admin-select-wrap"><select name="inspectionDurationMinutes" data-admin-day-schedule-duration>' + durationOptions([30, 45, 60, 90, 120], 60) + '</select></span></label>' +
+          '<label><span class="admin-field-label">Travel between</span><span class="admin-select-wrap"><select name="bufferDurationMinutes" data-admin-day-schedule-buffer>' + durationOptions([0, 30, 45, 60, 90, 120], 60, 'None') + '</select></span></label>' +
+        '</div>' +
         '<div class="admin-day-schedule-preview" data-admin-day-schedule-preview role="status" aria-live="polite"></div>' +
-        '<div class="admin-form-error" data-admin-day-schedule-status role="status" aria-live="polite"></div>' +
-        '<div class="admin-action-buttons admin-modal-actions">' +
-          '<button class="admin-button admin-button-primary" type="submit">Create availability</button>' +
-          '<button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>' +
+        '<div class="admin-modal-footer">' +
+          '<div class="admin-form-error" data-admin-day-schedule-status role="status" aria-live="polite"></div>' +
+          '<button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>' +
+          '<button class="admin-button admin-button-primary" type="submit" data-admin-day-schedule-submit>Add slots</button>' +
         '</div>' +
       '</form>';
   }
 
+  // The slots the schedule will add, shown as start times; the button
+  // names the count.
   function updateDaySchedulePreview(form) {
     if (!form) return;
     var start = String(($('[data-admin-day-schedule-start]', form) || {}).value || '');
@@ -7322,21 +7156,23 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var buffer = Number(($('[data-admin-day-schedule-buffer]', form) || {}).value || 0);
     var ranges = dayScheduleRanges(start, end, duration, buffer);
     var preview = $('[data-admin-day-schedule-preview]', form);
+    var submit = $('[data-admin-day-schedule-submit]', form);
     if (!preview) return;
     if (!ranges.length) {
-      preview.innerHTML = '<strong>No slots fit this workday.</strong><span>Extend the workday or shorten the inspection duration.</span>';
       preview.dataset.tone = 'warning';
+      preview.innerHTML = '<p>No slot fits between ' + escapeHtml(start || '…') + ' and ' + escapeHtml(end || '…') + '. Make the day longer or the inspection shorter.</p>';
+      if (submit) { submit.textContent = 'Add slots'; submit.disabled = true; }
       return;
     }
-
-    var visibleRanges = ranges.slice(0, 8).map(function (range) {
-      return '<li><time>' + escapeHtml(range.start) + '</time><span aria-hidden="true">→</span><time>' + escapeHtml(range.end) + '</time></li>';
-    }).join('');
     preview.dataset.tone = 'neutral';
-    preview.innerHTML = '<details class="admin-disclosure"><summary><strong>' + ranges.length + (ranges.length === 1 ? ' bookable slot' : ' bookable slots') + '</strong>' +
-      '<span>' + escapeHtml(ranges[0].start + '–' + ranges[ranges.length - 1].end) + '</span></summary>' +
-      '<ol>' + visibleRanges + '</ol>' +
-      (ranges.length > 8 ? '<span>+' + (ranges.length - 8) + ' more</span>' : '') + '</details>';
+    preview.innerHTML = '<p><strong>' + ranges.length + (ranges.length === 1 ? ' slot' : ' slots') + '</strong> starting at</p>' +
+      '<ul class="admin-slot-chips">' + ranges.map(function (range) {
+        return '<li><time>' + escapeHtml(range.start) + '</time></li>';
+      }).join('') + '</ul>';
+    if (submit) {
+      submit.disabled = false;
+      submit.textContent = ranges.length === 1 ? 'Add 1 slot' : 'Add ' + ranges.length + ' slots';
+    }
   }
 
   function renderDayScheduleModal() {
@@ -7346,6 +7182,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!form) return;
     updateDaySchedulePreview(form);
     $all('input, select', form).forEach(function (control) {
+      control.addEventListener('input', function () { updateDaySchedulePreview(form); });
       control.addEventListener('change', function () {
         if (control.matches('[data-admin-day-schedule-start], [data-admin-day-schedule-end]')) {
           normalizeTimeControl(control);
@@ -7368,7 +7205,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
     if (!staffHasAccess(state.staff, 'operations.manage', ['owner', 'admin', 'inspector'])) {
-      showFieldError(status, 'Your admin role cannot create availability.', $('[data-admin-day-schedule-date]', form));
+      showFieldError(status, 'Your role can’t add availability.', $('[data-admin-day-schedule-date]', form));
       return;
     }
 
@@ -7400,7 +7237,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       inspectionDuration > 480 ||
       inspectionDuration % SLOT_STEP_MINUTES !== 0
     ) {
-      showFieldError(status, 'Choose a valid inspection duration.', $('[data-admin-day-schedule-duration]', form));
+      showFieldError(status, 'Choose how long each inspection takes.', $('[data-admin-day-schedule-duration]', form));
       return;
     }
     if (
@@ -7409,15 +7246,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       bufferDuration > 240 ||
       bufferDuration % SLOT_STEP_MINUTES !== 0
     ) {
-      showFieldError(status, 'Choose a valid travel buffer.', $('[data-admin-day-schedule-buffer]', form));
+      showFieldError(status, 'Choose the travel time between inspections.', $('[data-admin-day-schedule-buffer]', form));
       return;
     }
     if (!ranges.length) {
-      showFieldError(status, 'The selected workday is shorter than one inspection.', $('[data-admin-day-schedule-end]', form));
+      showFieldError(status, 'No slot fits in this day. Make it longer or the inspection shorter.', $('[data-admin-day-schedule-end]', form));
       return;
     }
 
-    setFormBusy(form, true, 'Creating…');
+    setFormBusy(form, true, 'Adding…');
     setSyncState('Saving', 'loading');
     var response;
     try {
@@ -7433,20 +7270,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       markModalClean();
       var created = Number(dayScheduleLastResult && dayScheduleLastResult.created_count) || 0;
       var skipped = Number(dayScheduleLastResult && dayScheduleLastResult.skipped_count) || 0;
-      var message = created + (created === 1 ? ' availability slot created.' : ' availability slots created.');
-      if (skipped) message += ' ' + skipped + (skipped === 1 ? ' conflict skipped.' : ' conflicts skipped.');
+      var message = created === 1 ? '1 slot added.' : created + ' slots added.';
+      if (skipped) message += ' ' + skipped + (skipped === 1 ? ' overlapped and was skipped.' : ' overlapped and were skipped.');
       setSyncState('Saved', 'success');
       showToast(message, created ? 'success' : 'info');
       if (created > 0) {
         await closeModalRoute({ force: true });
       } else {
-        var existingResult = $('[data-tone][aria-labelledby="admin-day-schedule-result-title"]', form.parentElement);
-        if (existingResult) existingResult.remove();
-        form.insertAdjacentHTML('beforebegin', dayScheduleResultHtml(dayScheduleLastResult));
+        if (status) status.textContent = 'No slots were added. They overlap existing availability or bookings.';
       }
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      if (status) status.textContent = error instanceof Error ? error.message : 'Could not create the day schedule.';
+      if (status) status.textContent = error instanceof Error ? error.message : 'The schedule couldn’t be added. Try again.';
       setFormBusy(form, false);
       return;
     }
@@ -7456,9 +7291,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     } catch (error) {
       setSyncState('Refresh failed', 'error', error instanceof Error ? error.message : '');
       if (document.body.contains(form) && status) {
-        status.textContent = 'The day schedule was created, but the calendar could not be refreshed. Reload Availability to see the saved slots.';
+        status.textContent = 'Added, but the calendar couldn’t refresh. Reload the page to see the new slots.';
+      } else {
+        showToast('Added, but the calendar couldn’t refresh. Reload the page to see the new slots.', 'error');
       }
-      showToast('Availability was saved, but the calendar could not be refreshed.', 'error');
     } finally {
       if (document.body.contains(form)) setFormBusy(form, false);
     }
@@ -7563,7 +7399,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       rebuildSlotTimeOptions(true);
       if (startSelect) startSelect.value = formatTime(slot.start_at);
       if (endSelect) endSelect.value = formatTime(slot.end_at);
-      if (submit) submit.textContent = 'Update slot';
+      if (submit) submit.textContent = 'Save changes';
       if (del) del.hidden = false;
       if (repeatToggle) repeatToggle.checked = false;
       setRepeatControlsEnabled(false);
@@ -7575,7 +7411,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (title) title.textContent = 'New slot';
     if (slotId) slotId.value = '';
-    if (submit) submit.textContent = 'Create slot';
+    if (submit) submit.textContent = 'Add slot';
     if (del) del.hidden = true;
     setRepeatControlsEnabled(true);
     refreshCustomControls(form);
@@ -7601,9 +7437,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
 
     var selectedStaff = staffSelect.value;
-    staffSelect.innerHTML = '<option value="">Unassigned</option>' + state.staffList.filter(function (staff) { return staff.is_active; }).map(function (staff) {
-      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedStaff ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + '</option>';
-    }).join('');
+    staffSelect.innerHTML = '<option value="">Unassigned</option>' + assignableStaffOptions(selectedStaff);
 
     if (!dateInput.value) {
       var defaults = defaultSlotDateTime();
@@ -7667,15 +7501,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           endAt: validation.endAt
         });
         await refresh({ preserveScroll: true, force: true });
+        // The editor stays open, so the result is said once, inside it.
         if (errorEl) {
-          errorEl.textContent = 'Slot updated.';
+          errorEl.textContent = 'Saved.';
           errorEl.classList.add('is-success');
         }
         captureSlotEditorBaseline();
-        showToast('Availability slot updated.', 'success');
       } catch (error) {
         setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-        if (errorEl) errorEl.textContent = error instanceof Error ? error.message : 'Could not update slot.';
+        if (errorEl) errorEl.textContent = error instanceof Error ? error.message : 'The slot couldn’t be saved. Try again.';
       } finally {
         if (document.body.contains(form)) setFormBusy(form, false);
       }
@@ -7690,71 +7524,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (occurrence.error) { showFieldError(errorEl,occurrenceDate+': '+occurrence.error); return; }
       occurrences.push({date:occurrenceDate,startTime:startTime,endTime:endTime,startAt:occurrence.startAt,endAt:occurrence.endAt,fold:data.get('dstFold') || null});
     }
-    setFormBusy(form,true,'Publishing availability'); setSyncState('Saving','loading');
+    setFormBusy(form,true,'Adding…'); setSyncState('Saving','loading');
     try {
       var response = await adminAction({action:'createSlotSeries',serviceCode:data.get('serviceCode') || 'all',assignedStaffId:data.get('assignedStaffId') || null,occurrences:occurrences});
       state.selectedSlotId=null; slotEditorBaseline='';
       history.replaceState(modalHistoryState(null,0),'',PATHS.availability);
       setSlotEditorOpen(false,{restoreFocus:true});
-      await refresh({preserveScroll:true,force:true}).catch(function(){showToast('Availability saved. Refresh to load the updated schedule.','info');});
-      showToast((response.result && response.result.created || weeks)+' availability slots published.','success');
+      await refresh({preserveScroll:true,force:true}).catch(function(){showToast('Saved. Refresh to see the updated calendar.','info');});
+      var added = Number(response.result && response.result.created) || weeks;
+      showToast(added === 1 ? '1 slot added.' : added + ' slots added.','success');
     } catch(error) {
       setSyncState('Action failed','error');
-      showFieldError(errorEl,error instanceof Error ? error.message : 'No slots were created.');
+      showFieldError(errorEl,error instanceof Error ? error.message : 'No slots were added. Try again.');
     } finally { if(document.body.contains(form)) setFormBusy(form,false); }
-  }
-
-  function renderSlots() {
-    var slotList = $('[data-admin-slot-list]');
-    if (!slotList) return;
-    var bookingBySlot = latestBookingsBySlot(function (booking) {
-      return isActiveBookingStatus(booking.status);
-    });
-    var completedSlotIds = {};
-    state.bookings.forEach(function (booking) {
-      if (booking.availability_slot_id && booking.status === 'completed') {
-        completedSlotIds[booking.availability_slot_id] = true;
-      }
-    });
-    var querySlotId = state.selectedSlotId;
-    var slots = state.slots.slice().sort(function (a, b) { return new Date(a.start_at) - new Date(b.start_at); });
-
-    slots = slots.filter(function (slot) {
-      if (!slotIsBookable(slot)) return false;
-      if (completedSlotIds[slot.id]) return false;
-      if (state.slotFilter !== 'all' && slot.status !== state.slotFilter) return false;
-      return true;
-    }).slice(0, 120);
-
-    if (!slots.length) {
-      slotList.innerHTML = '<div class="admin-empty-state admin-empty-state-compact"><p>No slots match this view.</p></div>';
-      return;
-    }
-
-    slotList.innerHTML = slots.map(function (slot) {
-      var service = serviceNameById(slot.service_id);
-      var assignee = staffById(slot.assigned_staff_id);
-      var booking = bookingBySlot[slot.id];
-      var status = booking ? booking.status : 'available';
-      var hasActiveBooking = booking && isActiveBookingStatus(booking.status);
-      var seriesMeta = slot.recurrence_series_id ? ' - Weekly series' : '';
-      return '<div class="admin-slot-item' + (slot.id === querySlotId ? ' is-selected' : '') + '" data-tone="' + escapeHtml(statusTone(status)) + '">' +
-        '<div>' +
-          '<div class="admin-booking-title">' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '</div>' +
-          '<div class="admin-slot-meta">' + escapeHtml(service)  + ' · ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned')  + ' · ' + escapeHtml(statusLabel(status) + seriesMeta) + '</div>' +
-          (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' · ' + booking.customer_name) + '</a>' : '') +
-        '</div>' +
-        '<div class="admin-slot-actions">' +
-          (!hasActiveBooking ? '<button class="admin-button admin-button-danger" type="button" data-delete-slot="' + escapeHtml(slot.id) + '">Cancel</button>' : '') +
-        '</div>' +
-      '</div>';
-    }).join('');
-
-    $all('[data-delete-slot]', slotList).forEach(function (button) {
-      button.addEventListener('click', async function () {
-        await deleteSlotWithChoice(button.dataset.deleteSlot, button);
-      });
-    });
   }
 
   function initCustomControls(root) {

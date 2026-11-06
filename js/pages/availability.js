@@ -95,13 +95,13 @@ export function renderStaticPage(root) {
           >${ICONS.close}</button>
         </div>
 
-        <form class="admin-slot-form" data-admin-slot-form novalidate>
+        <form class="admin-slot-form admin-form-plain" data-admin-slot-form novalidate>
           <input type="hidden" name="slotId" data-admin-slot-id>
           <input type="hidden" name="serviceCode" value="all" data-admin-slot-service>
           <div class="admin-slot-form-time-grid">
             <label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required data-admin-slot-date></label>
-            <label><span class="admin-field-label">Start time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
-            <label><span class="admin-field-label">End time <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
+            <label><span class="admin-field-label">From <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
+            <label><span class="admin-field-label">Until <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
           </div>
           <label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
           <fieldset class="admin-repeat">
@@ -118,9 +118,10 @@ export function renderStaticPage(root) {
             </select></span></label>
           </fieldset>
           <div class="admin-form-error" data-admin-slot-error role="status" aria-live="polite"></div>
-          <div class="admin-action-buttons">
-            <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Create slot</button>
-            <button class="admin-button admin-button-danger" type="button" data-admin-slot-delete hidden>Cancel slot</button>
+          <div class="admin-action-buttons admin-slot-editor-actions">
+            <button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-admin-slot-delete hidden>Delete slot</button>
+            <button class="admin-button admin-button-secondary" type="button" data-admin-slot-editor-close>Close</button>
+            <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Add slot</button>
           </div>
         </form>
       </section>

@@ -723,7 +723,7 @@ async function handleTemporaryPasswordSubmit(event, state, user) {
     ? await modals.confirm({
       title: 'Set a temporary password?',
       message: `${user.displayName || user.email} will be signed out everywhere and must change it at their next sign-in.`,
-      cancelLabel: 'Cancel',
+      cancelLabel: 'Go back',
       confirmLabel: 'Set password'
     })
     : true;
@@ -757,7 +757,7 @@ async function handleSetActive(button, state, user, isActive) {
       message: isActive
         ? `${user.displayName || user.email} can sign in again.`
         : `${user.displayName || user.email} will be signed out and can’t sign in until you restore access.`,
-      cancelLabel: 'Cancel',
+      cancelLabel: isActive ? 'Go back' : 'Keep access',
       confirmLabel: isActive ? 'Restore access' : 'Disable access',
       danger: !isActive
     })

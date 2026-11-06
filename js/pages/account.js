@@ -340,7 +340,7 @@ async function signOutOtherSessions(state) {
     ? await modals.confirm({
       title: 'Sign out other sessions?',
       message: 'Every other browser signed in to your account will need to sign in again.',
-      cancelLabel: 'Cancel',
+      cancelLabel: 'Keep them signed in',
       confirmLabel: 'Sign out',
       danger: true
     })
