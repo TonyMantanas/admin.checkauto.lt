@@ -5,47 +5,51 @@ export const page = 'availability';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-availability-calendar-layout">
+    <div class="admin-list-page admin-availability-calendar-layout">
+      <header class="admin-page-header">
+        <div>
+          <h1 id="availability-page-title">Availability</h1>
+        </div>
+        <div class="admin-page-actions admin-availability-actions">
+          <button
+            class="admin-button admin-button-secondary admin-availability-add-button"
+            type="button"
+            data-admin-slot-open
+            aria-label="Add availability slot"
+            aria-haspopup="dialog"
+            aria-controls="admin-slot-editor"
+            title="Add slot"
+            disabled
+          >${ICONS.add}<span class="admin-availability-add-label">Add slot</span></button>
+          <button
+            class="admin-button admin-button-primary admin-availability-day-button"
+            type="button"
+            data-admin-day-schedule-open
+            aria-label="Create day schedule"
+            aria-haspopup="dialog"
+            title="Create day schedule"
+            disabled
+          >${ICONS.add}<span>Create schedule</span></button>
+        </div>
+      </header>
       <section
-        class="admin-panel admin-calendar-panel admin-availability-calendar-panel"
+        class="admin-card admin-card--flush admin-list-card admin-availability-calendar-panel"
         aria-labelledby="availability-page-title availability-calendar-title"
       >
-        <header class="admin-panel-header admin-panel-header-compact admin-workspace-header admin-availability-workspace-header">
-          <div class="admin-page-title admin-availability-title">
-            <h1 id="availability-page-title">Availability</h1>
-            <p
-              class="admin-count admin-availability-range"
-              id="availability-calendar-title"
-              data-admin-calendar-title
-              aria-live="polite"
-              aria-atomic="true"
-            >${skeletons.block('admin-skeleton-line admin-skeleton-calendar-range')}</p>
-          </div>
-          <div class="admin-page-actions admin-availability-actions">
-            <button
-              class="admin-button admin-button-primary admin-availability-day-button"
-              type="button"
-              data-admin-day-schedule-open
-              aria-label="Create day schedule"
-              aria-haspopup="dialog"
-              title="Create day schedule"
-              disabled
-            >${ICONS.add}<span>Create schedule</span></button>
-            <button
-              class="admin-button admin-button-secondary admin-availability-add-button"
-              type="button"
-              data-admin-slot-open
-              aria-label="Add availability slot"
-              aria-haspopup="dialog"
-              aria-controls="admin-slot-editor"
-              title="Add slot"
-              disabled
-            >${ICONS.add}<span class="admin-availability-add-label">Add slot</span></button>
-          </div>
-          <div class="admin-calendar-controls">
+        <div class="admin-card-toolbar admin-list-toolbar admin-calendar-toolbar">
+          <div class="admin-calendar-nav">
             <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-prev aria-label="Previous period" title="Previous period" disabled>${ICONS.previous}</button>
             <button class="admin-button admin-button-secondary" type="button" data-calendar-today disabled>Today</button>
             <button class="admin-button admin-button-secondary admin-icon-button" type="button" data-calendar-next aria-label="Next period" title="Next period" disabled>${ICONS.next}</button>
+          </div>
+          <p
+            class="admin-calendar-range"
+            id="availability-calendar-title"
+            data-admin-calendar-title
+            aria-live="polite"
+            aria-atomic="true"
+          >${skeletons.block('admin-skeleton-line admin-skeleton-calendar-range')}</p>
+          <div class="admin-calendar-view-controls">
             <div class="admin-segmented" data-calendar-view role="group" aria-label="Availability calendar view">
               <button class="is-active" type="button" data-view="week" aria-pressed="true" disabled>Week</button>
               <button type="button" data-view="day" aria-pressed="false" disabled>Day</button>
@@ -55,7 +59,7 @@ export function renderStaticPage(root) {
               <input type="date" autocomplete="off" data-calendar-date disabled>
             </label>
           </div>
-        </header>
+        </div>
         <div
           class="admin-calendar"
           data-admin-calendar
@@ -63,7 +67,7 @@ export function renderStaticPage(root) {
           aria-label="Availability calendar"
         >${skeletons.calendar()}</div>
       </section>
-    </section>
+    </div>
 
     <div class="admin-slot-editor-root" id="admin-slot-editor" data-admin-slot-editor hidden>
       <button

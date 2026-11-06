@@ -4,13 +4,15 @@ export const page = 'customers';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-customer-layout">
-      <section class="admin-panel admin-panel-full admin-list-panel" aria-label="Customer profiles">
-        <div class="admin-panel-header admin-workspace-header admin-customers-workspace-header">
-          <div class="admin-page-title">
-            <h1>Customers</h1>
-            <p class="admin-count" data-customer-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
-          </div>
+    <div class="admin-list-page admin-customer-layout">
+      <header class="admin-page-header">
+        <div>
+          <h1>Customers</h1>
+          <p class="admin-page-meta admin-count" data-customer-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
+        </div>
+      </header>
+      <section class="admin-card admin-card--flush admin-list-card" aria-label="Customer profiles">
+        <div class="admin-card-toolbar admin-list-toolbar">
           <label class="admin-search admin-search-compact">
             <span>Search customers</span>
             <input
@@ -22,14 +24,16 @@ export function renderStaticPage(root) {
             >
           </label>
         </div>
-        <div class="admin-data-head admin-customer-data-head" aria-hidden="true">
-          <span>Customer</span>
-          <span>Contact</span>
-          <span>Bookings and invoices</span>
+        <div class="admin-list-scroll">
+          <div class="admin-data-head admin-customer-data-head" aria-hidden="true">
+            <span>Customer</span>
+            <span>Contact</span>
+            <span>Bookings and invoices</span>
+          </div>
+          <div class="admin-customer-list" data-customer-list>${skeletons.list('customers')}</div>
         </div>
-        <div class="admin-customer-list" data-customer-list>${skeletons.list('customers')}</div>
       </section>
-    </section>
+    </div>
   `;
 }
 

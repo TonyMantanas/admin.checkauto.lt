@@ -4,14 +4,14 @@ export const page = 'notifications';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-notifications-workspace">
-      <header class="admin-panel-header admin-workspace-header">
-        <div class="admin-page-title">
+    <div class="admin-page-body admin-notifications-workspace">
+      <header class="admin-page-header">
+        <div>
           <h1>Notifications</h1>
-          <p class="admin-count" data-notifications-count role="status" aria-live="polite"></p>
+          <p class="admin-page-meta admin-count" data-notifications-count role="status" aria-live="polite"></p>
         </div>
       </header>
-      <div data-notifications-content role="region" aria-busy="true" aria-label="Notification actions">${skeletons.notifications()}</div>
-    </section>
+      <section class="admin-card admin-card--flush" data-notifications-content role="region" aria-busy="true" aria-label="Notification actions">${skeletons.notifications()}</section>
+    </div>
   `;
 }

@@ -2933,9 +2933,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var end = addDaysYmd(range.endExclusive, -1);
     var crossesYear = range.start.slice(0, 4) !== end.slice(0, 4);
-    return compactCalendarDate(range.start, { year: crossesYear }) +
-      ' - ' +
-      compactCalendarDate(end, { year: crossesYear || !compact });
+    var endLabel = compactCalendarDate(end, { year: crossesYear || !compact });
+    // "2–8 Nov 2026" inside one month, "28 Oct – 3 Nov 2026" across two.
+    if (range.start.slice(0, 7) === end.slice(0, 7)) {
+      return Number(range.start.slice(8, 10)) + '–' + endLabel;
+    }
+    return compactCalendarDate(range.start, { year: crossesYear }) + ' – ' + endLabel;
   }
 
   // A confirmed inspection can only be marked completed once it has started.
@@ -7195,7 +7198,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<div>' +
           '<div class="admin-booking-title">' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '</div>' +
           '<div class="admin-slot-meta">' + escapeHtml(service)  + ' · ' + escapeHtml(assignee ? assignee.display_name : 'Unassigned')  + ' · ' + escapeHtml(statusLabel(status) + seriesMeta) + '</div>' +
-          (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' - ' + booking.customer_name) + '</a>' : '') +
+          (booking ? '<a class="admin-inline-link" href="' + PATHS.bookings + '?booking=' + encodeURIComponent(booking.id) + '">' + escapeHtml(booking.public_reference + ' · ' + booking.customer_name) + '</a>' : '') +
         '</div>' +
         '<div class="admin-slot-actions">' +
           (!hasActiveBooking ? '<button class="admin-button admin-button-danger" type="button" data-delete-slot="' + escapeHtml(slot.id) + '">Cancel</button>' : '') +

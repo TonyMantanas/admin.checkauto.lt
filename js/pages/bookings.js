@@ -5,82 +5,84 @@ export const page = 'bookings';
 
 export function renderStaticPage(root) {
   root.innerHTML = `
-    <section class="admin-workbench admin-bookings-workbench">
-      <section class="admin-panel admin-list-panel" aria-label="Booking queue">
-        <div class="admin-panel-header admin-workspace-header admin-bookings-workspace-header">
-          <div class="admin-page-title">
-            <h1>Bookings</h1>
-            <p class="admin-count" data-admin-booking-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
-          </div>
-          <div class="admin-workspace-controls">
-            <label class="admin-search admin-search-inline admin-search-compact">
-              <span>Search bookings</span>
-              <input type="search" data-booking-search placeholder="Search bookings" autocomplete="off" disabled>
-            </label>
-            <details class="admin-filter-menu" data-booking-filter-menu>
-              <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-booking-filter-count hidden>0</span></summary>
-              <div class="admin-filter-popover" aria-label="Booking filters">
-                <header class="admin-filter-popover-header">
-                  <strong>Filters</strong>
-                  <div class="admin-filter-header-actions">
-                    <button class="admin-filter-reset" type="button" data-booking-filters-reset>Reset</button>
-                    <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
+    <div class="admin-list-page admin-bookings-workbench">
+      <header class="admin-page-header">
+        <div>
+          <h1>Bookings</h1>
+          <p class="admin-page-meta admin-count" data-admin-booking-count role="status" aria-live="polite">${skeletons.block('admin-skeleton-line admin-skeleton-count')}</p>
+        </div>
+      </header>
+      <section class="admin-card admin-card--flush admin-list-card" aria-label="Booking queue">
+        <div class="admin-card-toolbar admin-list-toolbar">
+          <label class="admin-search admin-search-compact">
+            <span>Search bookings</span>
+            <input type="search" data-booking-search placeholder="Search bookings" autocomplete="off" disabled>
+          </label>
+          <details class="admin-filter-menu" data-booking-filter-menu>
+            <summary aria-expanded="false"><span>Filters</span><span class="admin-filter-count" data-booking-filter-count hidden>0</span></summary>
+            <div class="admin-filter-popover" aria-label="Booking filters">
+              <header class="admin-filter-popover-header">
+                <strong>Filters</strong>
+                <div class="admin-filter-header-actions">
+                  <button class="admin-filter-reset" type="button" data-booking-filters-reset>Reset</button>
+                  <button class="admin-icon-button admin-filter-close" type="button" data-filter-close aria-label="Close booking filters" title="Close">${ICONS.close}</button>
+                </div>
+              </header>
+              <div class="admin-filter-popover-body">
+                <fieldset class="admin-filter-statuses">
+                  <legend>Status</legend>
+                  <div class="admin-filter-check-grid">
+                    <label><input type="checkbox" value="pending" data-booking-status><span>Pending review</span></label>
+                    <label><input type="checkbox" value="confirmed" data-booking-status><span>Confirmed</span></label>
+                    <label><input type="checkbox" value="completed" data-booking-status><span>Completed</span></label>
+                    <label><input type="checkbox" value="rejected" data-booking-status><span>Rejected</span></label>
+                    <label><input type="checkbox" value="cancelled" data-booking-status><span>Cancelled</span></label>
+                    <label><input type="checkbox" value="expired" data-booking-status><span>Expired</span></label>
                   </div>
-                </header>
-                <div class="admin-filter-popover-body">
-                  <fieldset class="admin-filter-statuses">
-                    <legend>Status</legend>
-                    <div class="admin-filter-check-grid">
-                      <label><input type="checkbox" value="pending" data-booking-status><span>Pending review</span></label>
-                      <label><input type="checkbox" value="confirmed" data-booking-status><span>Confirmed</span></label>
-                      <label><input type="checkbox" value="completed" data-booking-status><span>Completed</span></label>
-                      <label><input type="checkbox" value="rejected" data-booking-status><span>Rejected</span></label>
-                      <label><input type="checkbox" value="cancelled" data-booking-status><span>Cancelled</span></label>
-                      <label><input type="checkbox" value="expired" data-booking-status><span>Expired</span></label>
-                    </div>
-                  </fieldset>
-                  <div class="admin-filter-date-grid">
-                    <label><span>Date event</span><span class="admin-select-wrap"><select data-booking-date-field>
-                      <option value="received">Booking received</option>
-                      <option value="inspection">Inspection date</option>
-                      <option value="confirmed">Confirmed date</option>
-                      <option value="completed">Completed date</option>
-                      <option value="rejected">Rejected date</option>
-                      <option value="cancelled">Cancelled date</option>
-                      <option value="expired">Expired date</option>
-                    </select></span></label>
-                    <label><span>From</span><input type="date" data-booking-date-from></label>
-                    <label><span>To</span><input type="date" data-booking-date-to></label>
-                  </div>
-                  <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
-                    <button class="admin-button admin-button-secondary" type="button" data-booking-range="today">Today</button>
-                    <button class="admin-button admin-button-secondary" type="button" data-booking-range="month">Month to date</button>
-                  </div>
+                </fieldset>
+                <div class="admin-filter-date-grid">
+                  <label><span>Date event</span><span class="admin-select-wrap"><select data-booking-date-field>
+                    <option value="received">Booking received</option>
+                    <option value="inspection">Inspection date</option>
+                    <option value="confirmed">Confirmed date</option>
+                    <option value="completed">Completed date</option>
+                    <option value="rejected">Rejected date</option>
+                    <option value="cancelled">Cancelled date</option>
+                    <option value="expired">Expired date</option>
+                  </select></span></label>
+                  <label><span>From</span><input type="date" data-booking-date-from></label>
+                  <label><span>To</span><input type="date" data-booking-date-to></label>
+                </div>
+                <div class="admin-filter-shortcuts" aria-label="Date shortcuts">
+                  <button class="admin-button admin-button-secondary" type="button" data-booking-range="today">Today</button>
+                  <button class="admin-button admin-button-secondary" type="button" data-booking-range="month">Month to date</button>
                 </div>
               </div>
-            </details>
-            <div class="admin-segmented" data-admin-booking-sort role="group" aria-label="Sort bookings">
-              <button class="admin-segmented-icon" type="button" data-booking-sort="asc" aria-pressed="false" aria-label="Oldest first" title="Oldest first" disabled>${ICONS.sortAscending}</button>
-              <button class="is-active admin-segmented-icon" type="button" data-booking-sort="desc" aria-pressed="true" aria-label="Newest first" title="Newest first" disabled>${ICONS.sortDescending}</button>
             </div>
+          </details>
+          <div class="admin-segmented" data-admin-booking-sort role="group" aria-label="Sort bookings">
+            <button class="admin-segmented-icon" type="button" data-booking-sort="asc" aria-pressed="false" aria-label="Oldest first" title="Oldest first" disabled>${ICONS.sortAscending}</button>
+            <button class="is-active admin-segmented-icon" type="button" data-booking-sort="desc" aria-pressed="true" aria-label="Newest first" title="Newest first" disabled>${ICONS.sortDescending}</button>
           </div>
         </div>
-        <div class="admin-booking-data-head" aria-hidden="true">
-          <div class="admin-data-head">
-            <span>Booking</span>
-            <span>Status</span>
-            <span>Service</span>
-            <span>Appointment</span>
-            <span>Vehicle</span>
+        <div class="admin-list-scroll">
+          <div class="admin-booking-data-head" aria-hidden="true">
+            <div class="admin-data-head">
+              <span>Booking</span>
+              <span>Status</span>
+              <span>Service</span>
+              <span>Appointment</span>
+              <span>Vehicle</span>
+            </div>
+            <span></span>
           </div>
-          <span></span>
-        </div>
-        <div class="admin-booking-list" data-admin-booking-list>${skeletons.list('bookings')}</div>
-        <div class="admin-list-pagination" data-booking-pagination hidden>
-          <button class="admin-button admin-button-secondary" type="button" data-booking-load-more>Load more bookings</button>
+          <div class="admin-booking-list" data-admin-booking-list>${skeletons.list('bookings')}</div>
+          <div class="admin-list-pagination" data-booking-pagination hidden>
+            <button class="admin-button admin-button-secondary" type="button" data-booking-load-more>Load more bookings</button>
+          </div>
         </div>
       </section>
-    </section>
+    </div>
   `;
 }
 

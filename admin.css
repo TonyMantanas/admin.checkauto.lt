@@ -1209,7 +1209,6 @@ fieldset {
 }
 
 .admin-action-buttons,
-.admin-calendar-controls,
 .admin-page-actions,
 .admin-quick-actions,
 .admin-slot-actions,
@@ -1456,10 +1455,6 @@ fieldset {
 .admin-search {
   width: min(100%, 28rem);
   margin: 0;
-}
-
-.admin-search-inline {
-  width: min(100%, 24rem);
 }
 
 .admin-search input[type="search"] {
@@ -1830,15 +1825,6 @@ fieldset {
   background: var(--admin-surface);
 }
 
-.admin-bookings-workbench .admin-list-panel,
-.admin-invoices-workbench .admin-list-panel {
-  overflow: visible;
-}
-
-.admin-panel-full {
-  width: 100%;
-}
-
 .admin-panel-header {
   min-width: 0;
   padding: var(--admin-panel-header-padding, var(--admin-space-4) var(--admin-space-5));
@@ -1855,48 +1841,9 @@ fieldset {
   padding: var(--admin-panel-header-compact-padding, var(--admin-space-2) var(--admin-space-4));
 }
 
-.admin-panel-header.admin-workspace-header {
-  min-height: 3rem;
-  padding: var(--admin-panel-header-workspace-padding, var(--admin-space-2) var(--admin-space-4));
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  align-items: center;
-  gap: var(--admin-space-3);
-}
-
-.admin-workspace-header .admin-page-title {
-  flex-wrap: nowrap;
-}
-
-.admin-workspace-header h1 {
-  font-size: 1.05rem;
-  letter-spacing: -0.015em;
-}
-
-.admin-workspace-header .admin-count {
-  white-space: nowrap;
-}
-
 .admin-marketing-workspace-header h1 {
   font-size: 1.05rem;
   letter-spacing: -0.015em;
-}
-
-.admin-workspace-controls {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--admin-space-2);
-}
-
-.admin-customers-workspace-header .admin-search {
-  width: min(100%, 28rem);
-  justify-self: end;
-}
-
-.admin-invoices-workspace-header .admin-search {
-  width: min(24rem, 42vw);
 }
 
 .admin-search-compact {
@@ -2085,15 +2032,13 @@ fieldset {
 }
 
 .admin-data-head {
-  min-height: 2rem;
+  min-height: 2.25rem;
   padding: var(--admin-data-head-padding, 0.5rem var(--admin-space-5));
-  color: var(--admin-text-tertiary);
-  background: var(--admin-surface-subtle);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface);
   border-block-end: 1px solid var(--admin-border);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.035em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
 .admin-data-row,
@@ -2236,12 +2181,11 @@ fieldset {
 
 /* Billing totals above the list, doubling as quick filters. */
 .admin-billing-summary {
-  padding: 0.875rem var(--admin-space-4);
+  padding: 0 var(--admin-space-4) 0.875rem;
   display: flex;
   flex-wrap: wrap;
   align-items: stretch;
   gap: 0.625rem;
-  border-block-end: 1px solid var(--admin-border);
 }
 
 .admin-billing-summary[hidden] {
@@ -2319,7 +2263,7 @@ fieldset {
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--admin-booking-action-width);
   border-block-end: 1px solid var(--admin-border);
-  background: var(--admin-surface-subtle);
+  background: var(--admin-surface);
 }
 
 .admin-booking-data-head > .admin-data-head {
@@ -2330,14 +2274,13 @@ fieldset {
 .admin-booking-group {
   position: sticky;
   z-index: 1;
-  inset-block-start: 0;
+  inset-block-start: var(--admin-list-head-offset, 0);
   margin: 0;
-  padding: 0.45rem var(--admin-space-4);
+  padding: 0.75rem var(--admin-space-4) 0.375rem;
   border-block-end: 1px solid var(--admin-border);
-  color: var(--admin-text-secondary);
-  background: color-mix(in srgb, var(--admin-surface-subtle) 94%, transparent);
-  backdrop-filter: blur(6px);
-  font-size: 0.75rem;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: 0;
 }
@@ -2486,7 +2429,7 @@ fieldset {
 
 .admin-filter-popover {
   width: min(26rem, calc(100vw - 2rem));
-  max-height: min(32rem, calc(100dvh - 6rem));
+  max-height: min(32rem, calc(100dvh - 12rem));
   overflow: hidden;
   position: absolute;
   z-index: 30;
@@ -3108,44 +3051,13 @@ button.admin-mini-item::after {
 /* Calendar
    ========================================================================== */
 
-.admin-calendar-panel,
 .admin-availability-calendar-panel {
   min-width: 0;
-}
-
-.admin-calendar-panel > .admin-panel-header {
-  align-items: center;
-}
-
-.admin-calendar-controls {
-  flex: 0 1 auto;
-  flex-wrap: nowrap;
-  gap: var(--admin-space-1);
-}
-
-.admin-panel-header.admin-availability-workspace-header {
-  grid-template-columns: max-content auto minmax(0, 1fr);
-  gap: var(--admin-space-2);
-}
-
-.admin-availability-title {
-  min-width: 0;
-  gap: var(--admin-space-2);
-}
-
-.admin-availability-range {
-  max-width: 10rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .admin-availability-actions {
   flex-wrap: nowrap;
   gap: var(--admin-space-1);
-}
-
-.admin-availability-workspace-header > .admin-calendar-controls {
-  justify-self: end;
 }
 
 .admin-day-schedule-form {
@@ -5036,9 +4948,10 @@ button.admin-mini-item::after {
 }
 
 .admin-card {
+  --admin-card-radius: var(--admin-tile-radius);
   min-width: 0;
   padding: 1.25rem 1.375rem 1.375rem;
-  border-radius: var(--admin-tile-radius);
+  border-radius: var(--admin-card-radius);
   background: var(--admin-surface);
 }
 
@@ -5189,6 +5102,7 @@ button.admin-mini-item::after {
   margin-block-start: 0.3rem;
   color: var(--admin-text-secondary);
   font-size: 0.9375rem;
+  font-weight: 400;
 }
 
 .admin-page-body {
@@ -5215,6 +5129,82 @@ button.admin-mini-item::after {
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
+}
+
+/* List pages: the title above one flush card. The card's first row holds
+   search, filters and sort; the list follows under a single rule. */
+.admin-list-page {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-list-card {
+  display: flex;
+  flex-direction: column;
+  /* Filter popovers hang below the toolbar, so the card itself can't clip. */
+  overflow: visible;
+}
+
+.admin-list-toolbar {
+  padding: 0.875rem 1rem;
+}
+
+.admin-list-toolbar > .admin-search {
+  flex: 1 1 14rem;
+  width: auto;
+  max-width: 24rem;
+  margin-inline-end: auto;
+}
+
+.admin-list-scroll {
+  min-width: 0;
+  overflow: clip;
+  border-block-start: 1px solid var(--admin-border);
+  border-radius: 0 0 var(--admin-card-radius) var(--admin-card-radius);
+}
+
+@media (max-width: 40rem) {
+  .admin-list-toolbar > .admin-search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+}
+
+/* Availability: date navigation on the left, view and jump on the right. */
+.admin-calendar-toolbar {
+  gap: 0.5rem 0.75rem;
+}
+
+.admin-calendar-nav,
+.admin-calendar-view-controls {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.admin-calendar-range {
+  min-width: 0;
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.admin-calendar-view-controls {
+  margin-inline-start: auto;
+}
+
+.admin-availability-calendar-panel > .admin-calendar {
+  overflow: hidden;
+  border-block-start: 1px solid var(--admin-border);
+  border-radius: 0 0 var(--admin-card-radius) var(--admin-card-radius);
+}
+
+.admin-notifications-workspace > [data-notifications-content] {
+  overflow: hidden;
 }
 
 /* Soft grey rows inside a card: avatar or dot, text, meta, chevron. */
@@ -6755,8 +6745,12 @@ a.admin-dash-tile:hover {
   }
 
   .admin-card {
+    --admin-card-radius: 1rem;
     padding: 1rem 1rem 1.125rem;
-    border-radius: 1rem;
+  }
+
+  .admin-card--flush {
+    padding: 0;
   }
 
   .admin-dash-tiles {
@@ -7197,10 +7191,6 @@ a.admin-dash-tile:hover {
     padding-inline: var(--admin-space-3);
   }
 
-  .admin-calendar-controls {
-    gap: var(--admin-space-1);
-  }
-
   .admin-date-jump > span {
     position: absolute;
     width: 1px;
@@ -7335,34 +7325,6 @@ a.admin-dash-tile:hover {
 }
 
 @media (max-width: 68.75rem) {
-
-  .admin-panel-header.admin-workspace-header {
-    grid-template-columns: minmax(0, 1fr);
-    align-items: stretch;
-  }
-
-  .admin-panel-header.admin-availability-workspace-header {
-    grid-template-columns: max-content auto minmax(0, 1fr);
-    align-items: center;
-  }
-
-  .admin-workspace-controls {
-    justify-content: space-between;
-  }
-
-  .admin-customers-workspace-header .admin-search {
-    width: 100%;
-    justify-self: stretch;
-  }
-
-  .admin-invoices-workspace-header .admin-workspace-controls {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-
-  .admin-invoices-workspace-header .admin-search {
-    width: 100%;
-  }
 
   .admin-data-row,
   .admin-booking-item,
@@ -7555,70 +7517,6 @@ a.admin-dash-tile:hover {
     padding: var(--admin-space-3);
   }
 
-  .admin-calendar-panel > .admin-panel-header {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
-    align-items: center;
-    gap: var(--admin-space-2);
-    padding: var(--admin-space-2);
-  }
-
-  .admin-calendar-panel > .admin-panel-header h2 {
-    width: auto;
-    min-width: 0;
-    grid-column: 1;
-    grid-row: 1;
-    overflow: hidden;
-    font-size: 1rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .admin-calendar-controls {
-    display: contents;
-  }
-
-  .admin-calendar-controls > [data-calendar-prev] {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .admin-calendar-controls > [data-calendar-today] {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .admin-calendar-controls > [data-calendar-next] {
-    grid-column: 4;
-    grid-row: 1;
-  }
-
-  .admin-calendar-controls > .admin-segmented {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: start;
-  }
-
-  .admin-calendar-controls .admin-date-jump {
-    width: min(100%, 9rem);
-    grid-column: 2 / 5;
-    grid-row: 2;
-    justify-self: end;
-  }
-
-  .admin-calendar-controls .admin-date-jump > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .admin-calendar-controls .admin-date-jump input {
-    width: 100%;
-  }
-
   .admin-calendar-agenda-day,
   .admin-agenda-day {
     grid-template-columns: minmax(0, 1fr);
@@ -7720,79 +7618,6 @@ a.admin-dash-tile:hover {
   }
 }
 
-@media (max-width: 68.75rem) {
-  .admin-calendar-panel > .admin-panel-header.admin-availability-workspace-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    gap: var(--admin-space-2);
-    padding: var(--admin-space-2);
-  }
-
-  .admin-availability-workspace-header > .admin-availability-title {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .admin-availability-workspace-header > .admin-availability-actions {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls {
-    width: 100%;
-    display: grid;
-    grid-template-columns: auto auto auto auto minmax(6.75rem, 9rem);
-    grid-column: 1 / 3;
-    grid-row: 2;
-    align-items: center;
-    justify-content: end;
-    justify-self: stretch;
-    gap: var(--admin-space-1);
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls > [data-calendar-prev] {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls > [data-calendar-today] {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls > [data-calendar-next] {
-    grid-column: 3;
-    grid-row: 1;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls > .admin-segmented {
-    grid-column: 4;
-    grid-row: 1;
-    justify-self: start;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls .admin-date-jump {
-    width: 100%;
-    grid-column: 5;
-    grid-row: 1;
-    justify-self: stretch;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls .admin-date-jump > span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls .admin-date-jump input {
-    width: 100%;
-  }
-}
-
 @media (max-width: 30rem) {
   .admin-day-schedule-core-fields,
   .admin-day-schedule-advanced > div {
@@ -7812,66 +7637,6 @@ a.admin-dash-tile:hover {
 
   .admin-availability-add-label {
     display: none;
-  }
-
-  .admin-bookings-workspace-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-  }
-
-  .admin-bookings-workspace-header .admin-workspace-controls {
-    display: contents;
-  }
-
-  .admin-bookings-workspace-header .admin-search {
-    width: 100%;
-    grid-column: 1 / 3;
-    grid-row: 2;
-  }
-
-  .admin-bookings-workspace-header .admin-filter-menu {
-    grid-column: 1 / 3;
-    grid-row: 3;
-    justify-self: stretch;
-  }
-
-  .admin-bookings-workspace-header .admin-filter-menu > summary {
-    width: 100%;
-  }
-
-  .admin-bookings-workspace-header [data-admin-booking-sort] {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .admin-invoices-workspace-header {
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: var(--admin-space-1);
-  }
-
-  .admin-invoices-workspace-header .admin-workspace-controls {
-    display: contents;
-  }
-
-  .admin-invoices-workspace-header .admin-page-title {
-    gap: var(--admin-space-1);
-  }
-
-  .admin-invoices-workspace-header .admin-search {
-    grid-column: 1 / 3;
-    grid-row: 2;
-  }
-
-  .admin-invoices-workspace-header [data-invoice-filters] {
-    grid-column: 2;
-    grid-row: 1;
-    justify-self: end;
-  }
-
-  .admin-invoices-workspace-header [data-invoice-filters] button:not(.admin-segmented-icon) {
-    padding-inline: 0.25rem;
   }
 
   .admin-page-heading {
@@ -7918,47 +7683,6 @@ a.admin-dash-tile:hover {
 
   .admin-segmented button:not(.admin-segmented-icon) {
     padding-inline: 0.45rem;
-  }
-}
-
-@media (max-width: 25rem) {
-  .admin-availability-workspace-header > .admin-availability-title {
-    flex-wrap: wrap;
-    row-gap: 0;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls {
-    grid-template-columns: auto auto auto minmax(0, 1fr);
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls > .admin-segmented {
-    grid-column: 1 / 3;
-    grid-row: 2;
-    justify-self: start;
-  }
-
-  .admin-availability-workspace-header > .admin-calendar-controls .admin-date-jump {
-    width: min(100%, 9rem);
-    grid-column: 3 / 5;
-    grid-row: 2;
-    justify-self: end;
-  }
-}
-
-@media (max-width: 22rem) {
-  .admin-invoices-workspace-header {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-invoices-workspace-header [data-invoice-filters] {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: end;
-  }
-
-  .admin-invoices-workspace-header .admin-search {
-    grid-column: 1;
-    grid-row: 3;
   }
 }
 
@@ -8065,31 +7789,37 @@ a.admin-dash-tile:hover {
     scrollbar-gutter: stable;
   }
 
-  .admin-workbench,
-  .admin-request-layout-list,
-  .admin-bookings-workbench,
-  .admin-invoices-workbench,
-  .admin-customer-layout,
-  .admin-availability-calendar-layout {
+  /* List pages: the header stays, the card takes what is left and its
+     list scrolls inside it. A short list keeps the card short. */
+  .admin-list-page {
     height: 100%;
     min-height: 0;
   }
 
-  .admin-list-panel {
-    height: auto;
-    max-height: calc(100dvh - 1.5rem);
+  .admin-list-page > .admin-page-header {
+    flex: none;
+  }
+
+  .admin-list-card {
+    flex: 0 1 auto;
     min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+  }
+
+  .admin-list-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  .admin-list-scroll > :is(.admin-data-head, .admin-booking-data-head) {
+    position: sticky;
+    z-index: 2;
+    inset-block-start: 0;
   }
 
   .admin-availability-calendar-panel {
-    height: 100%;
-    min-height: 0;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    flex: 1 1 auto;
   }
 
   .admin-availability-calendar-panel > .admin-calendar {
@@ -8102,7 +7832,13 @@ a.admin-dash-tile:hover {
     height: 100%;
     max-height: none;
   }
+}
 
+/* Day labels stick just under the column head while it is shown. */
+@media (min-width: 75.0625rem) {
+  .admin-list-scroll {
+    --admin-list-head-offset: calc(2.25rem + 1px);
+  }
 }
 
 @media (max-width: 48rem) {
@@ -8290,10 +8026,9 @@ a.admin-dash-tile:hover {
 
 @media print {
   .admin-sidebar,
-  .admin-mobile-header,
-  .admin-sidebar-scrim,
-  .admin-action-buttons,
-  .admin-calendar-controls {
+.admin-mobile-header,
+.admin-sidebar-scrim,
+.admin-action-buttons {
     display: none !important;
   }
 
@@ -8327,8 +8062,7 @@ a.admin-dash-tile:hover {
 .admin-email-notification .admin-status-pill[data-status="warning"] { color:var(--admin-warning); background:var(--admin-warning-soft); border-color:color-mix(in srgb, var(--admin-warning) 26%, var(--admin-border)); }
 .admin-email-notification .admin-status-pill[data-status="error"] { color:var(--admin-danger); background:var(--admin-danger-soft); border-color:color-mix(in srgb, var(--admin-danger) 26%, var(--admin-border)); }
 .admin-notification-badge { margin-inline-start:auto; min-width:1.5rem; height:1.5rem; display:inline-grid; place-items:center; border-radius:999px; background:var(--admin-accent); color:var(--admin-on-accent); font-size:.75rem; font-weight:750; padding-inline:.375rem; }
-.admin-notifications-workspace { overflow:hidden; border:1px solid var(--admin-border); border-radius:var(--admin-panel-radius); background:var(--admin-surface); }
-.admin-notifications-workspace > .admin-panel-header { background:transparent; }
+
 .admin-notifications-toolbar { padding:.625rem var(--admin-space-4); border-bottom:1px solid var(--admin-border); }
 .admin-notifications-skeleton-filters { display:flex; gap:.75rem; padding-block:.5rem; }
 .admin-notification-skeleton-action { width:8rem; }
