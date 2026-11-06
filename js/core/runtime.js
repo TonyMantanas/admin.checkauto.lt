@@ -1,6 +1,6 @@
-import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261004-1';
-import { currentAgreement, invoiceDeliveredToClient, priceFields, priceSection, paymentSection, communicationSection, communicationStatusList, bindPriceTotals } from './reliability-ui.js?v=20261105-3';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-5';
+import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261106-6';
+import { currentAgreement, invoiceDeliveredToClient, paymentSection, communicationSection, bindPriceTotals } from './reliability-ui.js?v=20261106-6';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-6';
 import { ICONS } from './icons.js?v=20261106-5';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
@@ -1998,7 +1998,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!route || root.hidden || !panel) return null;
     var active = document.activeElement;
     var focusedDetails = active && active.closest && active.closest('details');
-    var focusMarkers = ['data-booking-decision-choice', 'data-payment-action-choice', 'data-price-edit-toggle', 'data-invoice-create-toggle', 'data-booking-cancellation-open'];
+    var focusMarkers = ['data-admin-step', 'data-payment-action-choice'];
     var focusedMarker = active && focusMarkers.find(function (name) { return active.hasAttribute && active.hasAttribute(name); });
     return {
       routeType: route.type,
@@ -2016,13 +2016,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         markerValue: focusedMarker ? active.getAttribute(focusedMarker) : '',
         summaryIndex: active.tagName === 'SUMMARY' && focusedDetails ? $all('details', panel).indexOf(focusedDetails) : -1,
         close: active.matches('[data-admin-modal-close]')
-      } : null,
-      bookingPanels: route.type === 'booking' ? {
-        decision: ($('[data-booking-decision-panel]:not([hidden])', panel) || {}).dataset?.bookingDecisionPanel || '',
-        payment: ($('[data-payment-action-panel]:not([hidden])', panel) || {}).dataset?.paymentActionPanel || '',
-        priceEditor: Boolean($('#booking-price-editor:not([hidden])', panel)),
-        invoiceEditor: Boolean($('#booking-invoice-editor:not([hidden])', panel)),
-        cancellation: Boolean($('[data-booking-cancellation-panel]:not([hidden])', panel))
       } : null,
       disclosures: $all('details', panel).map(function (details, index) {
         return {
@@ -2048,49 +2041,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         : detailsList[entry.index];
       if (details) details.open = Boolean(entry.open);
     });
-    if (saved.bookingPanels) {
-      var bookingPanels = saved.bookingPanels;
-      if (bookingPanels.decision && $('[data-booking-decision-choice="' + escapeSelectorValue(bookingPanels.decision) + '"]', panel)) {
-        $all('[data-booking-decision-panel]', panel).forEach(function (item) {
-          item.hidden = item.dataset.bookingDecisionPanel !== bookingPanels.decision;
-        });
-        $all('[data-booking-decision-choice]', panel).forEach(function (item) {
-          var selected = item.dataset.bookingDecisionChoice === bookingPanels.decision;
-          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
-          setPressed(item, selected);
-        });
-      }
-      if (bookingPanels.payment && $('[data-payment-action-choice="' + escapeSelectorValue(bookingPanels.payment) + '"]', panel)) {
-        $all('[data-payment-action-panel]', panel).forEach(function (item) {
-          item.hidden = item.dataset.paymentActionPanel !== bookingPanels.payment;
-        });
-        $all('[data-payment-action-choice]', panel).forEach(function (item) {
-          item.setAttribute('aria-expanded', item.dataset.paymentActionChoice === bookingPanels.payment ? 'true' : 'false');
-        });
-      }
-      if (bookingPanels.priceEditor) {
-        var priceEditor = $('#booking-price-editor', panel);
-        var priceToggle = $('[data-price-edit-toggle]', panel);
-        if (priceEditor && priceToggle) {
-          priceEditor.hidden = false;
-          priceToggle.setAttribute('aria-expanded', 'true');
-        }
-      }
-      if (bookingPanels.invoiceEditor) {
-        var invoiceEditor = $('#booking-invoice-editor', panel);
-        var invoiceToggle = $('[data-invoice-create-toggle]', panel);
-        if (invoiceEditor && invoiceToggle) {
-          invoiceEditor.hidden = false;
-          invoiceToggle.setAttribute('aria-expanded', 'true');
-        }
-      }
-      if (bookingPanels.cancellation) {
-        var cancellationPanel = $('[data-booking-cancellation-panel]', panel);
-        var cancellationButton = $('[data-booking-cancellation-open]', panel);
-        if (cancellationPanel) cancellationPanel.hidden = false;
-        if (cancellationButton) cancellationButton.hidden = true;
-      }
-    }
     panel.scrollTop = Math.max(0, Number(saved.panelScrollTop || 0));
     var activityPanel = $('[data-customer-activity-panel]', panel);
     if (activityPanel) activityPanel.scrollTop = Math.max(0, Number(saved.activityScrollTop || 0));
@@ -3215,7 +3165,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<span class="admin-row-meta admin-booking-meta">' + escapeHtml(vehicle) + '</span>' +
       '</button>' +
       '<span class="admin-booking-row-action">' +
-        (bookingCanBeCompleted(booking)
+        (bookingCanBeCompleted(booking) && bookingPermissions().manage
           ? '<button class="admin-button admin-button-ghost admin-booking-row-complete" type="button" data-row-complete-booking="' + escapeHtml(booking.id) + '" aria-label="Mark ' + escapeHtml(booking.public_reference) + ' completed">' + ICON_SUCCESS + '<span>Mark completed</span></button>'
           : '') +
       '</span>' +
@@ -3717,7 +3667,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
     $all('[data-row-complete-booking]', els.bookingList).forEach(function (button) {
       button.addEventListener('click', function () {
-        runAction({ action: 'completeBooking', bookingId: button.dataset.rowCompleteBooking }, 'completeBooking', button);
+        var rowBooking = bookingById(button.dataset.rowCompleteBooking);
+        runAction({ action: 'completeBooking', bookingId: button.dataset.rowCompleteBooking }, 'completeBooking', button, {
+          confirm: {
+            title: 'Mark ' + (rowBooking ? rowBooking.public_reference : 'this booking') + ' completed?',
+            message: 'The inspection' + (rowBooking && rowBooking.customer_name ? ' for ' + rowBooking.customer_name : '') + ' is done and ready to invoice.',
+            cancelLabel: 'Not yet',
+            confirmLabel: 'Mark completed'
+          }
+        });
       });
     });
     updateExpiryCountdowns();
@@ -3786,223 +3744,455 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
-  function renderBookingModal(booking) {
-    var operations=bookingOperations(booking.id);
+  // Booking panel ------------------------------------------------------------
+  // Overview: who, when, what and the one next step for this state. Forms are
+  // steps that replace the body (see openModalStep).
+
+  var EMAIL_STATUS_LABELS = {
+    delivered: 'Delivered',
+    sent: 'Sent',
+    queued: 'Sending',
+    processing: 'Sending',
+    delayed: 'Delayed',
+    bounced: 'Bounced',
+    failed: 'Failed',
+    suppressed: 'Blocked',
+    needs_review: 'Needs review'
+  };
+
+  function emailKindLabel(kind) {
+    var value = String(kind || '');
+    if (value === 'invoice_customer') return 'Invoice';
+    if (value === 'contact_inquiry_admin') return 'Contact inquiry';
+    return ({
+      pending: 'Request received',
+      confirmed: 'Confirmation',
+      rejected: 'Rejection',
+      cancelled: 'Cancellation',
+      expired: 'Request expired',
+      price: 'Price agreement'
+    })[value.split('_')[1]] || 'Email';
+  }
+
+  function emailIsProblem(status) {
+    return ['bounced', 'failed', 'suppressed', 'needs_review', 'delayed'].includes(status);
+  }
+
+  function emailLinesHtml(notifications) {
+    return notifications.map(function (notification) {
+      var toCustomer = String(notification.kind || '').endsWith('_customer');
+      var recipient = toCustomer ? (notification.recipient_email || 'customer') : 'staff';
+      return '<span class="admin-email-line' + (emailIsProblem(notification.status) ? ' is-problem' : '') + '">' +
+        escapeHtml(emailKindLabel(notification.kind) + ' to ' + recipient) + ' · ' +
+        '<strong>' + escapeHtml(EMAIL_STATUS_LABELS[notification.status] || 'Unknown') + '</strong>' +
+      '</span>';
+    }).join('');
+  }
+
+  function factHtml(label, value) {
+    if (!value) return '';
+    return '<div class="admin-fact"><dt>' + escapeHtml(label) + '</dt><dd>' + value + '</dd></div>';
+  }
+
+  function assignableStaffOptions(selectedId) {
+    return state.staffList.filter(function (staff) {
+      if (!staff.is_active && staff.is_active !== undefined) return false;
+      var roles = Array.isArray(staff.roles) ? staff.roles : (staff.role ? [staff.role] : null);
+      return !roles || roles.some(function (role) { return ['owner', 'admin', 'inspector'].includes(role); });
+    }).map(function (staff) {
+      return '<option value="' + escapeHtml(staff.id) + '"' + (staff.id === selectedId ? ' selected' : '') + '>' + escapeHtml(staff.display_name) + '</option>';
+    }).join('');
+  }
+
+  function bookingPermissions() {
+    return {
+      manage: staffHasAccess(state.staff, 'operations.manage', ['owner', 'admin', 'inspector']),
+      bill: staffHasAccess(state.staff, 'billing_email.manage', ['owner', 'admin'])
+    };
+  }
+
+  function bookingQuotes(booking, operations) {
+    return (operations?.quotes || []).filter(function (quote) { return quote.booking_id === booking.id; })
+      .sort(function (a, b) { return b.revision - a.revision; });
+  }
+
+  // The price can change until a real invoice exists; payment-only records
+  // and void invoices don't lock it.
+  function bookingPriceEditable(booking, operations, canManage) {
+    if (!canManage || operations?.detail_pending || !['confirmed', 'completed'].includes(booking.status)) return false;
+    return !invoicesForBooking(booking.id).some(function (invoice) {
+      return !['payment', 'void'].includes(invoice.invoice_status);
+    });
+  }
+
+  function bookingPriceFact(booking, operations, canManage) {
+    if (!['confirmed', 'completed'].includes(booking.status)) return '';
+    var quotes = bookingQuotes(booking, operations);
+    var agreement = quotes[0];
+    var value;
+    if (agreement) {
+      value = '<strong>' + escapeHtml(formatMoney(agreement.total_amount_cents, 'EUR')) + '</strong>' +
+        '<span class="admin-fact-sub">Service ' + escapeHtml(formatMoney(agreement.service_amount_cents, 'EUR')) +
+          (Number(agreement.travel_amount_cents) > 0 ? ' + travel ' + escapeHtml(formatMoney(agreement.travel_amount_cents, 'EUR')) : '') + '</span>';
+    } else if (operations?.detail_pending) {
+      value = '<span class="admin-fact-sub">Loading…</span>';
+    } else {
+      value = '<span>Not set</span>';
+    }
+    if (bookingPriceEditable(booking, operations, canManage)) {
+      value += '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="price">' + (agreement ? 'Change price' : 'Set price') + '</button></span>';
+    }
+    return factHtml('Price', value);
+  }
+
+  function bookingInvoiceFact(booking) {
+    var invoice = activeInvoiceForBooking(booking.id);
+    if (!invoice) return factHtml('Invoice', '<span>Not created yet</span>');
+    if (invoice.invoice_status === 'payment') {
+      return factHtml('Payment', '<strong>' + escapeHtml(formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency)) + '</strong>' +
+        '<span class="admin-fact-sub">' + escapeHtml(invoice.paid_at ? 'Received ' + formatDateTime(invoice.paid_at) : 'Payment recorded') + '</span>' +
+        '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Open payment</span></button></span>');
+    }
+    return factHtml('Invoice', '<strong>' + escapeHtml(invoice.invoice_number || 'Invoice') + ' · ' + escapeHtml(invoiceStatusLabel(invoice)) + '</strong>' +
+      '<span class="admin-fact-sub">' + escapeHtml(formatMoney(invoice.amount_cents, invoice.currency)) + (invoice.due_date ? ' · due ' + escapeHtml(formatDueDate(invoice.due_date)) : '') + '</span>' +
+      '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Open invoice</span></button></span>');
+  }
+
+  function bookingFooterHtml(booking, permissions) {
+    var buttons = '';
+    var more = [];
+    if (booking.status === 'pending' && permissions.manage) {
+      buttons = '<button class="admin-button admin-button-secondary" type="button" data-admin-step="reject">Reject…</button>' +
+        '<button class="admin-button admin-button-primary" type="button" data-admin-step="confirm">Confirm…</button>';
+    } else if (booking.status === 'confirmed' && permissions.manage) {
+      more.push({ label: 'Cancel booking…', attrs: 'data-admin-step="cancel"', danger: true });
+      if (bookingCanBeCompleted(booking)) {
+        buttons = '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>';
+      }
+    } else if (booking.status === 'completed' && permissions.bill) {
+      var invoice = activeInvoiceForBooking(booking.id);
+      buttons = invoice
+        ? '<button class="admin-button admin-button-primary" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">Open ' + (invoice.invoice_status === 'payment' ? 'payment' : 'invoice') + '</button>'
+        : '<button class="admin-button admin-button-primary" type="button" data-admin-step="invoice">Create invoice…</button>';
+    }
+    if (!buttons && !more.length) return '';
+    // With nothing else in the footer a single risky action shows as quiet
+    // red text; next to a primary it stays behind "More".
+    var moreHtml = !buttons && more.length === 1
+      ? '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" ' + more[0].attrs + '>' + escapeHtml(more[0].label) + '</button>'
+      : moreMenuHtml(more);
+    return '<div class="admin-modal-footer admin-panel-footer">' + moreHtml + buttons + '</div>';
+  }
+
+  function bookingOverviewHtml(booking) {
+    var operations = bookingOperations(booking.id);
+    var permissions = bookingPermissions();
     var assigned = staffById(booking.assigned_to_staff_id);
-    var timeChanged = booking.status === 'confirmed' && booking.final_start_at && booking.final_end_at &&
-      booking.requested_start_at && booking.requested_end_at &&
-      (new Date(booking.final_start_at).getTime() !== new Date(booking.requested_start_at).getTime() ||
-        new Date(booking.final_end_at).getTime() !== new Date(booking.requested_end_at).getTime());
-    var requested = timeChanged ? formatReviewRange(booking.requested_start_at, booking.requested_end_at) : '';
-    var reviewTimeLabel = booking.final_start_at ? 'Scheduled time' : 'Requested time';
-    var reviewTime = booking.final_start_at
+    var customer = customerForBooking(booking);
+    var serviceName = serviceNameForBooking(booking);
+    var scheduled = Boolean(booking.final_start_at && booking.final_end_at);
+    var when = scheduled
       ? formatReviewRange(booking.final_start_at, booking.final_end_at)
       : formatReviewRange(booking.requested_start_at, booking.requested_end_at);
-    var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(booking.vehicle_location || '');
-    var customer = customerForBooking(booking);
-    var vehicleActions =
-      (booking.vehicle_location
-        ? '<a class="admin-context-action" href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">' + ICON_MAP + '<span>Open map</span></a>'
-        : '') +
-      (booking.listing_url
-        ? '<a class="admin-context-action" href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">' + ICON_EXTERNAL + '<span>Open listing</span></a>'
-        : '');
-    var customerContact =
-      (booking.customer_phone
-        ? '<a class="admin-booking-contact-link" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(booking.customer_phone) + '</span></a>'
-        : '<span>Phone not provided</span>') +
-      (booking.customer_email
-        ? '<a class="admin-booking-contact-link" href="mailto:' + escapeHtml(booking.customer_email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(booking.customer_email) + '</span></a>'
-        : '<span>Email not provided</span>');
+    var timeChanged = scheduled && booking.requested_start_at && booking.requested_end_at &&
+      (new Date(booking.final_start_at).getTime() !== new Date(booking.requested_start_at).getTime() ||
+        new Date(booking.final_end_at).getTime() !== new Date(booking.requested_end_at).getTime());
+    var whenHtml = '<strong>' + escapeHtml(when) + '</strong>' +
+      (!scheduled && booking.status === 'pending' ? '<span class="admin-fact-sub">Requested by the customer</span>' : '') +
+      (timeChanged ? '<span class="admin-fact-sub">Originally requested ' + escapeHtml(formatReviewRange(booking.requested_start_at, booking.requested_end_at)) + '</span>' : '');
 
-    var html =
-      '<div class="admin-modal-header">' +
-        '<div>' +
-          '<div class="admin-booking-modal-title">' +
-            '<h2>' + escapeHtml(booking.public_reference) + '</h2>' +
-          '</div>' +
-          '<div class="admin-modal-status-line">' +
-            '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' +
-            expiryCountdownHtml(booking, 'compact') +
-          '</div>' +
-          '<div class="admin-booking-assignee">Assigned to <strong>' + escapeHtml(assigned ? assigned.display_name : 'Unassigned') + '</strong></div>' +
-        '</div>' +
-        '<div class="admin-booking-header-actions">' +
-          '<div class="admin-booking-email-menu" data-booking-email-menu>' +
-            '<button class="admin-icon-button admin-booking-email-toggle" type="button" data-booking-email-toggle aria-label="Email notifications" aria-expanded="false" aria-controls="booking-email-status">' + ICON_EMAIL + '</button>' +
-            '<div class="admin-booking-email-popover" id="booking-email-status" data-booking-email-popover hidden>' +
-              '<strong>Email notifications</strong>' + communicationStatusList(booking, operations) +
-            '</div>' +
-          '</div>' +
-          '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close booking" title="Close">' + ICON_CLOSE + '</button>' +
-        '</div>' +
+    var contactLinks =
+      (booking.customer_phone ? '<a class="admin-context-action" href="tel:' + escapeHtml(booking.customer_phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(booking.customer_phone) + '</span></a>' : '') +
+      (booking.customer_email ? '<a class="admin-context-action" href="mailto:' + escapeHtml(booking.customer_email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(booking.customer_email) + '</span></a>' : '');
+    var customerHtml = '<strong>' + escapeHtml(booking.customer_name || 'Name not given') + '</strong>' +
+      (contactLinks ? '<span class="admin-fact-links admin-fact-links-stacked">' + contactLinks + '</span>' : '') +
+      (customer ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>Open customer</span></button></span>' : '');
+
+    var mapsUrl = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(booking.vehicle_location || '');
+    var vehicleLinks =
+      (booking.vehicle_location ? '<a class="admin-context-action" href="' + escapeHtml(mapsUrl) + '" target="_blank" rel="noopener noreferrer">' + ICON_MAP + '<span>Open map</span></a>' : '') +
+      (booking.listing_url ? '<a class="admin-context-action" href="' + escapeHtml(booking.listing_url) + '" target="_blank" rel="noopener noreferrer">' + ICON_EXTERNAL + '<span>Open listing</span></a>' : '');
+    var vehicleHtml = '<strong>' + escapeHtml(booking.vehicle || 'Not given') + '</strong>' +
+      (booking.vehicle_location ? '<span class="admin-fact-sub">' + escapeHtml(booking.vehicle_location) + '</span>' : '') +
+      (vehicleLinks ? '<span class="admin-fact-links">' + vehicleLinks + '</span>' : '');
+
+    var emails = (operations?.notifications || []).filter(function (notification) { return notification.booking_id === booking.id; });
+    var emailsHtml = operations?.detail_pending
+      ? '<span class="admin-fact-sub">Loading…</span>'
+      : (emails.length ? emailLinesHtml(emails) : '');
+
+    return panelHeaderHtml({
+        title: booking.customer_name || booking.public_reference,
+        chips: '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(statusLabel(booking.status)) + '</span>' + expiryCountdownHtml(booking, 'compact'),
+        meta: escapeHtml(booking.public_reference + ' · ' + serviceName),
+        closeLabel: 'Close booking'
+      }) +
+      panelNoticeHtml('booking', booking.id) +
+      '<dl class="admin-facts">' +
+        factHtml('When', whenHtml) +
+        (booking.status === 'pending' && !assigned ? '' : factHtml('Inspector', escapeHtml(assigned ? assigned.display_name : 'Not assigned'))) +
+        factHtml('Customer', customerHtml) +
+        factHtml('Vehicle', vehicleHtml) +
+        (booking.customer_message ? factHtml('Customer note', '<span class="admin-fact-text">' + escapeHtml(booking.customer_message) + '</span>') : '') +
+        bookingPriceFact(booking, operations, permissions.manage) +
+        (permissions.bill && booking.status === 'completed' ? bookingInvoiceFact(booking) : '') +
+        (emailsHtml ? factHtml('Emails', emailsHtml) : '') +
+      '</dl>' +
+      bookingFooterHtml(booking, permissions);
+  }
+
+  function stepFooterHtml(backLabel, submitLabel, submitClass) {
+    return '<div class="admin-modal-footer admin-panel-footer">' +
+      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
+      '<button class="admin-button admin-button-secondary" type="button" data-admin-step-back>' + escapeHtml(backLabel) + '</button>' +
+      '<button class="admin-button ' + (submitClass || 'admin-button-primary') + '" type="submit" data-step-submit>' + escapeHtml(submitLabel) + '</button>' +
+    '</div>';
+  }
+
+  function requiredLabel(text) {
+    return '<span class="admin-field-label">' + escapeHtml(text) + ' <span class="admin-required-marker" aria-hidden="true">*</span></span>';
+  }
+
+  function optionalLabel(text) {
+    return '<span class="admin-field-label">' + escapeHtml(text) + ' <span class="admin-optional">(optional)</span></span>';
+  }
+
+  // Price fields share the hooks bindPriceTotals updates (total, free reason).
+  function priceStepFieldsHtml(agreement, revision) {
+    var service = agreement ? (Number(agreement.service_amount_cents) / 100).toFixed(2) : '';
+    var travel = agreement ? (Number(agreement.travel_amount_cents) / 100).toFixed(2) : '';
+    return '<div class="admin-form-row">' +
+        '<label>' + requiredLabel('Service (€)') + '<input name="serviceAmount" type="text" inputmode="decimal" required value="' + escapeHtml(service) + '" placeholder="0.00"></label>' +
+        '<label>' + optionalLabel('Travel (€)') + '<input name="travelAmount" type="text" inputmode="decimal" value="' + escapeHtml(travel) + '" placeholder="0.00"></label>' +
       '</div>' +
-      '<section class="admin-detail-section admin-booking-overview" aria-label="Booking details">' +
-        '<div class="admin-booking-overview-grid">' +
-          '<div class="admin-booking-primary-fact">' +
-            '<div class="admin-booking-time-heading">' +
-              '<span>' + escapeHtml(reviewTimeLabel) + '</span>' +
-              (timeChanged ? '<div class="admin-booking-time-info" data-booking-time-info>' +
-                '<button class="admin-icon-button admin-booking-time-info-toggle" type="button" data-booking-time-toggle aria-label="Originally requested: ' + escapeHtml(requested) + '" aria-expanded="false" aria-controls="booking-original-time">' + ICON_INFO + '</button>' +
-                '<div class="admin-booking-time-popover" id="booking-original-time" data-booking-time-popover hidden><strong>Originally requested</strong><span>' + escapeHtml(requested) + '</span></div>' +
-              '</div>' : '') +
-            '</div>' +
-            '<strong>' + escapeHtml(reviewTime) + '</strong>' +
-            '<span>' + escapeHtml(serviceNameForBooking(booking)) + '</span>' +
+      '<p class="admin-price-total" data-price-total data-compact="true" role="status"></p>' +
+      '<label class="admin-checkbox"><input name="customerAgreed" type="checkbox" required><span>Customer agreed to this price</span></label>' +
+      '<label data-price-note data-revision="' + (revision ? 'true' : 'false') + '"' + (revision ? '' : ' hidden') + '>' +
+        requiredLabel(revision ? 'Reason for the change' : 'Why is it free?') +
+        '<textarea name="priceReason" maxlength="1000"' + (revision ? ' required' : '') + '></textarea>' +
+      '</label>';
+  }
+
+  function bookingConfirmStepHtml(booking) {
+    var operations = bookingOperations(booking.id);
+    var agreement = bookingQuotes(booking, operations)[0];
+    var requested = formatReviewRange(booking.requested_start_at, booking.requested_end_at);
+    return panelStepHeaderHtml('Confirm booking', { meta: escapeHtml((booking.customer_name || booking.public_reference) + ' · ' + booking.public_reference) }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="confirmBooking" data-no-confirm data-requested-date="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '" data-requested-start="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '" data-requested-end="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '">' +
+        hiddenInput('bookingId', booking.id) +
+        '<section class="admin-step-section">' +
+          '<h3>Time</h3>' +
+          '<div class="admin-form-row admin-form-row-time">' +
+            '<label>' + requiredLabel('Date') + '<input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
+            '<label>' + requiredLabel('From') + '<input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
+            '<label>' + requiredLabel('Until') + '<input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
           '</div>' +
-          '<div class="admin-booking-key-facts">' +
-            '<div class="admin-booking-key-fact">' +
-              '<span>Client</span>' +
-              '<strong>' + escapeHtml(booking.customer_name || 'Not provided') + '</strong>' +
-              '<div class="admin-booking-contact-lines">' + customerContact + '</div>' +
-              (customer ? '<div class="admin-context-actions"><button class="admin-context-action" type="button" data-open-customer="' + escapeHtml(customer.id) + '">' + ICON_USER + '<span>View profile</span></button></div>' : '') +
-            '</div>' +
-            '<div class="admin-booking-key-fact">' +
-              '<span>Vehicle</span>' +
-              '<strong>' + escapeHtml(booking.vehicle || 'Not provided') + '</strong>' +
-              '<span>' + escapeHtml(booking.vehicle_location || 'Location not provided') + '</span>' +
-              (vehicleActions ? '<div class="admin-context-actions">' + vehicleActions + '</div>' : '') +
-            '</div>' +
+          '<p class="admin-field-hint" data-time-changed-hint hidden>The customer asked for ' + escapeHtml(requested) + '.</p>' +
+          '<div data-dst-slot hidden></div>' +
+          '<label>' + requiredLabel('Inspector') + '<span class="admin-select-wrap"><select name="assignedStaffId" required>' + assignableStaffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
+        '</section>' +
+        '<section class="admin-step-section">' +
+          '<h3>Price</h3>' +
+          priceStepFieldsHtml(agreement, false) +
+        '</section>' +
+        '<section class="admin-step-section">' +
+          '<label>' + optionalLabel('Internal note') + '<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+        '</section>' +
+        stepFooterHtml('Back', 'Confirm and email customer') +
+      '</form>';
+  }
+
+  function bookingReasonStepHtml(booking, kind) {
+    var cancel = kind === 'cancel';
+    return panelStepHeaderHtml(cancel ? 'Cancel booking' : 'Reject request', {
+        meta: escapeHtml((booking.customer_name || booking.public_reference) + ' · ' + booking.public_reference),
+        backLabel: cancel ? 'Keep booking' : 'Back'
+      }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="' + (cancel ? 'cancelBooking' : 'rejectBooking') + '" data-no-confirm>' +
+        hiddenInput('bookingId', booking.id) +
+        '<label>' + optionalLabel('Message to the customer') + '<textarea name="customerReason" maxlength="700" rows="4"></textarea></label>' +
+        '<label>' + optionalLabel('Internal note') + '<textarea name="internalNote" maxlength="1000"></textarea></label>' +
+        stepFooterHtml(cancel ? 'Keep booking' : 'Back', cancel ? 'Cancel booking and email customer' : 'Reject and email customer', 'admin-button-danger') +
+      '</form>';
+  }
+
+  function bookingPriceStepHtml(booking) {
+    var operations = bookingOperations(booking.id);
+    var quotes = bookingQuotes(booking, operations);
+    var agreement = quotes[0];
+    var history = quotes.length > 1
+      ? '<section class="admin-step-section admin-price-history"><h3>Earlier prices</h3><dl class="admin-facts">' +
+          quotes.slice(1).map(function (quote) {
+            return factHtml(formatDateTime(quote.agreed_at), '<strong>' + escapeHtml(formatMoney(quote.total_amount_cents, 'EUR')) + '</strong>' +
+              (quote.revision_reason ? '<span class="admin-fact-sub">' + escapeHtml(quote.revision_reason) + '</span>' : ''));
+          }).join('') +
+        '</dl></section>'
+      : '';
+    return panelStepHeaderHtml(agreement ? 'Change price' : 'Set price', { meta: escapeHtml((booking.customer_name || booking.public_reference) + ' · ' + booking.public_reference) }) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="recordAgreedPrice" data-no-confirm>' +
+        hiddenInput('bookingId', booking.id) +
+        priceStepFieldsHtml(agreement, Boolean(agreement)) +
+        stepFooterHtml('Back', 'Save price') +
+      '</form>' +
+      history;
+  }
+
+  function organizationFieldList(fields) {
+    return (fields || []).map(function (field) {
+      return ORGANIZATION_FIELD_LABELS[field] || String(field).replaceAll('_', ' ');
+    }).join(', ');
+  }
+
+  function bookingInvoiceStepHtml(booking) {
+    var operations = bookingOperations(booking.id);
+    var agreement = bookingQuotes(booking, operations)[0];
+    var readiness = state.invoiceSettingsReadiness;
+    var header = panelStepHeaderHtml('Create invoice', { meta: escapeHtml((booking.customer_name || booking.public_reference) + ' · ' + booking.public_reference) });
+    if (operations?.detail_pending) {
+      return header + '<p class="admin-step-blocked" role="status">Loading the agreed price…</p>';
+    }
+    if (!agreement) {
+      return header +
+        '<div class="admin-step-blocked" role="alert"><p>Set the agreed price before creating the invoice.</p>' +
+          (bookingPriceEditable(booking, operations, bookingPermissions().manage) ? '<button class="admin-button admin-button-primary" type="button" data-admin-step="price">Set price</button>' : '') +
+        '</div>';
+    }
+    if (readiness && readiness.ready === false) {
+      var missing = organizationFieldList(readiness.missing_fields);
+      return header +
+        '<div class="admin-step-blocked" role="alert"><p>Finish the invoice details in Organization first' + (missing ? ': ' + escapeHtml(missing) : '') + '.</p>' +
+          (staffCanAccessPage(state.staff, 'organization')
+            ? '<a class="admin-button admin-button-primary" href="' + escapeHtml(PATHS.organization) + '">Open Organization</a>'
+            : '<p class="admin-field-hint">Ask an owner to finish them.</p>') +
+        '</div>';
+    }
+    var amount = (Number(agreement.total_amount_cents) / 100).toFixed(2);
+    return header +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="createAndSendInvoice" data-no-confirm>' +
+        hiddenInput('bookingId', booking.id) +
+        hiddenInput('amount', amount) +
+        '<dl class="admin-facts admin-step-facts">' +
+          factHtml('Amount', '<strong>' + escapeHtml(formatMoney(agreement.total_amount_cents, 'EUR')) + '</strong>' +
+            (bookingPriceEditable(booking, operations, bookingPermissions().manage) ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="price">Change price</button></span>' : '')) +
+          factHtml('To', escapeHtml(booking.customer_name || 'Customer') + (booking.customer_email ? '<span class="admin-fact-sub">' + escapeHtml(booking.customer_email) + '</span>' : '')) +
+        '</dl>' +
+        '<section class="admin-step-section">' +
+          '<h3>Bill to</h3>' +
+          '<div class="admin-choice-group" role="radiogroup" aria-label="Bill to">' +
+            '<label><input type="radio" name="billTo" value="private" checked><span>Private person</span></label>' +
+            '<label><input type="radio" name="billTo" value="company"><span>Company</span></label>' +
           '</div>' +
-        '</div>' +
-        (booking.pending_expires_at && booking.status !== 'pending' ? '<div class="admin-booking-overview-meta"><span>Review deadline: <strong>' + escapeHtml(formatDateTime(booking.pending_expires_at)) + '</strong></span></div>' : '') +
-      '</section>' +
-      (booking.customer_message
-        ? '<div class="admin-detail-section admin-booking-note"><h3>Client note</h3><p>' + escapeHtml(booking.customer_message) + '</p></div>'
-        : '') +
-      priceSection(booking, operations, staffHasAccess(state.staff, 'operations.manage'), invoicesForBooking(booking.id).some(function (invoice) { return invoice.invoice_status !== 'payment'; })) +
-      (staffHasAccess(state.staff, 'operations.manage') ? renderRequestActions(booking) : '') +
-      (staffHasAccess(state.staff, 'billing_email.manage') ? renderBookingInvoiceActions(booking) : '');
+          '<div data-bill-to="private">' +
+            '<label>' + optionalLabel('Address') + '<textarea name="privateAddress" rows="2" maxlength="400"></textarea></label>' +
+          '</div>' +
+          '<div data-bill-to="company" hidden>' +
+            '<label>' + requiredLabel('Company name') + '<input name="companyName" type="text" maxlength="200" autocomplete="organization"></label>' +
+            '<div class="admin-form-row">' +
+              '<label>' + requiredLabel('Company code') + '<input name="companyCode" type="text" maxlength="40"></label>' +
+              '<label>' + optionalLabel('VAT code') + '<input name="companyVatCode" type="text" maxlength="40"></label>' +
+            '</div>' +
+            '<label>' + requiredLabel('Address') + '<textarea name="companyAddress" rows="2" maxlength="400"></textarea></label>' +
+          '</div>' +
+        '</section>' +
+        '<section class="admin-step-section">' +
+          '<h3>Invoice</h3>' +
+          '<label>' + requiredLabel('Description') + '<input name="serviceDescription" type="text" maxlength="300" required value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
+          '<div class="admin-form-row">' +
+            '<label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
+            '<label data-vat-rate-field hidden>' + requiredLabel('VAT rate (%)') + '<input name="vatRate" type="text" inputmode="decimal" value="21"></label>' +
+          '</div>' +
+          '<label>' + requiredLabel('Due date') + '<input name="dueDate" type="date" required value="' + escapeHtml(defaultInvoiceDueDate()) + '" min="' + escapeHtml(todayYmd()) + '"></label>' +
+        '</section>' +
+        stepFooterHtml('Back', 'Create and email invoice') +
+      '</form>';
+  }
+
+  function renderBookingModal(booking) {
+    var step = currentModalStep('booking', booking.id);
+    var html;
+    if (step === 'confirm' && booking.status === 'pending') html = bookingConfirmStepHtml(booking);
+    else if (step === 'reject' && booking.status === 'pending') html = bookingReasonStepHtml(booking, 'reject');
+    else if (step === 'cancel' && booking.status === 'confirmed') html = bookingReasonStepHtml(booking, 'cancel');
+    else if (step === 'price') html = bookingPriceStepHtml(booking);
+    else if (step === 'invoice' && booking.status === 'completed') html = bookingInvoiceStepHtml(booking);
+    else {
+      if (step) state.modalStep = null;
+      html = bookingOverviewHtml(booking);
+    }
 
     var modal = openModal(html, 'panel');
-    $('.admin-modal-panel', modal).classList.add('admin-booking-review-panel');
-    bindPriceTotals(modal); installTimeChoices(modal);
+    bindPriceTotals(modal);
+    installTimeChoices(modal);
     updateExpiryCountdowns();
-
-    var bindHoverInfo = function (menu, toggle, popover) {
-      if (!menu || !toggle || !popover) return;
-      var show = function () {
-        popover.hidden = false;
-        toggle.setAttribute('aria-expanded', 'true');
-      };
-      var hide = function () {
-        popover.hidden = true;
-        toggle.setAttribute('aria-expanded', 'false');
-      };
-      menu.addEventListener('mouseenter', show);
-      menu.addEventListener('mouseleave', hide);
-      menu.addEventListener('focusin', show);
-      menu.addEventListener('focusout', function (event) {
-        if (!menu.contains(event.relatedTarget)) hide();
-      });
-      toggle.addEventListener('click', show);
-      modal.addEventListener('pointerdown', function (event) {
-        if (!menu.contains(event.target)) hide();
-      });
-      menu.addEventListener('keydown', function (event) {
-        if (event.key === 'Escape' && !popover.hidden) {
-          event.preventDefault();
-          event.stopPropagation();
-          hide();
-        }
-      });
-    };
-    var emailMenu = $('[data-booking-email-menu]', modal);
-    bindHoverInfo(emailMenu, $('[data-booking-email-toggle]', emailMenu), $('[data-booking-email-popover]', emailMenu));
-    var timeInfo = $('[data-booking-time-info]', modal);
-    if (timeInfo) bindHoverInfo(timeInfo, $('[data-booking-time-toggle]', timeInfo), $('[data-booking-time-popover]', timeInfo));
-    focusElement($('.admin-preview-close', modal));
-
-    var priceEditToggle = $('[data-price-edit-toggle]', modal);
-    if (priceEditToggle) {
-      var priceEditor = $('#booking-price-editor', modal);
-      priceEditToggle.addEventListener('click', function () {
-        var opening = priceEditor.hidden;
-        if (!opening && priceEditor.contains(document.activeElement)) priceEditToggle.focus();
-        priceEditor.hidden = !opening;
-        priceEditToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
-        if (opening) focusElement($('[name="serviceAmount"]', priceEditor));
-      });
-    }
-
-    var invoiceCreateToggle = $('[data-invoice-create-toggle]', modal);
-    if (invoiceCreateToggle) {
-      var invoiceEditor = $('#booking-invoice-editor', modal);
-      invoiceCreateToggle.addEventListener('click', function () {
-        var opening = invoiceEditor.hidden;
-        if (!opening && invoiceEditor.contains(document.activeElement)) invoiceCreateToggle.focus();
-        invoiceEditor.hidden = !opening;
-        invoiceCreateToggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
-        if (opening) focusElement($('[name="dueDate"]', invoiceEditor));
-      });
-    }
-
-    bindPaymentActions(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
     });
 
-    $all('[data-booking-decision-choice]', modal).forEach(function (button) {
-      button.addEventListener('click', function () {
-        var choice = button.dataset.bookingDecisionChoice;
-        $all('[data-booking-decision-choice]', modal).forEach(function (item) {
-          var selected = item === button;
-          item.setAttribute('aria-expanded', selected ? 'true' : 'false');
-          setPressed(item, selected);
-        });
-        $all('[data-booking-decision-panel]', modal).forEach(function (panel) {
-          panel.hidden = panel.dataset.bookingDecisionPanel !== choice;
-        });
-        var activePanel = $('[data-booking-decision-panel="' + escapeSelectorValue(choice) + '"]', modal);
-        focusElement(activePanel && $('select, input:not([type="hidden"]), textarea, button[type="submit"]', activePanel));
-      });
-    });
-
-    var vatMode = $('select[name="vatMode"]', modal);
-    var vatRateField = $('[data-vat-rate-field]', modal);
-    var vatRateInput = vatRateField && $('input[name="vatRate"]', vatRateField);
-    if (vatMode && vatRateField && vatRateInput) {
-      var syncVatRate = function () {
-        var included = vatMode.value === 'included';
-        vatRateField.hidden = !included;
-        vatRateInput.disabled = !included;
-        vatRateInput.required = included;
+    // Confirm step: say when the time differs from the request and name it
+    // on the button.
+    var confirmForm = $('form[data-action="confirmBooking"]', modal);
+    if (confirmForm) {
+      var hint = $('[data-time-changed-hint]', confirmForm);
+      var submit = $('[data-step-submit]', confirmForm);
+      var syncTime = function () {
+        var changed = confirmForm.elements.date.value !== confirmForm.dataset.requestedDate ||
+          confirmForm.elements.startTime.value !== confirmForm.dataset.requestedStart ||
+          confirmForm.elements.endTime.value !== confirmForm.dataset.requestedEnd;
+        if (hint) hint.hidden = !changed;
+        if (submit) submit.textContent = changed ? 'Confirm new time and email customer' : 'Confirm and email customer';
       };
-      vatMode.addEventListener('change', syncVatRate);
-      syncVatRate();
+      confirmForm.addEventListener('input', syncTime);
+      syncTime();
     }
 
-    var cancellationButton = $('[data-booking-cancellation-open]', modal);
-    var cancellationPanel = $('[data-booking-cancellation-panel]', modal);
-    if (cancellationButton && cancellationPanel) {
-      cancellationButton.addEventListener('click', function () {
-        cancellationPanel.hidden = false;
-        cancellationButton.hidden = true;
-        focusElement($('textarea, button[type="submit"]', cancellationPanel));
-      });
+    var invoiceForm = $('form[data-action="createAndSendInvoice"]', modal);
+    if (invoiceForm) {
+      var syncBillTo = function () {
+        var kind = invoiceForm.elements.billTo.value;
+        $all('[data-bill-to]', invoiceForm).forEach(function (group) {
+          var active = group.dataset.billTo === kind;
+          group.hidden = !active;
+          $all('input, textarea', group).forEach(function (field) { field.disabled = !active; });
+        });
+        ['companyName', 'companyCode', 'companyAddress'].forEach(function (name) {
+          if (invoiceForm.elements[name]) invoiceForm.elements[name].required = kind === 'company';
+        });
+      };
+      $all('input[name="billTo"]', invoiceForm).forEach(function (input) { input.addEventListener('change', syncBillTo); });
+      syncBillTo();
+      var vatMode = invoiceForm.elements.vatMode;
+      var vatRateField = $('[data-vat-rate-field]', invoiceForm);
+      var syncVat = function () {
+        var included = vatMode.value === 'included';
+        vatRateField.hidden = !included;
+        invoiceForm.elements.vatRate.disabled = !included;
+        invoiceForm.elements.vatRate.required = included;
+      };
+      vatMode.addEventListener('change', syncVat);
+      syncVat();
     }
 
     var completeButton = $('[data-complete-booking]', modal);
     if (completeButton) {
-      completeButton.addEventListener('click', async function () {
-        await runAction({ action: 'completeBooking', bookingId: completeButton.dataset.completeBooking }, 'completeBooking', completeButton);
+      completeButton.addEventListener('click', function () {
+        runAction({ action: 'completeBooking', bookingId: booking.id }, 'completeBooking', completeButton, {
+          confirm: {
+            title: 'Mark ' + booking.public_reference + ' completed?',
+            message: 'The inspection for ' + (booking.customer_name || 'this customer') + ' is done and ready to invoice.',
+            cancelLabel: 'Not yet',
+            confirmLabel: 'Mark completed'
+          }
+        });
       });
     }
 
-    var customerButton = $('[data-open-customer]', modal);
-    if (customerButton) {
-      customerButton.addEventListener('click', function () {
-        navigateToModal('customer', customerButton.dataset.openCustomer);
-      });
-    }
-
-    var invoiceButton = $('[data-open-invoice]', modal);
-    if (invoiceButton) {
-      invoiceButton.addEventListener('click', function () {
-        navigateToModal('invoice', invoiceButton.dataset.openInvoice);
-      });
-    }
+    $all('[data-open-customer]', modal).forEach(function (button) {
+      button.addEventListener('click', function () { navigateToModal('customer', button.dataset.openCustomer); });
+    });
+    $all('[data-open-invoice]', modal).forEach(function (button) {
+      button.addEventListener('click', function () { navigateToModal('invoice', button.dataset.openInvoice); });
+    });
   }
 
   function hiddenInput(name, value) {
@@ -4050,153 +4240,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     ].map(function (item) {
       return '<option value="' + item[0] + '"' + (item[0] === selected ? ' selected' : '') + '>' + item[1] + '</option>';
     }).join('');
-  }
-
-  function renderCreateInvoiceForm(booking) {
-    var readiness = state.invoiceSettingsReadiness;
-    var setupBlocked = Boolean(readiness && readiness.ready === false) || !currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id);
-    var missingFields = setupBlocked && Array.isArray(readiness.missing_fields)
-      ? readiness.missing_fields.join(', ')
-      : '';
-    var canOpenOrganization = staffCanAccessPage(state.staff, 'organization');
-    var invoiceAmount = defaultInvoiceAmount(booking);
-    var setupMessage = setupBlocked
-      ? '<div class="admin-invoice-settings-warning" role="alert">' +
-          '<div><strong>Invoice setup is incomplete</strong>' +
-          '<span>Add ' + escapeHtml(missingFields || 'the legal entity and bank details') + ' before issuing an invoice.</span></div>' +
-          (canOpenOrganization
-            ? '<a class="admin-button admin-button-secondary" href="' + escapeHtml(PATHS.organization) + '">Open Organization</a>'
-            : '<span>Ask an organization owner to complete these details.</span>') +
-        '</div>'
-      : '';
-    return '<form class="admin-action-form admin-invoice-create-form" data-admin-action-form data-action="createAndSendInvoice">' +
-      hiddenInput('bookingId', booking.id) +
-      hiddenInput('amount', invoiceAmount) +
-      setupMessage +
-      (!currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id) ? '<p role="alert">Record the customer agreement first.</p>' : '') +
-      '<div class="admin-invoice-form-main">' +
-        '<div class="admin-invoice-total"><span>Invoice total</span><strong>' + escapeHtml(invoiceAmount ? formatMoney(Math.round(Number(invoiceAmount) * 100), 'EUR') : '—') + '</strong></div>' +
-        '<label><span class="admin-field-label">Due date <span class="admin-optional-label">(optional)</span></span><input name="dueDate" type="date" value="' + escapeHtml(defaultInvoiceDueDate()) + '"></label>' +
-      '</div>' +
-      '<div class="admin-invoice-form-fields">' +
-        '<div class="admin-invoice-tax-fields"><label>VAT<span class="admin-select-wrap"><select name="vatMode"><option value="none">No VAT</option><option value="included">VAT included</option></select></span></label>' +
-          '<label data-vat-rate-field hidden><span class="admin-field-label">VAT rate % <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="vatRate" type="text" inputmode="decimal" value="21" placeholder="21"></label></div>' +
-        '<label>Service description<input name="serviceDescription" type="text" maxlength="300" value="' + escapeHtml(serviceNameForBooking(booking)) + '"></label>' +
-      '</div>' +
-      '<details class="admin-disclosure admin-invoice-billing-details"><summary>Billing details <span>(optional)</span></summary><textarea name="billingDetails" rows="2" maxlength="1000" aria-label="Customer billing details" placeholder="Address, company or VAT details"></textarea></details>' +
-      '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-      '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit"' + (setupBlocked ? ' disabled title="Complete invoice settings on the Organization page first."' : '') + '>Create and send invoice</button></div>' +
-    '</form>';
-  }
-
-  function renderBookingInvoiceActions(booking) {
-    if (booking.status !== 'completed') return '';
-    var invoice = activeInvoiceForBooking(booking.id);
-
-    if (invoice) {
-      if (invoice.invoice_status === 'payment') {
-        return '<div class="admin-detail-section">' +
-          '<h2>Payment</h2>' +
-          '<div class="admin-invoice-primary-fact">' +
-            '<span>Amount paid</span>' +
-            '<strong>' + escapeHtml(formatMoney(invoice.paid_amount_cents || invoice.amount_cents, invoice.currency)) + '</strong>' +
-            '<span>' + escapeHtml(invoice.paid_at ? formatDateTime(invoice.paid_at) : 'Payment recorded') + '</span>' +
-          '</div>' +
-          '<div class="admin-context-actions"><button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Payment details</span></button></div>' +
-        '</div>';
-      }
-      return '<div class="admin-detail-section">' +
-        '<h2>Invoice and payment</h2>' +
-        '<div class="admin-modal-status-line">' +
-          '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceStatusLabel(invoice)) + '</span>' +
-        '</div>' +
-        '<div class="admin-detail-list">' +
-          detailRow('Invoice', invoice.invoice_number) +
-          detailRow('Amount', formatMoney(invoice.amount_cents, invoice.currency)) +
-          detailRow('Email delivery', emailStatusLabel(invoice.email_status)) +
-        '</div>' +
-        '<div class="admin-context-actions">' +
-          '<button class="admin-context-action" type="button" data-open-invoice="' + escapeHtml(invoice.id) + '">' + ICON_INVOICE + '<span>Invoice details</span></button>' +
-        '</div>' +
-      '</div>';
-    }
-
-    return '<section class="admin-detail-section admin-booking-invoice-section">' +
-      '<div class="admin-booking-invoice-heading"><h2>Invoice</h2><button class="admin-icon-button admin-invoice-create-toggle" type="button" data-invoice-create-toggle aria-label="Create invoice" title="Create invoice" aria-expanded="false" aria-controls="booking-invoice-editor"><span class="admin-icon admin-icon-plus" aria-hidden="true"></span></button></div>' +
-      '<div class="admin-invoice-editor" id="booking-invoice-editor" hidden>' + renderCreateInvoiceForm(booking) + '</div>' +
-    '</section>';
-  }
-
-  function renderRequestActions(booking) {
-    if (booking.status === 'pending') {
-      return '<div class="admin-detail-section admin-booking-decision">' +
-        '<h2>Review decision</h2>' +
-        '<div class="admin-booking-decision-choices" role="group" aria-label="Choose a booking decision">' +
-          '<button class="admin-button admin-button-primary" type="button" data-booking-decision-choice="requested" aria-controls="booking-decision-requested-panel" aria-expanded="false" aria-pressed="false">Confirm requested time</button>' +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-decision-choice="change" aria-controls="booking-decision-change-panel" aria-expanded="false" aria-pressed="false">Change time</button>' +
-          '<button class="admin-button admin-button-danger" type="button" data-booking-decision-choice="reject" aria-controls="booking-decision-reject-panel" aria-expanded="false" aria-pressed="false">Reject</button>' +
-        '</div>' +
-        '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-requested-panel" data-booking-decision-panel="requested" hidden>' +
-          '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
-            hiddenInput('bookingId', booking.id) +
-            hiddenInput('date', dateInputValue(booking.requested_start_at)) +
-            hiddenInput('startTime', timeInputValue(booking.requested_start_at)) +
-            hiddenInput('endTime', timeInputValue(booking.requested_end_at)) +
-            '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id), false, true) +
-            '<details class="admin-booking-optional-note"><summary>Internal note <span>(optional)</span></summary><label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
-            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-            '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm requested time</button></div>' +
-          '</form>' +
-        '</div>' +
-        '<div class="admin-booking-decision-panel admin-booking-confirm-panel" id="booking-decision-change-panel" data-booking-decision-panel="change" hidden>' +
-          '<form class="admin-action-form" data-admin-action-form data-action="confirmBooking">' +
-            hiddenInput('bookingId', booking.id) +
-            '<div class="admin-action-grid admin-booking-time-fields">' +
-              '<label><span class="admin-field-label">New date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required value="' + escapeHtml(dateInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label><span class="admin-field-label">From <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_start_at)) + '"></label>' +
-              '<label><span class="admin-field-label">To <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required value="' + escapeHtml(timeInputValue(booking.requested_end_at)) + '"></label>' +
-            '</div>' +
-            '<label><span class="admin-field-label">Assign to <span class="admin-required-marker" aria-hidden="true">*</span></span><span class="admin-select-wrap"><select name="assignedStaffId" required>' + staffOptions(booking.assigned_to_staff_id || (state.staff && state.staff.id)) + '</select></span></label>' +
-            priceFields(currentAgreement(state.bookingOperations?.[booking.id]?.data || state.operationsState, booking.id), false, true) +
-            '<details class="admin-booking-optional-note"><summary>Internal note <span>(optional)</span></summary><label>Internal note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
-            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-            '<div class="admin-action-buttons"><button class="admin-button admin-button-primary" type="submit">Confirm changed time</button></div>' +
-          '</form>' +
-        '</div>' +
-        '<div class="admin-booking-decision-panel admin-booking-reject-panel" id="booking-decision-reject-panel" data-booking-decision-panel="reject" hidden>' +
-          '<form class="admin-action-form" data-admin-action-form data-action="rejectBooking">' +
-            hiddenInput('bookingId', booking.id) +
-            '<label>Reason sent to client (optional)<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<details class="admin-booking-optional-note"><summary>Private staff note <span>(optional)</span></summary><label>Private staff note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
-            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-            '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Reject booking</button></div>' +
-          '</form>' +
-        '</div>' +
-      '</div>';
-    }
-
-    if (booking.status === 'confirmed') {
-      return '<div class="admin-detail-section admin-booking-decision">' +
-        '<div class="admin-action-buttons">' +
-          (bookingCanBeCompleted(booking)
-            ? '<button class="admin-button admin-button-primary" type="button" data-complete-booking="' + escapeHtml(booking.id) + '">Mark completed</button>'
-            : '') +
-          '<button class="admin-button admin-button-secondary" type="button" data-booking-cancellation-open>Cancel booking</button>' +
-        '</div>' +
-        '<div class="admin-booking-cancellation-panel admin-booking-reject-panel" data-booking-cancellation-panel hidden>' +
-          '<form class="admin-action-form" data-admin-action-form data-action="cancelBooking">' +
-            hiddenInput('bookingId', booking.id) +
-            '<label>Reason sent to client (optional)<textarea name="customerReason" maxlength="700"></textarea></label>' +
-            '<details class="admin-booking-optional-note"><summary>Private staff note <span>(optional)</span></summary><label>Private staff note<textarea name="internalNote" maxlength="1000"></textarea></label></details>' +
-            '<div class="admin-form-error" data-action-error role="status" aria-live="polite"></div>' +
-            '<div class="admin-action-buttons"><button class="admin-button admin-button-danger" type="submit">Confirm cancellation</button></div>' +
-          '</form>' +
-        '</div>' +
-      '</div>';
-    }
-
-    return '';
   }
 
   function normalizeSearch(value) {
@@ -5862,29 +5905,28 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
   function successMessageForAction(action) {
     return {
-      confirmBooking: 'Booking confirmed.',
-      rejectBooking: 'Booking rejected.',
-      cancelBooking: 'Booking cancelled.',
-      completeBooking: 'Booking marked completed.',
-      createAndSendInvoice: 'Invoice created and sent.',
-      markBookingPaid: 'Booking marked paid.',
-      markInvoicePaid: 'Invoice marked paid.',
-      updateInvoicePaidAmount: 'Paid amount updated.',
-      resendInvoice: 'Invoice resent.',
+      confirmBooking: 'Booking confirmed and the customer emailed.',
+      rejectBooking: 'Request rejected and the customer emailed.',
+      cancelBooking: 'Booking cancelled and the customer emailed.',
+      completeBooking: 'Marked completed.',
+      recordAgreedPrice: 'Price saved.',
+      createAndSendInvoice: 'Invoice created and emailed.',
+      recordPayment: 'Payment recorded.',
+      recordRefund: 'Refund recorded.',
+      correctPayment: 'Correction saved.',
+      resendInvoice: 'Invoice emailed again.',
       voidInvoice: 'Invoice voided.',
-      deleteSlot: 'Availability slot cancelled.',
-      deleteSlotSeries: 'Availability series cancelled.',
-      updateSlot: 'Availability slot updated.',
-      createSlot: 'Availability slot created.',
-      setCustomerLegalHold: 'Legal hold set.',
+      deleteSlot: 'Slot deleted.',
+      deleteSlotSeries: 'Series deleted.',
+      updateSlot: 'Slot saved.',
+      createSlot: 'Slot added.',
+      setCustomerLegalHold: 'Legal hold started.',
       releaseCustomerLegalHold: 'Legal hold released.',
-      markCustomerErasureRequest: 'Erasure request recorded.',
-      withdrawCustomerMarketingConsent: 'Marketing consent withdrawn.',
-      redactBookingPii: 'Booking personal data redacted.',
-      redactCustomerPii: 'Customer profile redacted.',
-      deleteCustomerProfile: 'Customer profile deleted.',
+      withdrawCustomerMarketingConsent: 'Unsubscribed from marketing emails.',
+      redactCustomerPii: 'Personal data erased.',
+      deleteCustomerProfile: 'Profile deleted.',
       sendMarketingCampaign: 'Marketing campaign sent.'
-    }[action] || 'Changes saved.';
+    }[action] || 'Saved.';
   }
 
   function setButtonBusy(button, busy, label) {
@@ -6033,14 +6075,33 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
+  function actionSuccessMessage(action, result) {
+    var message = successMessageForAction(action);
+    if (!(result && result.notificationStatus === 'queued')) return message;
+    return message.replace(/ and (the customer )?emailed/, '') + ' The email is queued; its delivery shows on the record.';
+  }
+
+  // Which record to show after an action: the invoice it touched, the
+  // invoice already open for that booking, the booking, or the customer.
+  function actionResultRoute(payload, result) {
+    var activeRoute = modalRouteFromUrl();
+    if (payload.action === 'createAndSendInvoice' && result && result.id) return { type: 'invoice', id: result.id };
+    if (payload.invoiceId && invoiceById(payload.invoiceId)) return { type: 'invoice', id: payload.invoiceId };
+    if (payload.bookingId && activeRoute && activeRoute.type === 'invoice' && invoiceById(activeRoute.id)?.booking_id === payload.bookingId) return { type: 'invoice', id: activeRoute.id };
+    if (payload.bookingId && bookingById(payload.bookingId)) return { type: 'booking', id: payload.bookingId };
+    if (payload.customerId && customerById(payload.customerId)) return { type: 'customer', id: payload.customerId };
+    return null;
+  }
+
   async function runAction(payload, confirmAction, trigger, options) {
     var opts = options || {};
     try {
-      var confirmOptions = confirmOptionsForAction(confirmAction || payload.action);
+      var confirmOptions = opts.confirm || confirmOptionsForAction(confirmAction || payload.action);
       if (confirmOptions && !opts.skipConfirm) {
         var confirmed = await openConfirmDialog(confirmOptions);
         if (!confirmed) return false;
       }
+      var fromPanel = Boolean(trigger && ensureModalRoot().contains(trigger));
       setButtonBusy(trigger, true, busyLabelForAction(confirmAction || payload.action));
       showBookingActionProgress(trigger, payload.action);
       setSyncState('Saving', 'loading');
@@ -6053,15 +6114,21 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (typeof opts.beforeRefresh === 'function') opts.beforeRefresh();
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if(state.page==='notifications') { showToast('Action saved.','success');return true; }
-      var currentRoute = modalRouteFromUrl();
-      if (payload.invoiceId && invoiceById(payload.invoiceId)) navigateToModal('invoice', payload.invoiceId, { force: true });
-      else if (payload.bookingId && currentRoute && currentRoute.type === 'invoice' && invoiceById(currentRoute.id)?.booking_id === payload.bookingId) navigateToModal('invoice', currentRoute.id, { force: true });
-      else if (payload.bookingId && bookingById(payload.bookingId)) navigateToModal('booking', payload.bookingId, { force: true });
-      showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Customer communication is queued; delivery is tracked separately.' : successMessageForAction(confirmAction || payload.action), 'success');
+      var message = actionSuccessMessage(confirmAction || payload.action, response.result);
+      // Actions started from a list row stay on the list; actions in a panel
+      // re-render that record and say so inside it.
+      var target = fromPanel ? actionResultRoute(payload, null) : null;
+      if (target) {
+        state.modalStep = null;
+        state.modalNotice = { type: target.type, id: target.id, text: message };
+        navigateToModal(target.type, target.id, { force: true });
+      } else {
+        showToast(message, 'success');
+      }
       return true;
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      if (!modalIsDirty()) restoreBookingModalAfterActionError(payload);
+      if (!modalIsDirty() && !state.modalStep) restoreBookingModalAfterActionError(payload);
       showToast(error instanceof Error ? error.message : 'The action could not be completed.', 'error');
       return false;
     } finally {
@@ -6208,7 +6275,31 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       payload.vatMode = data.get('vatMode') || 'none';
       payload.vatRate = data.get('vatRate') || null;
       payload.serviceDescription = data.get('serviceDescription') || null;
-      payload.billingDetails = data.get('billingDetails') || null;
+      var billTo = data.get('billTo');
+      if (billTo === 'company') {
+        var company = {
+          name: String(data.get('companyName') || '').trim(),
+          code: String(data.get('companyCode') || '').trim(),
+          vat: String(data.get('companyVatCode') || '').trim(),
+          address: String(data.get('companyAddress') || '').trim()
+        };
+        var missingCompany = !company.name ? 'companyName' : !company.code ? 'companyCode' : !company.address ? 'companyAddress' : '';
+        if (missingCompany) {
+          showFieldError(errorEl, 'Enter the company name, company code and address.', form.elements[missingCompany]);
+          return;
+        }
+        // Sent as the buyer block the server prints on the invoice.
+        payload.billingDetails = [
+          company.name,
+          'Company code: ' + company.code,
+          company.vat ? 'VAT code: ' + company.vat : '',
+          company.address
+        ].filter(Boolean).join('\n');
+      } else if (billTo === 'private') {
+        payload.billingDetails = String(data.get('privateAddress') || '').trim() || null;
+      } else {
+        payload.billingDetails = data.get('billingDetails') || null;
+      }
     }
 
     if (['markBookingPaid', 'markInvoicePaid', 'updateInvoicePaidAmount'].includes(action)) {
@@ -6233,7 +6324,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         syncMarketingFormState(form);
         return;
       }
-    } else {
+    } else if (!form.hasAttribute('data-no-confirm')) {
       var confirmOptions = confirmOptionsForAction(action);
       if (confirmOptions) {
         var confirmed = await openConfirmDialog(confirmOptions);
@@ -6241,6 +6332,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
     }
 
+    var fromPanel = ensureModalRoot().contains(form) && ensureModalRoot().dataset.mode === 'panel';
     try {
       setFormBusy(form, true, busyLabelForAction(action));
       showBookingActionProgress(form, action);
@@ -6250,6 +6342,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if(payload.bookingId && state.bookingOperations) delete state.bookingOperations[payload.bookingId];
       if(!ensureModalRoot().contains(form)) form.reset();
       markModalClean();
+      if (fromPanel) state.modalStep = null;
       invalidateCustomerActivityForPayload(payload);
       renderPatchedBookingModal(payload, response.result);
       if (action === 'deleteCustomerProfile') {
@@ -6258,26 +6351,24 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
       if(state.page==='notifications') { showToast('Action saved.','success');return; }
-      var activeRoute = modalRouteFromUrl();
-      if (action === 'createAndSendInvoice' && response.result && response.result.id) {
-        navigateToModal('invoice', response.result.id, { force: true });
-      } else if (action === 'deleteCustomerProfile') {
+      var message = actionSuccessMessage(action, response.result);
+      if (action === 'deleteCustomerProfile') {
         closeModal({ restoreFocus: true });
-        showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Communication is queued; check delivery separately.' : successMessageForAction(action), 'success');
+        showToast(message, 'success');
         return;
-      } else if (payload.invoiceId && invoiceById(payload.invoiceId)) {
-        navigateToModal('invoice', payload.invoiceId, { force: true });
-      } else if (payload.bookingId && activeRoute && activeRoute.type === 'invoice' && invoiceById(activeRoute.id)?.booking_id === payload.bookingId) {
-        navigateToModal('invoice', activeRoute.id, { force: true });
-      } else if (payload.bookingId && bookingById(payload.bookingId)) {
-        navigateToModal('booking', payload.bookingId, { force: true });
-      } else if (payload.customerId && customerById(payload.customerId)) {
-        navigateToModal('customer', payload.customerId, { force: true });
       }
-      showToast((response.result && response.result.notificationStatus === 'queued') ? 'Saved. Communication is queued; check delivery separately.' : successMessageForAction(action), 'success');
+      var target = actionResultRoute(payload, response.result);
+      if (target && fromPanel) {
+        state.modalStep = null;
+        state.modalNotice = { type: target.type, id: target.id, text: message };
+        navigateToModal(target.type, target.id, { force: true });
+      } else {
+        if (target) navigateToModal(target.type, target.id, { force: true });
+        showToast(message, 'success');
+      }
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
-      if (!modalIsDirty()) restoreBookingModalAfterActionError(payload);
+      if (!modalIsDirty() && !state.modalStep) restoreBookingModalAfterActionError(payload);
       if (errorEl && document.body.contains(errorEl)) {
         errorEl.textContent = error instanceof Error ? error.message : 'The action could not be completed.';
       } else {

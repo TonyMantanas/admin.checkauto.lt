@@ -1,4 +1,4 @@
-import { moneyCents, vilniusCandidates } from './reliability.js?v=20261004-1';
+import { moneyCents, vilniusCandidates } from './reliability.js?v=20261106-6';
 import { formatMoney, formatDateTime } from './formatting.js?v=20261105-3';
 export const esc = value => String(value ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money = value => formatMoney(value, 'EUR');

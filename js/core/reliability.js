@@ -41,8 +41,15 @@ export function installTimeChoices(root) {
     if (form.querySelector('[data-dst-choice]')) return;
     const label = document.createElement('label'); label.dataset.dstChoice = '';
     label.innerHTML = 'When clocks go back<span class="admin-select-wrap"><select name="dstFold"><option value="">Choose if a time repeats</option><option value="first">First occurrence (summer time)</option><option value="second">Second occurrence (winter time)</option></select></span><small>Required only for a repeated Vilnius time. Times skipped by the spring clock change are unavailable.</small>';
-    const error = form.querySelector('[data-action-error]');
-    form.insertBefore(label,error || null);
+    // A form can mark where the choice belongs; otherwise it goes before
+    // the part of the form that holds the error message.
+    const slot = form.querySelector('[data-dst-slot]');
+    if (slot) slot.replaceWith(label);
+    else {
+      let anchor = form.querySelector('[data-action-error]');
+      while (anchor && anchor.parentElement !== form) anchor = anchor.parentElement;
+      form.insertBefore(label, anchor || null);
+    }
     const update = () => {
       const date = form.elements.date?.value || form.elements.holdUntilDate?.value;
       const times = [form.elements.startTime?.value,form.elements.endTime?.value,form.elements.holdUntilTime?.value].filter(Boolean);
