@@ -3712,15 +3712,33 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return ['bounced', 'failed', 'suppressed', 'needs_review', 'delayed'].includes(status);
   }
 
+  function emailRecipientLabel(notification) {
+    var kind = String(notification.kind || '');
+    if (notification.recipient_email) return notification.recipient_email;
+    if (kind.endsWith('_staff')) return 'the inspector';
+    if (kind.endsWith('_admin')) return 'the office';
+    return 'the customer';
+  }
+
+  function emailLineHtml(kindLabel, status, recipient, extra) {
+    return '<span class="admin-email-line' + (emailIsProblem(status) ? ' is-problem' : '') + '">' +
+      '<span>' + escapeHtml(kindLabel) + ' · <strong>' + escapeHtml(EMAIL_STATUS_LABELS[status] || emailStatusLabel(status) || 'Unknown') + '</strong></span>' +
+      '<span class="admin-fact-sub">' + escapeHtml(['to ' + recipient].concat(extra || []).join(' · ')) + '</span>' +
+    '</span>';
+  }
+
   function emailLinesHtml(notifications) {
     return notifications.map(function (notification) {
-      var toCustomer = String(notification.kind || '').endsWith('_customer');
-      var recipient = toCustomer ? (notification.recipient_email || 'customer') : 'staff';
-      return '<span class="admin-email-line' + (emailIsProblem(notification.status) ? ' is-problem' : '') + '">' +
-        escapeHtml(emailKindLabel(notification.kind) + ' to ' + recipient) + ' · ' +
-        '<strong>' + escapeHtml(EMAIL_STATUS_LABELS[notification.status] || 'Unknown') + '</strong>' +
-      '</span>';
+      return emailLineHtml(emailKindLabel(notification.kind), notification.status, emailRecipientLabel(notification));
     }).join('');
+  }
+
+  // Placeholder bars for a fact whose value is still loading, sized like
+  // the value that replaces them (a main line and a smaller second line).
+  function factSkeletonHtml(widths) {
+    return '<span class="admin-fact-skeleton" role="status" aria-label="Loading">' + widths.map(function (width, index) {
+      return '<i class="admin-skeleton' + (index ? ' is-sub' : '') + '" style="width:' + width + '"></i>';
+    }).join('') + '</span>';
   }
 
   function factHtml(label, value) {
@@ -3769,7 +3787,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         '<span class="admin-fact-sub">Service ' + escapeHtml(formatMoney(agreement.service_amount_cents, 'EUR')) +
           (Number(agreement.travel_amount_cents) > 0 ? ' + travel ' + escapeHtml(formatMoney(agreement.travel_amount_cents, 'EUR')) : '') + '</span>';
     } else if (operations?.detail_pending) {
-      value = '<span class="admin-fact-sub">Loading…</span>';
+      value = factSkeletonHtml(['4.5rem', '11rem']);
     } else {
       value = '<span>Not set</span>';
     }
@@ -3885,7 +3903,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     var emails = (operations?.notifications || []).filter(function (notification) { return notification.booking_id === booking.id; });
     var emailsHtml = operations?.detail_pending
-      ? '<span class="admin-fact-sub">Loading…</span>'
+      ? factSkeletonHtml(['9rem', '12rem'])
       : (emails.length ? emailLinesHtml(emails) : '');
 
     return panelHeaderHtml({
@@ -4484,12 +4502,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (cache.status === 'loading' && !events.length) {
       return renderCustomerActivitySkeleton(7, 'Loading customer activity');
     } else if (cache.status === 'error') {
-      status = '<div class="admin-customer-activity-state" data-state="error" role="status" aria-live="polite">' +
-        '<span><strong>Activity could not be loaded.</strong><span>' +
-          escapeHtml(cache.error || 'Try loading this part of the timeline again.') +
-        '</span></span>' +
-        '<button class="admin-button admin-button-secondary" type="button" data-customer-activity-retry>Retry</button>' +
-      '</div>';
+      status = '<p class="admin-customer-activity-state" data-state="error" role="status" aria-live="polite">' +
+        '<span>' + (events.length ? 'Couldn’t load the full history.' : 'Couldn’t load the activity.') + '</span>' +
+        '<button class="admin-context-action" type="button" data-customer-activity-retry>Try again</button>' +
+      '</p>';
     }
 
     return status +
@@ -4498,16 +4514,52 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ? renderCustomerActivitySkeleton(3, 'Loading older customer activity')
         : '') +
       (cache.status === 'loaded' && cache.has_more
-        ? '<div class="admin-customer-activity-more" data-customer-activity-more role="status">Scroll for older activity</div>'
+        ? '<div class="admin-customer-activity-more" data-customer-activity-more><button class="admin-context-action" type="button" data-customer-activity-load-more>Show older activity</button></div>'
         : '');
   }
 
+  // Same rows, marker and columns as the loaded timeline, with some rows
+  // carrying a second line, so nothing moves when the events arrive.
+  var ACTIVITY_SKELETON_TITLES = [46, 58, 38, 52, 64, 42, 55];
+  var ACTIVITY_SKELETON_LINES = [72, 0, 60, 0, 68, 0, 50];
   function renderCustomerActivitySkeleton(count, label) {
     var rows = [];
     for (var index = 0; index < count; index += 1) {
-      rows.push('<li style="--admin-skeleton-delay:' + (index * 65) + 'ms"><span></span><div><i></i><i></i></div></li>');
+      var delay = '--admin-skeleton-delay:' + (index * 65) + 'ms';
+      var line = ACTIVITY_SKELETON_LINES[index % ACTIVITY_SKELETON_LINES.length];
+      rows.push('<li><div>' +
+        '<span class="admin-customer-activity-marker"></span>' +
+        '<span class="admin-customer-activity-content">' +
+          '<span class="admin-customer-activity-heading">' +
+            '<i class="admin-skeleton admin-activity-skeleton-title" style="width:' + ACTIVITY_SKELETON_TITLES[index % ACTIVITY_SKELETON_TITLES.length] + '%;' + delay + '"></i>' +
+            '<i class="admin-skeleton admin-activity-skeleton-time" style="' + delay + '"></i>' +
+          '</span>' +
+          (line ? '<i class="admin-skeleton admin-activity-skeleton-line" style="width:' + line + '%;' + delay + '"></i>' : '') +
+        '</span>' +
+      '</div></li>');
     }
-    return '<div class="admin-customer-activity-skeleton" role="status" aria-label="' + escapeHtml(label || 'Loading activity') + '"><ol aria-hidden="true">' + rows.join('') + '</ol></div>';
+    return '<div class="admin-customer-activity-skeleton" role="status" aria-label="' + escapeHtml(label || 'Loading activity') + '"><ol class="admin-customer-activity-list" aria-hidden="true">' + rows.join('') + '</ol></div>';
+  }
+
+  // Older activity loads when its button scrolls into view (or is clicked);
+  // the timeline scrolls with the panel, not in a box of its own.
+  function observeCustomerActivityMore(panel, customerId) {
+    if (!panel) return;
+    if (panel._adminMoreObserver) {
+      panel._adminMoreObserver.disconnect();
+      panel._adminMoreObserver = null;
+    }
+    var sentinel = $('[data-customer-activity-more]', panel);
+    if (!sentinel || typeof IntersectionObserver !== 'function') return;
+    var observer = new IntersectionObserver(function (entries) {
+      if (!entries.some(function (entry) { return entry.isIntersecting; })) return;
+      var tab = panel.closest('[data-customer-activity-tab]');
+      if (tab && tab.hidden) return;
+      var cache = customerActivityCacheEntry(customerId);
+      if (cache.status === 'loaded' && cache.has_more) loadCustomerActivity(customerId, { append: true }).catch(function () {});
+    }, { rootMargin: '0px 0px 160px 0px' });
+    observer.observe(sentinel);
+    panel._adminMoreObserver = observer;
   }
 
   function customerActivitySummaryMeta(cache, eventCount) {
@@ -4541,6 +4593,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       recordedEvents
     );
     panel.scrollTop = previousScrollTop;
+    observeCustomerActivityMore(panel, customerId);
   }
 
   async function loadCustomerActivity(customerId, options) {
@@ -4732,18 +4785,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return blockers;
   }
 
-  function privacyRowHtml(label, statusHtml, actionHtml) {
-    return '<div class="admin-privacy-row">' +
-      '<div class="admin-privacy-row-label">' + escapeHtml(label) + '</div>' +
-      '<div class="admin-privacy-row-status">' + statusHtml + '</div>' +
-      (actionHtml ? '<div class="admin-privacy-row-action">' + actionHtml + '</div>' : '') +
-    '</div>';
-  }
-
   function customerPrivacyHtml(customer, linkedBookings) {
     var holdActive = hasActiveLegalHold(customer);
     var marketingAction = customer.marketing_consent_status === 'opted_in'
-      ? '<button class="admin-button admin-button-secondary" type="button" data-customer-unsubscribe>Unsubscribe…</button>'
+      ? '<button class="admin-context-action" type="button" data-customer-unsubscribe>Unsubscribe…</button>'
       : '';
     var holdStatus = holdActive
       ? '<strong>Until ' + escapeHtml(formatDateTime(customer.legal_hold_until)) + '</strong>' +
@@ -4751,8 +4796,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         (customer.legal_hold_review_at ? '<span class="admin-fact-sub">Review ' + escapeHtml(displayDay(customer.legal_hold_review_at)) + '</span>' : '')
       : '<strong>None</strong>';
     var holdAction = holdActive
-      ? '<button class="admin-button admin-button-secondary" type="button" data-customer-release-hold>Release…</button>'
-      : '<button class="admin-button admin-button-secondary" type="button" data-admin-step="hold">Start legal hold…</button>';
+      ? '<button class="admin-context-action" type="button" data-customer-release-hold>Release hold…</button>'
+      : '<button class="admin-context-action" type="button" data-admin-step="hold">Start legal hold…</button>';
 
     var dataStatus;
     var dataAction = '';
@@ -4761,13 +4806,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       dataStatus = '<strong>Stored</strong>' +
         (customer.erasure_requested_at ? '<span class="admin-fact-sub">Erasure requested ' + escapeHtml(displayDay(customer.erasure_requested_at)) + '</span>' : '') +
         (eraseBlockers.length ? '<span class="admin-fact-sub">Can’t erase yet: ' + escapeHtml(eraseBlockers.join(' · ')) + '</span>' : '');
-      if (!eraseBlockers.length) dataAction = '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-customer-erase>Erase personal data…</button>';
+      if (!eraseBlockers.length) dataAction = '<button class="admin-context-action is-danger" type="button" data-customer-erase>Erase personal data…</button>';
       // While erasing is blocked, the customer's request can still be put on record.
-      else if (!customer.erasure_requested_at) dataAction = '<button class="admin-button admin-button-secondary" type="button" data-customer-erasure-request>Record erasure request…</button>';
+      else if (!customer.erasure_requested_at) dataAction = '<button class="admin-context-action" type="button" data-customer-erasure-request>Record erasure request…</button>';
     } else {
       var deleteBlockers = customerBlockers(customer, linkedBookings, true);
       dataStatus = '<strong>Erased ' + escapeHtml(displayDay(customer.pii_redacted_at)) + '</strong>' + (deleteBlockers.length ? '<span class="admin-fact-sub">Can’t delete the profile yet: ' + escapeHtml(deleteBlockers.join(' · ')) + '</span>' : '');
-      if (!deleteBlockers.length) dataAction = '<button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-customer-delete>Delete profile…</button>';
+      if (!deleteBlockers.length) dataAction = '<button class="admin-context-action is-danger" type="button" data-customer-delete>Delete profile…</button>';
     }
 
     var consentFact = function (label, at, version, extra) {
@@ -4776,11 +4821,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         ([version ? 'version ' + version : '', extra].filter(Boolean).length ? '<span class="admin-fact-sub">' + escapeHtml([version ? 'Version ' + version : '', extra].filter(Boolean).join(' · ')) + '</span>' : ''));
     };
 
-    return '<div class="admin-privacy-rows">' +
-        privacyRowHtml('Marketing emails', marketingStatusHtml(customer), marketingAction) +
-        privacyRowHtml('Legal hold', holdStatus, holdAction) +
-        privacyRowHtml('Personal data', dataStatus, dataAction) +
-      '</div>' +
+    var withAction = function (status, action) {
+      return status + (action ? '<span class="admin-fact-links">' + action + '</span>' : '');
+    };
+    return '<dl class="admin-facts admin-privacy-facts">' +
+        factHtml('Marketing emails', withAction(marketingStatusHtml(customer), marketingAction)) +
+        factHtml('Legal hold', withAction(holdStatus, holdAction)) +
+        factHtml('Personal data', withAction(dataStatus, dataAction)) +
+      '</dl>' +
       '<section class="admin-panel-section admin-consent-records"><h3>Consent records</h3><dl class="admin-facts">' +
         consentFact('Terms', customer.terms_accepted_at, customer.terms_text_version) +
         consentFact('Privacy policy', customer.privacy_accepted_at, customer.privacy_text_version) +
@@ -4887,7 +4935,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           customerOverviewHtml(customer, bookings, invoices) +
         '</div>' +
         '<div role="tabpanel" id="customer-panel-activity" aria-labelledby="customer-tab-activity" data-customer-activity-tab' + (tab === 'activity' ? '' : ' hidden') + '>' +
-          '<div class="admin-customer-activity-scroll" tabindex="0" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
+          '<div class="admin-customer-activity-scroll" data-customer-activity-panel data-customer-id="' + escapeHtml(customer.id) + '" aria-busy="' + (['loading', 'loading_more'].includes(activityCache.status) ? 'true' : 'false') + '">' +
             (activityCache.status === 'idle' ? '' : renderCustomerActivityPanelContent(customer, linkedBookings, invoices, eventsForCustomer(customer.id))) +
           '</div>' +
         '</div>' +
@@ -4979,6 +5027,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (activityPanel) {
       activityPanel.addEventListener('click', function (event) {
         if (!event.target || typeof event.target.closest !== 'function') return;
+        if (event.target.closest('[data-customer-activity-load-more]')) {
+          loadCustomerActivity(customer.id, { append: true }).catch(function () {});
+          return;
+        }
         var retry = event.target.closest('[data-customer-activity-retry]');
         if (retry) {
           var retryCache = customerActivityCacheEntry(customer.id);
@@ -4995,14 +5047,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           navigateToModal('invoice', invoiceButton.dataset.openInvoice);
         }
       });
-      activityPanel.addEventListener('scroll', function () {
-        if (activityTab && activityTab.hidden) return;
-        if (activityPanel.scrollHeight - activityPanel.scrollTop - activityPanel.clientHeight > 160) return;
-        var cache = customerActivityCacheEntry(customer.id);
-        if (cache.status === 'loaded' && cache.has_more) {
-          loadCustomerActivity(customer.id, { append: true }).catch(function () {});
-        }
-      }, { passive: true });
+      observeCustomerActivityMore(activityPanel, customer.id);
     }
   }
 
@@ -5021,11 +5066,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var bookingLabel = [service, time, status, vehicle, booking.public_reference, payment, invoiceStatus].join(', ');
       return '<button class="admin-mini-item admin-customer-booking" type="button" aria-label="' + escapeHtml('Open booking: ' + bookingLabel) + '" data-open-booking="' + escapeHtml(booking.id) + '">' +
         '<span class="admin-customer-booking-main">' +
-          '<strong>' + escapeHtml(service) + '</strong>' +
-          '<span class="admin-customer-booking-time">' + escapeHtml(time) + '</span>' +
+          '<strong>' + escapeHtml(time) + '</strong>' +
+          '<span class="admin-customer-booking-meta">' + escapeHtml([service, booking.vehicle, booking.public_reference].filter(Boolean).join(' · ')) + '</span>' +
         '</span>' +
         '<span class="admin-status-pill" data-status="' + escapeHtml(statusTone(booking.status)) + '">' + escapeHtml(status) + '</span>' +
-        '<span class="admin-customer-booking-meta">' + escapeHtml(vehicle) + ' · ' + escapeHtml(booking.public_reference) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }
@@ -5039,9 +5083,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       var emailState = emailStatusLabel(invoice.email_status);
       var openInvoiceLabel = [invoice.invoice_number, amount, invoiceLabel, issued, emailState].join(', ');
       return '<button class="admin-mini-item admin-customer-invoice" type="button" aria-label="' + escapeHtml('Open invoice: ' + openInvoiceLabel) + '" data-open-invoice="' + escapeHtml(invoice.id) + '">' +
-        '<span class="admin-customer-invoice-main"><strong>' + escapeHtml(invoice.invoice_number) + '</strong><span>' + escapeHtml(amount) + '</span></span>' +
+        '<span class="admin-customer-invoice-main"><strong>' + escapeHtml(invoice.invoice_number) + '</strong>' +
+          '<span class="admin-customer-invoice-meta">' + escapeHtml([amount, invoice.issued_at ? 'issued ' + displayDay(invoice.issued_at) : 'not issued'].join(' · ')) + '</span></span>' +
         '<span class="admin-status-pill" data-status="' + escapeHtml(invoiceTone(invoice)) + '">' + escapeHtml(invoiceLabel) + '</span>' +
-        '<span class="admin-customer-invoice-meta">' + escapeHtml(issued) + '</span>' +
       '</button>';
     }).join('') + '</div>';
   }
@@ -5097,7 +5141,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       id: 'customer:' + customer.id + ':created',
       event_type: 'customer_created',
       title: 'Customer created',
-      message: 'Customer profile created.',
       created_at: customer.created_at,
       entity_type: 'customer',
       entity_id: customer.id
@@ -5142,7 +5185,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       [
         ['rejected_at', 'booking_rejected', 'Booking rejected'],
         ['cancelled_at', 'booking_cancelled', 'Booking cancelled'],
-        ['completed_at', 'booking_completed', 'Inspection completed'],
+        ['completed_at', 'booking_completed', 'Booking completed'],
         ['expired_at', 'booking_expired', 'Booking request expired']
       ].forEach(function (definition) {
         if (!booking[definition[0]]) return;
@@ -5273,11 +5316,25 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
+  // The server writes reschedules as "Moved from 2026-11-08 09:00 to
+  // 2026-11-08 10:00." in Vilnius time; show them like every other date.
+  function customerActivityMessage(event) {
+    var message = String(event.message || '');
+    if (event.event_type !== 'booking_rescheduled') return message;
+    var match = /^Moved from (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}) to (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})\.?$/.exec(message);
+    if (!match) return message;
+    var day = function (ymd) { return displayDay(ymd, { weekday: true, year: false }); };
+    return match[1] === match[3]
+      ? 'Moved from ' + match[2] + ' to ' + match[4] + ' on ' + day(match[1])
+      : 'Moved from ' + day(match[1]) + ', ' + match[2] + ' to ' + day(match[3]) + ', ' + match[4];
+  }
+
   function renderCustomerEvents(events) {
     if (!events.length) return '<p class="admin-customer-empty-copy">No activity yet.</p>';
     return '<ol class="admin-customer-activity-list">' + events.map(function (event) {
       var title = event.title || recordedCustomerEventTitle(event.event_type);
       var actor = event.actor_name ? 'By ' + event.actor_name : '';
+      var message = customerActivityMessage(event);
       var content =
         '<span class="admin-customer-activity-marker" aria-hidden="true"></span>' +
         '<span class="admin-customer-activity-content">' +
@@ -5285,14 +5342,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
             '<strong>' + escapeHtml(title) + '</strong>' +
             '<time datetime="' + escapeHtml(event.created_at) + '">' + escapeHtml(formatDateTime(event.created_at)) + '</time>' +
           '</span>' +
-          (event.message ? '<span class="admin-customer-activity-message">' + escapeHtml(event.message) + '</span>' : '') +
+          (message ? '<span class="admin-customer-activity-message">' + escapeHtml(message) + '</span>' : '') +
           (actor ? '<span class="admin-customer-activity-actor">' + escapeHtml(actor) + '</span>' : '') +
         '</span>';
       if (event.booking_id && bookingById(event.booking_id)) {
-        return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><button type="button" data-open-booking="' + escapeHtml(event.booking_id) + '" aria-label="' + escapeHtml('Open booking: ' + title + (event.message ? '. ' + event.message : '') + (actor ? '. ' + actor : '')) + '">' + content + '</button></li>';
+        return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><button type="button" data-open-booking="' + escapeHtml(event.booking_id) + '" aria-label="' + escapeHtml('Open booking: ' + title + (message ? '. ' + message : '') + (actor ? '. ' + actor : '')) + '">' + content + '</button></li>';
       }
       if (event.invoice_id && invoiceById(event.invoice_id)) {
-        return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><button type="button" data-open-invoice="' + escapeHtml(event.invoice_id) + '" aria-label="' + escapeHtml('Open invoice: ' + title + (event.message ? '. ' + event.message : '') + (actor ? '. ' + actor : '')) + '">' + content + '</button></li>';
+        return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><button type="button" data-open-invoice="' + escapeHtml(event.invoice_id) + '" aria-label="' + escapeHtml('Open invoice: ' + title + (message ? '. ' + message : '') + (actor ? '. ' + actor : '')) + '">' + content + '</button></li>';
       }
       return '<li data-activity-tone="' + escapeHtml(customerActivityTone(event.event_type)) + '"><div>' + content + '</div></li>';
     }).join('') + '</ol>';
@@ -5668,7 +5725,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var total = Number(invoice.amount_cents) || 0;
     var paid = Number(invoice.paid_amount_cents) || 0;
     if (invoice.invoice_status === 'void') {
-      return '<p class="admin-panel-amount"><strong>' + escapeHtml(formatMoney(total, currency)) + '</strong>' +
+      return '<p class="admin-panel-amount is-void"><strong>' + escapeHtml(formatMoney(total, currency)) + '</strong>' +
         '<span>' + escapeHtml(invoice.voided_at ? 'Voided ' + formatDateTime(invoice.voided_at) : 'Voided') + '</span></p>';
     }
     if (invoice.invoice_status === 'payment') {
@@ -5701,9 +5758,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!status || status === 'not_sent' || status === 'skipped') {
       return factHtml('Email', '<span>' + (recipient ? 'Not emailed' : 'Not emailed · the customer has no email address') + '</span>');
     }
-    var label = EMAIL_STATUS_LABELS[status] || emailStatusLabel(status);
-    var line = '<span class="admin-email-line' + (emailIsProblem(status) ? ' is-problem' : '') + '">' +
-      escapeHtml('Emailed to ' + (recipient || 'customer') + (invoice.last_sent_at ? ' on ' + formatDateTime(invoice.last_sent_at) : '')) + ' · <strong>' + escapeHtml(label) + '</strong></span>';
+    var line = emailLineHtml('Invoice', status, recipient || 'the customer', invoice.last_sent_at ? [formatDateTime(invoice.last_sent_at)] : []);
     var error = invoice.last_email_error && status !== 'delivered'
       ? '<span class="admin-fact-sub admin-fact-problem">' + escapeHtml(invoice.last_email_error) + '</span>'
       : '';
@@ -7573,6 +7628,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (repeatWeeks) repeatWeeks.disabled = !enabled || !(repeatToggle && repeatToggle.checked);
     if (repeatWrap) repeatWrap.hidden = !enabled || !(repeatToggle && repeatToggle.checked);
     if (repeatToggle) repeatToggle.disabled = !enabled;
+    // An existing slot can't become a series, so the option isn't shown.
+    var repeatGroup = repeatToggle ? repeatToggle.closest('.admin-repeat') : null;
+    if (repeatGroup) repeatGroup.hidden = !enabled;
   }
 
   function resetSlotForm(options) {

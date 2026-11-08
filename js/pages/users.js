@@ -481,7 +481,7 @@ function contactFields(user, readOnly) {
 function passwordFields(disabled = false) {
   const attribute = disabled ? ' disabled' : '';
   return `
-    ${textField('Temporary password', `<input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${attribute}>`)}
+    ${textField('Password', `<input type="password" name="tempPassword" autocomplete="new-password" minlength="14" required${attribute}>`)}
     ${textField('Repeat password', `<input type="password" name="confirmPassword" autocomplete="new-password" minlength="14" required${attribute}>`)}
   `;
 }
@@ -508,9 +508,9 @@ function createUserModalHtml() {
         <p class="admin-field-hint admin-form-wide">At least 14 characters. No email is sent, so share it with them yourself.</p>
       </fieldset>
 
-      <div class="admin-modal-footer">
+      <div class="admin-modal-footer admin-panel-footer">
         <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
-        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Cancel</button>
+        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
         <button class="admin-button admin-button-primary" type="submit">Add user</button>
       </div>
     </form>
@@ -548,9 +548,9 @@ function editUserModalHtml(user, state) {
         <div class="admin-user-role-choices admin-form-wide">${roleChoices(user.roles, current)}</div>
       </fieldset>
 
-      <div class="admin-modal-footer">
+      <div class="admin-modal-footer admin-panel-footer">
         <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
-        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>${current ? 'Close' : 'Cancel'}</button>
+        <button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>
         ${current ? '' : '<button class="admin-button admin-button-primary" type="submit">Save changes</button>'}
       </div>
     </form>

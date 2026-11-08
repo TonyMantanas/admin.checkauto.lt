@@ -118,7 +118,7 @@ export function renderStaticPage(root) {
             </select></span></label>
           </fieldset>
           <div class="admin-form-error" data-admin-slot-error role="status" aria-live="polite"></div>
-          <div class="admin-action-buttons admin-slot-editor-actions">
+          <div class="admin-modal-footer admin-slot-editor-actions">
             <button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-admin-slot-delete hidden>Delete slot</button>
             <button class="admin-button admin-button-secondary" type="button" data-admin-slot-editor-close>Close</button>
             <button class="admin-button admin-button-primary" type="submit" data-admin-slot-submit>Add slot</button>
