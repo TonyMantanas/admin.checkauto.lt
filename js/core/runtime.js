@@ -2649,8 +2649,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
+  // Older schedules saved a single day's slots as one series; only a series
+  // that spans more than one date actually repeats.
+  function slotRepeats(slot) {
+    if (!slot || !slot.recurrence_series_id) return false;
+    var day = formatDate(slot.start_at);
+    return state.slots.some(function (other) {
+      return other.recurrence_series_id === slot.recurrence_series_id && formatDate(other.start_at) !== day;
+    });
+  }
+
   function openSlotDeleteDialog(slot) {
-    if (!slot || !slot.recurrence_series_id) {
+    if (!slot || !slotRepeats(slot)) {
       return openConfirmDialog(confirmOptionsForAction('deleteSlot')).then(function (confirmed) {
         return confirmed ? 'single' : null;
       });
@@ -2994,7 +3004,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         id: 'slot:' + slot.id,
         type: 'slot',
         slotId: slot.id,
-        seriesId: slot.recurrence_series_id || null,
+        seriesId: slotRepeats(slot) ? slot.recurrence_series_id : null,
         status: 'bookable',
         start: slot.start_at,
         end: slot.end_at,
@@ -8197,7 +8207,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (submit) submit.textContent = 'Save changes';
       if (del) del.hidden = false;
       var seriesNote = $('[data-admin-slot-series]', form);
-      if (seriesNote) seriesNote.hidden = !slot.recurrence_series_id;
+      if (seriesNote) seriesNote.hidden = !slotRepeats(slot);
       if (repeatToggle) repeatToggle.checked = false;
       setRepeatControlsEnabled(false);
       refreshCustomControls(form);
