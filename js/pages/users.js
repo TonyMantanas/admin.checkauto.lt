@@ -133,7 +133,7 @@ function roleChoices(selectedRoles, disabled = false) {
     const checked = selectedRoles.includes(option.value) ? ' checked' : '';
     const disabledAttribute = disabled ? ' disabled' : '';
     return `
-      <label class="admin-user-role-choice">
+      <label class="admin-user-role-choice admin-option">
         <input type="checkbox" name="roles" value="${option.value}"${checked}${disabledAttribute}>
         <span><strong>${escapeHtml(option.label)}</strong><span>${escapeHtml(option.description)}</span></span>
       </label>
@@ -439,10 +439,11 @@ function closeButton(label) {
   return `<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="${escapeHtml(label)}" title="Close">${ICONS.close}</button>`;
 }
 
-function modalHeader(title, closeLabel) {
+function modalHeader(title, closeLabel, { chips = '', meta = '' } = {}) {
   return `
-    <header class="admin-modal-header">
-      <div><h2>${escapeHtml(title)}</h2></div>
+    <header class="admin-panel-head">
+      <div class="admin-panel-heading"><h2>${escapeHtml(title)}</h2>${chips}</div>
+      ${meta ? `<p class="admin-panel-meta">${meta}</p>` : ''}
       ${closeButton(closeLabel)}
     </header>
   `;
@@ -510,18 +511,12 @@ function createUserModalHtml() {
 function editUserModalHtml(user, state) {
   const current = isCurrent(user, state);
   return `
-    <header class="admin-modal-header admin-user-modal-header">
-      <div class="admin-user-identity">
-        <span class="admin-avatar admin-avatar-lg"${user.isActive ? '' : ' data-tone="muted"'} aria-hidden="true">${escapeHtml(initials(user))}</span>
-        <div>
-          <h2>${escapeHtml(user.displayName || user.email || 'User')}${current ? ' <span class="admin-chip">You</span>' : ''}${user.isActive ? '' : ' <span class="admin-chip">Disabled</span>'}</h2>
-          <p>${escapeHtml(user.email || '')}</p>
-        </div>
-      </div>
-      ${closeButton(current ? 'Close your account details' : 'Close user')}
-    </header>
+    ${modalHeader(user.displayName || user.email || 'User', current ? 'Close your account details' : 'Close user', {
+      chips: (current ? '<span class="admin-status-pill" data-status="confirmed">You</span>' : '') + (user.isActive ? '' : '<span class="admin-status-pill" data-status="cancelled">Disabled</span>'),
+      meta: escapeHtml([user.email, user.roles.map((role) => (ROLE_OPTIONS.find((option) => option.value === role) || {}).label || role).join(', ')].filter(Boolean).join(' · '))
+    })}
     ${current ? '' : `
-    <div class="admin-segmented admin-user-tabs" role="tablist" aria-label="User sections">
+    <div class="admin-segmented admin-panel-tabs admin-user-tabs" role="tablist" aria-label="User sections">
       <button type="button" role="tab" id="user-tab-details" aria-controls="user-panel-details" aria-selected="true" class="is-active" data-user-tab="details">Details</button>
       <button type="button" role="tab" id="user-tab-access" aria-controls="user-panel-access" aria-selected="false" tabindex="-1" data-user-tab="access">Sign-in and access</button>
     </div>`}
@@ -547,44 +542,45 @@ function editUserModalHtml(user, state) {
 
     ${current ? '' : `
     <section class="admin-user-access" id="user-panel-access" role="tabpanel" aria-labelledby="user-tab-access" hidden>
-      <details class="admin-user-access-item admin-user-security-section">
-        <summary class="admin-row-item">
-          <span class="admin-row-text">
-            <strong>Reset password</strong>
-            <span>Set a temporary password they change at their next sign-in.</span>
-          </span>
-          ${user.mustChangePassword ? '<span class="admin-chip" data-tone="warning">Needs password change</span>' : '<span aria-hidden="true"></span>'}
-          <span class="admin-row-go" aria-hidden="true">${ICONS.next}</span>
-        </summary>
-        <form class="admin-action-form admin-user-temp-form admin-form-plain" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
-          <div class="admin-form-group">${passwordFields()}</div>
-          <div class="admin-user-temp-actions">
-            <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
-            <button class="admin-button admin-button-secondary" type="submit">Set password</button>
-          </div>
-        </form>
-      </details>
-      <div class="admin-row-item admin-user-access-item">
-        <span class="admin-row-text">
-          <strong>${user.isActive ? 'Disable access' : 'Restore access'}</strong>
-          <span>${user.isActive ? 'Signs them out. Their account and roles are kept.' : 'They can sign in again with their current password.'}</span>
-        </span>
-        <span aria-hidden="true"></span>
-        <button
-          class="admin-button ${user.isActive ? 'admin-button-danger' : 'admin-button-secondary'}"
-          type="button"
-          data-user-set-active="${user.isActive ? 'false' : 'true'}"
-          data-user-id="${escapeHtml(user.id)}"
-        >${user.isActive ? 'Disable' : 'Restore'}</button>
-      </div>
+      <dl class="admin-facts">
+        <div class="admin-fact">
+          <dt>Password</dt>
+          <dd>
+            <strong${user.mustChangePassword ? ' class="admin-fact-warning"' : ''}>${user.mustChangePassword ? 'Temporary, not changed yet' : 'Set'}</strong>
+            <details class="admin-user-access-item admin-user-security-section">
+              <summary class="admin-context-action">Set a temporary password…</summary>
+              <form class="admin-action-form admin-user-temp-form admin-form-plain" data-user-temp-password-form data-user-id="${escapeHtml(user.id)}" novalidate>
+                <div class="admin-form-group">${passwordFields()}</div>
+                <div class="admin-user-temp-actions">
+                  <p class="admin-form-error" data-user-form-status data-action-error role="alert" aria-live="assertive"></p>
+                  <button class="admin-button admin-button-secondary" type="submit">Set password</button>
+                </div>
+              </form>
+            </details>
+          </dd>
+        </div>
+        <div class="admin-fact">
+          <dt>Access</dt>
+          <dd>
+            <strong>${user.isActive ? 'Active' : 'Disabled'}</strong>
+            <span class="admin-fact-links"><button
+              class="admin-context-action${user.isActive ? ' is-danger' : ''}"
+              type="button"
+              data-user-set-active="${user.isActive ? 'false' : 'true'}"
+              data-user-id="${escapeHtml(user.id)}"
+            >${user.isActive ? 'Disable access…' : 'Restore access…'}</button></span>
+          </dd>
+        </div>
+      </dl>
     </section>`}
   `;
 }
 
 function loadingUserModalHtml() {
   return `
-    <header class="admin-modal-header" role="status" aria-label="Loading user details">
-      <div><h2><span class="admin-skeleton admin-skeleton-line admin-skeleton-line-wide" aria-hidden="true"></span></h2></div>
+    <header class="admin-panel-head" role="status" aria-label="Loading user details">
+      <div class="admin-panel-heading"><h2><i class="admin-skeleton admin-panel-skeleton-title" aria-hidden="true"></i></h2></div>
+      <p class="admin-panel-meta"><i class="admin-skeleton admin-panel-skeleton-meta" aria-hidden="true"></i></p>
       ${closeButton('Close user')}
     </header>
     <div class="admin-user-modal-loading" aria-hidden="true">

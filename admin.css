@@ -7993,3 +7993,95 @@ a.admin-notification-item:focus-visible {
   margin-block: 0.25rem;
   border-radius: 999px;
 }
+
+/* Row lists (users, account, sign-in and access): rows separated by a rule,
+   like every other list, instead of grey boxes inside the card. */
+.admin-row-list {
+  gap: 0;
+}
+
+.admin-row-item {
+  padding-inline: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.admin-row-list > * + * {
+  border-block-start: 1px solid var(--admin-border);
+}
+
+:is(a, button).admin-row-item:hover,
+.admin-row-list summary.admin-row-item:hover {
+  background: transparent;
+}
+
+:is(a, button).admin-row-item:hover .admin-row-text > strong,
+summary.admin-row-item:hover .admin-row-text > strong {
+  color: var(--admin-link);
+}
+
+:is(a, button).admin-row-item:focus-visible {
+  outline: 2px solid var(--admin-focus);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+.admin-user-access {
+  gap: 0;
+}
+
+.admin-user-access > * + * {
+  border-block-start: 1px solid var(--admin-border);
+}
+
+/* Roles: one checkbox row each, like the other choice lists. */
+.admin-user-role-choices {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.admin-user-role-choice.admin-option {
+  padding: 0.625rem 0;
+  align-items: start;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-user-role-choice.admin-option:hover,
+.admin-user-role-choice.admin-option:has(input:checked) {
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-user-role-choice.admin-option:last-child {
+  border-block-end: 1px solid var(--admin-border);
+}
+
+/* User access tab: label/value rows; the password form opens in place. */
+.admin-user-access .admin-user-security-section > summary {
+  width: fit-content;
+  list-style: none;
+  cursor: pointer;
+}
+
+.admin-user-access .admin-user-security-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.admin-user-access .admin-user-security-section[open] > summary {
+  margin-block-end: 0.75rem;
+}
+
+.admin-user-access > .admin-facts + * {
+  border-block-start: 0;
+}
+
+.admin-fact-warning {
+  color: var(--admin-warning);
+}
+
+.admin-fact .admin-context-action.is-danger,
+.admin-user-access .admin-context-action.is-danger {
+  color: var(--admin-danger);
+}
