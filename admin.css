@@ -1203,6 +1203,11 @@ fieldset {
   mask-image: url("icons/dots.svg");
 }
 
+.admin-icon-repeat {
+  -webkit-mask-image: url("icons/repeat.svg");
+  mask-image: url("icons/repeat.svg");
+}
+
 .admin-icon-user {
   -webkit-mask-image: url("icons/user.svg");
   mask-image: url("icons/user.svg");
@@ -6816,6 +6821,7 @@ a.admin-dash-tile:hover {
 .admin-slot-form > label,
 .admin-slot-form > .admin-repeat,
 .admin-slot-form > .admin-form-error,
+.admin-slot-form > .admin-slot-series,
 .admin-slot-form > .admin-modal-footer {
   grid-column: 1 / -1;
 }
@@ -8095,4 +8101,187 @@ summary.admin-row-item:hover .admin-row-text > strong {
 .admin-fact .admin-context-action.is-danger,
 .admin-user-access .admin-context-action.is-danger {
   color: var(--admin-danger);
+}
+
+/* Create schedule: form on the left, the chosen day on the right. */
+.admin-modal-panel[data-size="lg"]:has(.admin-day-schedule-form) {
+  width: min(100%, 52rem);
+}
+
+.admin-schedule-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 19rem);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.admin-schedule-fields {
+  min-width: 0;
+  display: grid;
+  gap: 0.875rem;
+}
+
+.admin-schedule-repeat {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.admin-schedule-repeat[hidden] {
+  display: none;
+}
+
+.admin-weekday-pills label {
+  min-width: 3rem;
+  justify-content: center;
+}
+
+.admin-schedule-preview {
+  min-width: 0;
+  padding: 0.875rem;
+  display: grid;
+  gap: 0.625rem;
+  border-radius: 0.875rem;
+  background: var(--admin-surface-subtle);
+}
+
+.admin-schedule-preview-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.admin-schedule-preview-head strong {
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.admin-schedule-preview-head span {
+  overflow: hidden;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-schedule-day {
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-schedule-hour {
+  position: relative;
+  border-block-start: 1px solid var(--admin-border);
+}
+
+.admin-schedule-hour span {
+  position: absolute;
+  inset-block-start: 0.15rem;
+  inset-inline-start: 0;
+  color: var(--admin-text-tertiary);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-schedule-blocks {
+  position: absolute;
+  inset: 0 0 0 2.75rem;
+}
+
+.admin-schedule-block {
+  position: absolute;
+  inset-inline: 0;
+  padding: 0.15rem 0.4rem;
+  overflow: hidden;
+  border-radius: 0.35rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.admin-schedule-block.is-existing {
+  border: 1px dashed var(--admin-border-strong);
+  color: var(--admin-text-secondary);
+  background: var(--admin-surface);
+}
+
+.admin-schedule-block.is-booking {
+  border: 1px solid var(--admin-border-strong);
+  color: var(--admin-text);
+  background: var(--admin-surface);
+}
+
+.admin-schedule-block.is-new {
+  border: 1px solid var(--admin-accent);
+  color: var(--admin-link);
+  background: var(--admin-accent-soft);
+}
+
+.admin-schedule-block.is-new.is-clash {
+  border-color: var(--admin-danger);
+  color: var(--admin-danger);
+  background: var(--admin-danger-soft);
+}
+
+.admin-schedule-note {
+  margin: 0;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.admin-schedule-note.is-warning {
+  color: var(--admin-danger);
+  font-weight: 500;
+}
+
+@media (max-width: 48rem) {
+  .admin-schedule-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Repeating slots carry a small repeat mark. */
+.admin-calendar-repeat {
+  position: absolute;
+  inset-block-start: 0.3rem;
+  inset-inline-end: 0.3rem;
+  display: inline-grid;
+  color: var(--admin-text-tertiary);
+  font-style: normal;
+}
+
+.admin-calendar-repeat .admin-icon {
+  width: 0.7rem;
+  height: 0.7rem;
+}
+
+.admin-calendar-agenda-slot {
+  position: relative;
+}
+
+.admin-calendar-agenda-slot .admin-calendar-repeat {
+  position: static;
+  margin-inline-start: 0.25rem;
+  vertical-align: -0.1rem;
+}
+
+.admin-slot-series {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--admin-text-secondary);
+  font-size: 0.8125rem;
+}
+
+.admin-slot-series[hidden] {
+  display: none;
+}
+
+.admin-slot-series .admin-icon {
+  width: 0.875rem;
+  height: 0.875rem;
 }

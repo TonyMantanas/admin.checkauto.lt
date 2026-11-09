@@ -1,12 +1,12 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261106-6';
 import { currentAgreement, invoiceDeliveredToClient, bindPriceTotals } from './reliability-ui.js?v=20261106-7';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261106-9';
-import { ICONS } from './icons.js?v=20261106-5';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261109-1';
+import { ICONS } from './icons.js?v=20261109-1';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261106-5';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261109-1';
 import { skeletons } from './skeletons.js?v=20261106-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -33,7 +33,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   // Changing a confirmed booking, internal notes and customer contact edits
   // live in their own function so admin-bookings is never redeployed for them.
   var CHANGES_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-booking-changes';
-  var CHANGES_ACTIONS = ['updateConfirmedBooking', 'updateCustomerContact'];
+  var CHANGES_ACTIONS = ['updateConfirmedBooking', 'updateCustomerContact', 'createSlotSchedule', 'deleteSlotSeriesFrom'];
   var MFA_RECOVERY_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-mfa-recovery';
   var TEMP_PASSWORD_ENDPOINT = SUPABASE_URL + '/functions/v1/admin-temp-password';
   var ADMIN_BASE_PATH = (
@@ -1504,7 +1504,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       throw new Error('This account is not approved for admin access or the session has expired.');
     }
     if (payload.action === 'sendMarketingCampaign') payload = ensureActionIdempotency(payload);
-    else if (['confirmBooking','updateConfirmedBooking','rejectBooking','cancelBooking','recordAgreedPrice','createSlotSeries','recordPayment','recordRefund','correctPayment','resolvePaymentReconciliation','retryNotification','acknowledgeContact','createAndSendInvoice','resendInvoice'].includes(payload.action)) {
+    else if (['confirmBooking','updateConfirmedBooking','createSlotSchedule','rejectBooking','cancelBooking','recordAgreedPrice','createSlotSeries','recordPayment','recordRefund','correctPayment','resolvePaymentReconciliation','retryNotification','acknowledgeContact','createAndSendInvoice','resendInvoice'].includes(payload.action)) {
       payload = await operationStore().attach(payload);
     }
     var response = await fetch(CHANGES_ACTIONS.includes(payload.action) ? CHANGES_ENDPOINT : ADMIN_ENDPOINT, {
@@ -2663,12 +2663,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       root.innerHTML = '<div class="admin-modal-backdrop" data-confirm-dismiss></div>' +
         '<section class="admin-modal-panel admin-confirm-panel" data-size="sm" role="dialog" aria-modal="true">' +
           '<div class="admin-modal-header">' +
-          '<div><h2>Delete the slot on ' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '?</h2></div>' +
+          '<div><h2>Delete repeating slot?</h2></div>' +
           '</div>' +
-          '<p data-confirm-message>It repeats every week. Booked times stay as they are.</p>' +
+          '<p data-confirm-message>' + escapeHtml(formatRange(slot.start_at, slot.end_at)) + '</p>' +
           '<div class="admin-action-buttons admin-modal-actions admin-confirm-stack">' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Delete this slot only</button>' +
-            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>Delete all future slots in the series</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-single>Only this slot</button>' +
+            '<button class="admin-button admin-button-danger" type="button" data-confirm-series>This and all following</button>' +
             '<button class="admin-button admin-button-secondary" type="button" data-confirm-no>Keep slot</button>' +
           '</div>' +
         '</section>';
@@ -2994,6 +2994,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         id: 'slot:' + slot.id,
         type: 'slot',
         slotId: slot.id,
+        seriesId: slot.recurrence_series_id || null,
         status: 'bookable',
         start: slot.start_at,
         end: slot.end_at,
@@ -3369,7 +3370,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
           (open.length
             ? '<div class="admin-calendar-agenda-open"><span>Open</span>' + open.map(function (event) {
                 var who = event.assigneeName ? ', ' + event.assigneeName : '';
-                return '<button class="admin-calendar-agenda-slot' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + '" type="button" data-calendar-event="' + escapeHtml(event.id) + '" aria-label="' + escapeHtml('Open time ' + formatTime(event.start) + ' to ' + formatTime(event.end) + who) + '">' + escapeHtml(formatTime(event.start)) + '</button>';
+                return '<button class="admin-calendar-agenda-slot' + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + '" type="button" data-calendar-event="' + escapeHtml(event.id) + '" aria-label="' + escapeHtml('Open time ' + formatTime(event.start) + ' to ' + formatTime(event.end) + who + (event.seriesId ? ', repeating' : '')) + '">' + escapeHtml(formatTime(event.start)) + (event.seriesId ? '<i class="admin-calendar-repeat" title="Repeating">' + ICONS.repeat + '</i>' : '') + '</button>';
               }).join('') + '</div>'
             : '') +
           (!events.length ? '<p class="admin-calendar-agenda-empty">Nothing scheduled.</p>' : '') +
@@ -3418,11 +3419,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var primary = isOpen ? 'Open' : (event.customerName || event.title);
     var secondary = isOpen ? shortStaffName(event.assigneeName) : (event.reference || '');
     var eventLabel = formatTime(event.start) + ' to ' + formatTime(event.end) + ', ' +
-      (isOpen ? 'open time' + (event.assigneeName ? ', ' + event.assigneeName : '') : primary + (secondary ? ', ' + secondary : '') + ', ' + statusLabel(event.status));
+      (isOpen ? 'open time' + (event.assigneeName ? ', ' + event.assigneeName : '') + (event.seriesId ? ', repeating' : '') : primary + (secondary ? ', ' + secondary : '') + ', ' + statusLabel(event.status));
     return '<button class="admin-calendar-event' + (isOpen ? ' is-open' : '') + (event.slotId && event.slotId === state.selectedSlotId ? ' is-selected' : '') + (state.page === 'availability' && event.type === 'booking' ? ' is-readonly' : '') + '" type="button" aria-label="' + escapeHtml(eventLabel) + '" data-tone="' + escapeHtml(tone) + '" data-calendar-event="' + escapeHtml(event.id) + '" style="top:' + top + 'px;height:' + height + 'px;">' +
       '<strong>' + escapeHtml(formatTime(event.start) + '–' + formatTime(event.end)) + '</strong>' +
       '<span>' + escapeHtml(primary) + '</span>' +
       (secondary ? '<small>' + escapeHtml(secondary) + '</small>' : '') +
+      (isOpen && event.seriesId ? '<i class="admin-calendar-repeat" title="Repeating">' + ICONS.repeat + '</i>' : '') +
     '</button>';
   }
 
@@ -6561,6 +6563,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       voidInvoice: 'Voiding…',
       deleteSlot: 'Deleting…',
       deleteSlotSeries: 'Deleting…',
+      deleteSlotSeriesFrom: 'Deleting…',
+      createSlotSchedule: 'Adding…',
       updateSlot: 'Saving…',
       createSlot: 'Creating…',
       setCustomerLegalHold: 'Saving…',
@@ -6592,6 +6596,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       voidInvoice: 'Invoice voided.',
       deleteSlot: 'Slot deleted.',
       deleteSlotSeries: 'Series deleted.',
+      deleteSlotSeriesFrom: 'Slots deleted.',
       updateSlot: 'Slot saved.',
       createSlot: 'Slot added.',
       setCustomerLegalHold: 'Legal hold started.',
@@ -6778,6 +6783,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (delivery.staff === 'queued') return saved + ' The inspector is being emailed.';
       return saved;
     }
+    if (action === 'deleteSlotSeriesFrom' && result && result.cancelled_count !== undefined) {
+      var cancelled = Number(result.cancelled_count) || 0;
+      var kept = Number(result.kept_booked_count) || 0;
+      return (cancelled === 1 ? '1 slot deleted.' : cancelled + ' slots deleted.') +
+        (kept ? ' ' + (kept === 1 ? '1 booked slot was kept.' : kept + ' booked slots were kept.') : '');
+    }
     if (action === 'updateCustomerContact' && result) {
       var updated = Number(result.active_bookings_updated) || 0;
       return 'Contact details saved.' + (updated === 1 ? ' The open booking uses them too.' : updated > 1 ? ' The ' + updated + ' open bookings use them too.' : '');
@@ -6848,7 +6859,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var slot = slotById(slotId);
     var scope = await openSlotDeleteDialog(slot);
     if (!scope) return;
-    var action = scope === 'series' ? 'deleteSlotSeries' : 'deleteSlot';
+    var action = scope === 'series' ? 'deleteSlotSeriesFrom' : 'deleteSlot';
     captureSlotEditorBaseline();
     await runAction({ action: action, slotId: slotId }, action, trigger, {
       skipConfirm: true,
@@ -7749,6 +7760,15 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return ranges;
   }
 
+  var WEEKDAY_LABELS = [['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed'], ['4', 'Thu'], ['5', 'Fri'], ['6', 'Sat'], ['7', 'Sun']];
+  var SCHEDULE_MAX_SLOTS = 500;
+
+  // ISO weekday (Mon 1 … Sun 7) of a YYYY-MM-DD date.
+  function isoWeekday(ymd) {
+    var day = new Date(ymd + 'T12:00:00Z').getUTCDay();
+    return day === 0 ? 7 : day;
+  }
+
   function dayScheduleFormHtml() {
     var defaultDate = addDaysYmd(todayYmd(), 1);
     var selectedStaffId = dayScheduleLastResult && dayScheduleLastResult.assigned_staff_id
@@ -7762,24 +7782,47 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         return '<option value="' + minutes + '"' + (minutes === selected ? ' selected' : '') + '>' + label + '</option>';
       }).join('');
     };
+    var weekday = String(isoWeekday(defaultDate));
 
     return '<div class="admin-modal-header">' +
         '<div><h2>Create schedule</h2></div>' +
         '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close" title="Close">' + ICON_CLOSE + '</button>' +
       '</div>' +
       '<form class="admin-day-schedule-form admin-form-plain" data-admin-day-schedule-form novalidate>' +
-        '<div class="admin-form-row admin-form-row-time">' +
-          '<label><span class="admin-field-label">Date</span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
-          '<label><span class="admin-field-label">From</span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
-          '<label><span class="admin-field-label">Until</span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
+        '<div class="admin-schedule-layout">' +
+          '<div class="admin-schedule-fields">' +
+            '<div class="admin-form-row admin-form-row-time">' +
+              '<label><span class="admin-field-label">Date</span><input name="date" type="date" value="' + escapeHtml(defaultDate) + '" required data-admin-day-schedule-date></label>' +
+              '<label><span class="admin-field-label">From</span><input name="startTime" type="time" value="09:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-start></label>' +
+              '<label><span class="admin-field-label">Until</span><input name="endTime" type="time" value="18:00" min="00:00" max="23:45" step="900" required data-admin-day-schedule-end></label>' +
+            '</div>' +
+            '<label><span class="admin-field-label">Inspector</span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
+            (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
+            '<div class="admin-form-row">' +
+              '<label><span class="admin-field-label">Each inspection</span><span class="admin-select-wrap"><select name="inspectionDurationMinutes" data-admin-day-schedule-duration>' + durationOptions([30, 45, 60, 90, 120], 60) + '</select></span></label>' +
+              '<label><span class="admin-field-label">Travel between</span><span class="admin-select-wrap"><select name="bufferDurationMinutes" data-admin-day-schedule-buffer>' + durationOptions([0, 30, 45, 60, 90, 120], 60, 'None') + '</select></span></label>' +
+            '</div>' +
+            '<div class="admin-field-group"><span class="admin-field-label">Repeat</span>' +
+              '<div class="admin-choice-group" role="radiogroup" aria-label="Repeat">' +
+                '<label><input type="radio" name="repeat" value="none" checked><span>Doesn’t repeat</span></label>' +
+                '<label><input type="radio" name="repeat" value="weekly"><span>Weekly</span></label>' +
+              '</div>' +
+            '</div>' +
+            '<div class="admin-schedule-repeat" data-schedule-repeat hidden>' +
+              '<div class="admin-field-group"><span class="admin-field-label">On</span>' +
+                '<div class="admin-filter-check-grid admin-weekday-pills" role="group" aria-label="Days of the week">' +
+                  WEEKDAY_LABELS.map(function (item) {
+                    return '<label><input type="checkbox" name="weekday" value="' + item[0] + '"' + (item[0] === weekday ? ' checked' : '') + '><span>' + item[1] + '</span></label>';
+                  }).join('') +
+                '</div>' +
+              '</div>' +
+              '<label><span class="admin-field-label">For</span><span class="admin-select-wrap"><select name="repeatWeeks" data-schedule-weeks>' +
+                [2, 3, 4, 6, 8, 12].map(function (weeks) { return '<option value="' + weeks + '"' + (weeks === 4 ? ' selected' : '') + '>' + weeks + ' weeks</option>'; }).join('') +
+              '</select></span></label>' +
+            '</div>' +
+          '</div>' +
+          '<section class="admin-schedule-preview" data-admin-day-schedule-preview aria-label="Day preview" aria-live="polite"></section>' +
         '</div>' +
-        '<label><span class="admin-field-label">Inspector</span><span class="admin-select-wrap"><select name="assignedStaffId" required data-admin-day-schedule-staff' + (canManageOthers ? '' : ' disabled') + '>' + staffOptionsHtml + '</select></span></label>' +
-        (!canManageOthers ? '<input type="hidden" name="assignedStaffId" value="' + escapeHtml(selectedStaffId) + '">' : '') +
-        '<div class="admin-form-row">' +
-          '<label><span class="admin-field-label">Each inspection</span><span class="admin-select-wrap"><select name="inspectionDurationMinutes" data-admin-day-schedule-duration>' + durationOptions([30, 45, 60, 90, 120], 60) + '</select></span></label>' +
-          '<label><span class="admin-field-label">Travel between</span><span class="admin-select-wrap"><select name="bufferDurationMinutes" data-admin-day-schedule-buffer>' + durationOptions([0, 30, 45, 60, 90, 120], 60, 'None') + '</select></span></label>' +
-        '</div>' +
-        '<div class="admin-day-schedule-preview" data-admin-day-schedule-preview role="status" aria-live="polite"></div>' +
         '<div class="admin-modal-footer">' +
           '<div class="admin-form-error" data-admin-day-schedule-status role="status" aria-live="polite"></div>' +
           '<button class="admin-button admin-button-secondary" type="button" data-admin-modal-close>Close</button>' +
@@ -7788,38 +7831,119 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</form>';
   }
 
-  // The slots the schedule will add, shown as start times; the button
-  // names the count.
+  // Everything the form describes: the day's new ranges, the dates they
+  // land on, and the inspector's existing items on the shown day.
+  function dayScheduleModel(form) {
+    var value = function (selector) { return String(($(selector, form) || {}).value || ''); };
+    var date = value('[data-admin-day-schedule-date]');
+    var start = value('[data-admin-day-schedule-start]');
+    var end = value('[data-admin-day-schedule-end]');
+    var staffSelect = $('[data-admin-day-schedule-staff]', form);
+    var staffId = staffSelect && !staffSelect.disabled ? staffSelect.value : String(state.staff && state.staff.id || '');
+    var ranges = dayScheduleRanges(start, end, Number(value('[data-admin-day-schedule-duration]')), Number(value('[data-admin-day-schedule-buffer]')));
+    var repeat = form.elements.repeat && form.elements.repeat.value === 'weekly';
+    var weekdays = $all('input[name="weekday"]:checked', form).map(function (input) { return Number(input.value); });
+    var weeks = Number(value('[data-schedule-weeks]')) || 4;
+    var dates = [];
+    if (isValidYmd(date)) {
+      if (!repeat) dates = [date];
+      else {
+        for (var offset = 0; offset < weeks * 7; offset += 1) {
+          var day = addDaysYmd(date, offset);
+          if (weekdays.includes(isoWeekday(day))) dates.push(day);
+        }
+      }
+    }
+    var existing = isValidYmd(date) ? buildCalendarEvents().filter(function (event) {
+      if (formatDate(event.start) !== date) return false;
+      if (event.type === 'slot') return (slotById(event.slotId) || {}).assigned_staff_id === staffId;
+      var booking = event.bookingId ? bookingById(event.bookingId) : null;
+      return Boolean(booking && booking.assigned_to_staff_id === staffId);
+    }) : [];
+    var overlaps = function (range) {
+      var a = timeToMinutes(range.start), b = timeToMinutes(range.end);
+      return existing.some(function (event) {
+        var x = eventMinutes(event.start), y = eventMinutes(event.end) || 24 * 60;
+        return a < y && x < b;
+      });
+    };
+    return {
+      date: date, staffId: staffId, ranges: ranges, repeat: repeat, weekdays: weekdays, weeks: weeks,
+      dates: dates, existing: existing, overlaps: overlaps,
+      total: dates.length * ranges.length
+    };
+  }
+
+  // The chosen day as a small calendar: the inspector's existing slots and
+  // bookings, and the new slots on top (red where they overlap).
+  function dayScheduleDayHtml(model) {
+    var HOUR = 30;
+    var minutes = [];
+    model.ranges.forEach(function (range) { minutes.push(timeToMinutes(range.start), timeToMinutes(range.end)); });
+    model.existing.forEach(function (event) { minutes.push(eventMinutes(event.start), eventMinutes(event.end) || 24 * 60); });
+    var first = minutes.length ? Math.max(0, Math.floor(Math.min.apply(null, minutes) / 60) - 1) : 8;
+    var last = minutes.length ? Math.min(24, Math.ceil(Math.max.apply(null, minutes) / 60) + 1) : 18;
+    if (last - first < 8) last = Math.min(24, first + 8);
+    var top = function (m) { return (m / 60 - first) * HOUR; };
+    var rows = '';
+    for (var hour = first; hour < last; hour += 1) {
+      rows += '<div class="admin-schedule-hour" style="height:' + HOUR + 'px"><span>' + pad2(hour) + ':00</span></div>';
+    }
+    var block = function (startMin, endMin, cls, label) {
+      return '<div class="admin-schedule-block ' + cls + '" style="top:' + top(startMin) + 'px;height:' + Math.max(16, (endMin - startMin) / 60 * HOUR - 2) + 'px">' + label + '</div>';
+    };
+    var existing = model.existing.map(function (event) {
+      var label = event.type === 'slot' ? formatTime(event.start) + '–' + formatTime(event.end) + ' · Open' : formatTime(event.start) + '–' + formatTime(event.end) + ' · ' + (event.customerName || event.title || 'Booking');
+      return block(eventMinutes(event.start), eventMinutes(event.end) || 24 * 60, event.type === 'slot' ? 'is-existing' : 'is-booking', escapeHtml(label));
+    }).join('');
+    var added = model.ranges.map(function (range) {
+      var clash = model.overlaps(range);
+      return block(timeToMinutes(range.start), timeToMinutes(range.end), clash ? 'is-new is-clash' : 'is-new', escapeHtml(range.start + '–' + range.end + (clash ? ' · Overlaps' : ' · New')));
+    }).join('');
+    return '<div class="admin-schedule-day" style="height:' + ((last - first) * HOUR) + 'px">' + rows + '<div class="admin-schedule-blocks">' + existing + added + '</div></div>';
+  }
+
+  // Preview beside the form; the button names how many slots it adds.
   function updateDaySchedulePreview(form) {
     if (!form) return;
-    var start = String(($('[data-admin-day-schedule-start]', form) || {}).value || '');
-    var end = String(($('[data-admin-day-schedule-end]', form) || {}).value || '');
-    var duration = Number(($('[data-admin-day-schedule-duration]', form) || {}).value || 0);
-    var buffer = Number(($('[data-admin-day-schedule-buffer]', form) || {}).value || 0);
-    var ranges = dayScheduleRanges(start, end, duration, buffer);
+    var model = dayScheduleModel(form);
     var preview = $('[data-admin-day-schedule-preview]', form);
     var submit = $('[data-admin-day-schedule-submit]', form);
+    var repeatFields = $('[data-schedule-repeat]', form);
+    if (repeatFields) repeatFields.hidden = !model.repeat;
     if (!preview) return;
-    if (!ranges.length) {
-      preview.dataset.tone = 'warning';
-      preview.innerHTML = '<p>No slot fits between ' + escapeHtml(start || '…') + ' and ' + escapeHtml(end || '…') + '. Make the day longer or the inspection shorter.</p>';
+    var staff = staffById(model.staffId);
+    var head = '<header class="admin-schedule-preview-head"><strong>' + escapeHtml(isValidYmd(model.date) ? dayLabel(model.date) : 'Choose a date') + '</strong>' +
+      (staff ? '<span>' + escapeHtml(staff.display_name) + '</span>' : '') + '</header>';
+    if (!model.ranges.length) {
+      preview.innerHTML = head + '<p class="admin-schedule-note is-warning">No slot fits between these times.</p>';
       if (submit) { submit.textContent = 'Add slots'; submit.disabled = true; }
       return;
     }
-    preview.dataset.tone = 'neutral';
-    preview.innerHTML = '<p><strong>' + ranges.length + (ranges.length === 1 ? ' slot' : ' slots') + '</strong> starting at</p>' +
-      '<ul class="admin-slot-chips">' + ranges.map(function (range) {
-        return '<li><time>' + escapeHtml(range.start) + '</time></li>';
-      }).join('') + '</ul>';
+    var clashes = model.ranges.filter(model.overlaps).length;
+    var summary;
+    if (model.repeat) {
+      var days = WEEKDAY_LABELS.filter(function (item) { return model.weekdays.includes(Number(item[0])); }).map(function (item) { return item[1]; });
+      summary = days.length
+        ? model.ranges.length + (model.ranges.length === 1 ? ' slot' : ' slots') + ' a day on ' + days.join(', ') + ' for ' + model.weeks + ' weeks'
+        : 'Choose the days it repeats on';
+    } else {
+      summary = model.ranges.length + (model.ranges.length === 1 ? ' slot' : ' slots');
+    }
+    preview.innerHTML = head + dayScheduleDayHtml(model) +
+      '<p class="admin-schedule-note">' + escapeHtml(summary) + '</p>' +
+      (clashes ? '<p class="admin-schedule-note is-warning">' + escapeHtml(clashes === 1 ? '1 overlaps and will be skipped.' : clashes + ' overlap and will be skipped.') + '</p>' : '') +
+      (model.total > SCHEDULE_MAX_SLOTS ? '<p class="admin-schedule-note is-warning">Up to ' + SCHEDULE_MAX_SLOTS + ' slots at once.</p>' : '');
     if (submit) {
-      submit.disabled = false;
-      submit.textContent = ranges.length === 1 ? 'Add 1 slot' : 'Add ' + ranges.length + ' slots';
+      var count = model.total;
+      submit.disabled = !count || count > SCHEDULE_MAX_SLOTS;
+      submit.textContent = count === 1 ? 'Add 1 slot' : 'Add ' + count + ' slots';
     }
   }
 
   function renderDayScheduleModal() {
     if (!staffHasAccess(state.staff, 'operations.manage', ['owner', 'admin', 'inspector'])) return;
-    var modal = openModal(dayScheduleFormHtml(), 'md');
+    var modal = openModal(dayScheduleFormHtml(), 'lg');
     var form = $('[data-admin-day-schedule-form]', modal);
     if (!form) return;
     updateDaySchedulePreview(form);
@@ -7828,6 +7952,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       control.addEventListener('change', function () {
         if (control.matches('[data-admin-day-schedule-start], [data-admin-day-schedule-end]')) {
           normalizeTimeControl(control);
+        }
+        // A new date starts the weekly pattern on that weekday.
+        if (control.matches('[data-admin-day-schedule-date]') && isValidYmd(control.value) && !$all('input[name="weekday"]:checked', form).length) {
+          var box = $('input[name="weekday"][value="' + isoWeekday(control.value) + '"]', form);
+          if (box) box.checked = true;
         }
         updateDaySchedulePreview(form);
       });
@@ -7896,30 +8025,51 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    var model = dayScheduleModel(form);
+    if (model.repeat && !model.weekdays.length) {
+      showFieldError(status, 'Choose the days it repeats on.', $('input[name="weekday"]', form));
+      return;
+    }
+    if (model.total > SCHEDULE_MAX_SLOTS) {
+      showFieldError(status, 'Up to ' + SCHEDULE_MAX_SLOTS + ' slots at once. Repeat for fewer weeks.', $('[data-schedule-weeks]', form));
+      return;
+    }
+
     setFormBusy(form, true, 'Adding…');
     setSyncState('Saving', 'loading');
     var response;
     try {
-      var occurrences=ranges.map(function(range){
-        var start=range.start,end=range.end;
-        var pair=validateDateTimePair(dateValue,start,end,data.get('dstFold'));
-        if(pair.error) throw new Error(pair.error);
-        return {date:dateValue,startTime:start,endTime:end,startAt:pair.startAt,endAt:pair.endAt,fold:data.get('dstFold') || null};
+      var occurrences = [];
+      var unplaceable = 0;
+      model.dates.forEach(function (day) {
+        ranges.forEach(function (range) {
+          var startAt = isoFromVilniusInput(day, range.start, data.get('dstFold'));
+          var endAt = isoFromVilniusInput(day, range.end, data.get('dstFold'));
+          if (!startAt || !endAt) { unplaceable += 1; return; }
+          occurrences.push({ date: day, startTime: range.start, endTime: range.end, startAt: startAt, endAt: endAt, fold: data.get('dstFold') || null });
+        });
       });
-      response=await adminAction({action:'createSlotSeries',serviceCode:'all',assignedStaffId:assignedStaffId,occurrences:occurrences});
-      dayScheduleLastResult={created_count:response.result?.created || 0,skipped_count:0};
+      if (!occurrences.length) throw new Error('None of these times exist on the chosen days.');
+      response = await adminAction({ action: 'createSlotSchedule', serviceCode: 'all', assignedStaffId: assignedStaffId, repeat: model.repeat, occurrences: occurrences });
+      dayScheduleLastResult = {
+        created_count: response.result?.created || 0,
+        skipped_count: (Array.isArray(response.result?.skipped) ? response.result.skipped.length : 0) + unplaceable,
+        assigned_staff_id: assignedStaffId
+      };
       state.calendarAnchor = dateValue;
       markModalClean();
       var created = Number(dayScheduleLastResult && dayScheduleLastResult.created_count) || 0;
       var skipped = Number(dayScheduleLastResult && dayScheduleLastResult.skipped_count) || 0;
       var message = created === 1 ? '1 slot added.' : created + ' slots added.';
-      if (skipped) message += ' ' + skipped + (skipped === 1 ? ' overlapped and was skipped.' : ' overlapped and were skipped.');
+      if (skipped) message += ' ' + skipped + (skipped === 1 ? ' was skipped: it overlaps or has passed.' : ' were skipped: they overlap or have passed.');
       setSyncState('Saved', 'success');
       showToast(message, created ? 'success' : 'info');
       if (created > 0) {
         await closeModalRoute({ force: true });
       } else {
-        if (status) status.textContent = 'No slots were added. They overlap existing availability or bookings.';
+        if (status) status.textContent = 'No slots were added: they all overlap existing slots or bookings, or have passed.';
+        setFormBusy(form, false);
+        return;
       }
     } catch (error) {
       setSyncState('Action failed', 'error', error instanceof Error ? error.message : '');
@@ -8046,6 +8196,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (endSelect) endSelect.value = formatTime(slot.end_at);
       if (submit) submit.textContent = 'Save changes';
       if (del) del.hidden = false;
+      var seriesNote = $('[data-admin-slot-series]', form);
+      if (seriesNote) seriesNote.hidden = !slot.recurrence_series_id;
       if (repeatToggle) repeatToggle.checked = false;
       setRepeatControlsEnabled(false);
       refreshCustomControls(form);
@@ -8056,6 +8208,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     if (title) title.textContent = 'New slot';
     if (slotId) slotId.value = '';
+    var newSeriesNote = $('[data-admin-slot-series]', form);
+    if (newSeriesNote) newSeriesNote.hidden = true;
     if (submit) submit.textContent = 'Add slot';
     if (del) del.hidden = true;
     setRepeatControlsEnabled(true);

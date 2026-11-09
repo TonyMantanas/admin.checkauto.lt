@@ -1,5 +1,5 @@
 import { api } from '../core/api.js?v=20260804-1';
-import { ICONS } from '../core/icons.js?v=20261106-5';
+import { ICONS } from '../core/icons.js?v=20261109-1';
 import { modals } from '../core/modals.js?v=20260804-1';
 import { toast } from '../core/toast.js?v=20260804-1';
 import { relativeDateTime } from '../core/formatting.js?v=20261105-3';

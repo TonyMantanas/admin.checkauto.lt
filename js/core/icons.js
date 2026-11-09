@@ -21,6 +21,7 @@ export const ICONS = Object.freeze({
   phone: icon('phone'),
   previous: icon('chevron-left'),
   refresh: icon('refresh'),
+  repeat: icon('repeat'),
   send: icon('send'),
   signOut: icon('logout'),
   sortAscending: icon('sort-ascending'),

@@ -1,4 +1,4 @@
-import { ICONS } from '../core/icons.js?v=20261106-5';
+import { ICONS } from '../core/icons.js?v=20261109-1';
 import { skeletons } from '../core/skeletons.js?v=20261106-4';
 
 export const page = 'availability';
@@ -103,6 +103,7 @@ export function renderStaticPage(root) {
             <label><span class="admin-field-label">From <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
             <label><span class="admin-field-label">Until <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
           </div>
+          <p class="admin-slot-series" data-admin-slot-series hidden>${ICONS.repeat}<span>Repeating slot</span></p>
           <label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
           <fieldset class="admin-repeat">
             <label class="admin-checkbox admin-repeat-toggle">
