@@ -1208,6 +1208,46 @@ fieldset {
   mask-image: url("icons/repeat.svg");
 }
 
+.admin-icon-layout-dashboard {
+  -webkit-mask-image: url("icons/layout-dashboard.svg");
+  mask-image: url("icons/layout-dashboard.svg");
+}
+
+.admin-icon-clipboard-list {
+  -webkit-mask-image: url("icons/clipboard-list.svg");
+  mask-image: url("icons/clipboard-list.svg");
+}
+
+.admin-icon-calendar {
+  -webkit-mask-image: url("icons/calendar.svg");
+  mask-image: url("icons/calendar.svg");
+}
+
+.admin-icon-users {
+  -webkit-mask-image: url("icons/users.svg");
+  mask-image: url("icons/users.svg");
+}
+
+.admin-icon-receipt {
+  -webkit-mask-image: url("icons/receipt.svg");
+  mask-image: url("icons/receipt.svg");
+}
+
+.admin-icon-speakerphone {
+  -webkit-mask-image: url("icons/speakerphone.svg");
+  mask-image: url("icons/speakerphone.svg");
+}
+
+.admin-icon-building {
+  -webkit-mask-image: url("icons/building.svg");
+  mask-image: url("icons/building.svg");
+}
+
+.admin-icon-user-shield {
+  -webkit-mask-image: url("icons/user-shield.svg");
+  mask-image: url("icons/user-shield.svg");
+}
+
 .admin-icon-user {
   -webkit-mask-image: url("icons/user.svg");
   mask-image: url("icons/user.svg");
@@ -1343,7 +1383,6 @@ fieldset {
 .admin-slot-form label,
 .admin-day-schedule-form label,
 .admin-action-form label,
-.admin-repeat label,
 .admin-search {
   min-width: 0;
   display: grid;
@@ -3353,17 +3392,6 @@ button.admin-mini-item::after {
   grid-column: 1 / -1;
 }
 
-.admin-repeat {
-  padding: var(--admin-space-3);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(7rem, 0.45fr);
-  align-items: end;
-  gap: var(--admin-space-3);
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
-  background: var(--admin-surface-subtle);
-}
-
 .admin-checkbox {
   min-height: 2rem;
   padding: 0.25rem 0;
@@ -3379,10 +3407,6 @@ button.admin-mini-item::after {
   width: 1rem;
   height: 1rem;
   margin: 0;
-}
-
-.admin-repeat [data-admin-repeat-weeks-wrap].is-disabled {
-  opacity: 0.55;
 }
 
 .admin-detail-note {
@@ -6815,15 +6839,7 @@ a.admin-dash-tile:hover {
 }
 
 .admin-slot-form {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.admin-slot-form > label,
-.admin-slot-form > .admin-repeat,
-.admin-slot-form > .admin-form-error,
-.admin-slot-form > .admin-slot-series,
-.admin-slot-form > .admin-modal-footer {
-  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .admin-toast-root {
@@ -7287,10 +7303,6 @@ a.admin-dash-tile:hover {
 
   .admin-detail-list,
 .admin-campaign-layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .admin-repeat {
     grid-template-columns: minmax(0, 1fr);
   }
 
@@ -7787,14 +7799,6 @@ a.admin-dash-tile:hover {
 .admin-campaign-preview h3 { margin-block-end:.5rem; }
 .admin-day-schedule-form { gap:.875rem; }
 
-.admin-slot-editor-panel { --admin-modal-padding:1.25rem; }
-.admin-slot-form { gap:.75rem; }
-.admin-slot-form-time-grid { grid-column:1 / -1; min-width:0; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.75rem; }
-.admin-slot-form-time-grid > :first-child { grid-column:1 / -1; }
-.admin-slot-form-time-grid > label { min-width:0; display:grid; gap:.35rem; color:var(--admin-text); font-size:var(--admin-text-xs); font-weight:600; }
-.admin-slot-form-time-grid input { width:100%; }
-.admin-slot-form .admin-repeat { padding:.5rem 0; border:0; border-radius:0; background:transparent; }
-.admin-slot-form .admin-repeat[hidden] { display:none; }
 
 /* Task-first customer, invoice, staff, and availability dialogs. */
 
@@ -7804,13 +7808,9 @@ a.admin-dash-tile:hover {
 .admin-day-schedule-form { gap:.625rem; }
 
 .admin-day-schedule-form > .admin-modal-actions { margin-block-start:.25rem; }
-.admin-slot-editor-panel { width:min(100%,28rem); }
-.admin-slot-form { gap:.625rem; }
-.admin-slot-form-time-grid { gap:.625rem; }
-.admin-slot-form .admin-repeat { display:flex; align-items:center; gap:.75rem; padding:.375rem 0 0; }
-.admin-slot-form .admin-repeat-toggle { min-height:2.5rem; padding:.25rem 0; border:0; background:transparent; }
-.admin-slot-form [data-admin-repeat-weeks-wrap][hidden] { display:none; }
-.admin-slot-form [data-admin-repeat-weeks-wrap] { flex:1; }
+/* Add slot shares the Create schedule layout: fields beside the day. */
+.admin-slot-editor-panel { --admin-modal-padding:1.5rem; width:min(100%,52rem); }
+.admin-slot-form { gap:.875rem; }
 
 /* Customer details stay close to the name; records read as one quiet list. */
 
@@ -8167,21 +8167,32 @@ summary.admin-row-item:hover .admin-row-text > strong {
 
 .admin-schedule-day {
   position: relative;
-  overflow: hidden;
+  margin-block: 0.5rem;
 }
 
 .admin-schedule-hour {
-  position: relative;
+  position: absolute;
+  inset-inline: 0;
+  height: 0;
+}
+
+.admin-schedule-hour::after {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 2.75rem 0;
   border-block-start: 1px solid var(--admin-border);
 }
 
 .admin-schedule-hour span {
   position: absolute;
-  inset-block-start: 0.15rem;
+  inset-block-start: 0;
   inset-inline-start: 0;
   color: var(--admin-text-tertiary);
   font-size: 0.6875rem;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
+  transform: translateY(-50%);
 }
 
 .admin-schedule-blocks {
@@ -8284,4 +8295,33 @@ summary.admin-row-item:hover .admin-row-text > strong {
 .admin-slot-series .admin-icon {
   width: 0.875rem;
   height: 0.875rem;
+}
+
+/* Sidebar: an icon before every page name. */
+.admin-nav-group a {
+  gap: 0.625rem;
+}
+
+.admin-nav-group a > .admin-icon,
+.admin-nav-unavailable-label > .admin-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 1.125rem;
+  opacity: 0.85;
+}
+
+.admin-nav-group a.is-active > .admin-icon,
+.admin-nav-group a[aria-current="page"] > .admin-icon {
+  opacity: 1;
+}
+
+.admin-nav-unavailable-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+/* Same box as the links, so the icon and name line up with theirs. */
+.admin-nav-unavailable {
+  border: 1px solid transparent;
 }

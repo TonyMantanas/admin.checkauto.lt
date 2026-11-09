@@ -26,5 +26,13 @@ export const ICONS = Object.freeze({
   signOut: icon('logout'),
   sortAscending: icon('sort-ascending'),
   sortDescending: icon('sort-descending'),
-  user: icon('user')
+  user: icon('user'),
+  navDashboard: icon('layout-dashboard'),
+  navBookings: icon('clipboard-list'),
+  navAvailability: icon('calendar'),
+  navCustomers: icon('users'),
+  navBilling: icon('receipt'),
+  navMarketing: icon('speakerphone'),
+  navOrganization: icon('building'),
+  navUsers: icon('user-shield')
 });

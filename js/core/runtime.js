@@ -1,12 +1,12 @@
 import { vilniusInstant, moneyCents, installTimeChoices, createOperationStore, withSharedSessionLock } from './reliability.js?v=20261106-6';
 import { currentAgreement, invoiceDeliveredToClient, bindPriceTotals } from './reliability-ui.js?v=20261106-7';
-import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261109-1';
-import { ICONS } from './icons.js?v=20261109-1';
+import { renderActionCenter, bindActionCenter, applyActionFilter, actionCenterHasDraft } from './action-center.js?v=20261109-3';
+import { ICONS } from './icons.js?v=20261109-3';
 import { modals } from './modals.js?v=20260804-1';
 import { state } from './state.js?v=20260821-2';
 import { auth } from './auth.js?v=20260804-1';
 import { setupFilterMenu } from './filter-menu.js?v=20260821-2';
-import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261109-1';
+import { setupAccountMenu, syncStaffNavigation } from './shell.js?v=20261109-3';
 import { skeletons } from './skeletons.js?v=20261106-4';
 import { normalizeTimeToStep } from './time-inputs.js?v=20260821-2';
 import { toast } from './toast.js?v=20260804-1';
@@ -7841,52 +7841,124 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</form>';
   }
 
-  // Everything the form describes: the day's new ranges, the dates they
-  // land on, and the inspector's existing items on the shown day.
-  function dayScheduleModel(form) {
-    var value = function (selector) { return String(($(selector, form) || {}).value || ''); };
-    var date = value('[data-admin-day-schedule-date]');
-    var start = value('[data-admin-day-schedule-start]');
-    var end = value('[data-admin-day-schedule-end]');
-    var staffSelect = $('[data-admin-day-schedule-staff]', form);
-    var staffId = staffSelect && !staffSelect.disabled ? staffSelect.value : String(state.staff && state.staff.id || '');
-    var ranges = dayScheduleRanges(start, end, Number(value('[data-admin-day-schedule-duration]')), Number(value('[data-admin-day-schedule-buffer]')));
-    var repeat = form.elements.repeat && form.elements.repeat.value === 'weekly';
-    var weekdays = $all('input[name="weekday"]:checked', form).map(function (input) { return Number(input.value); });
-    var weeks = Number(value('[data-schedule-weeks]')) || 4;
-    var dates = [];
-    if (isValidYmd(date)) {
-      if (!repeat) dates = [date];
-      else {
-        for (var offset = 0; offset < weeks * 7; offset += 1) {
-          var day = addDaysYmd(date, offset);
-          if (weekdays.includes(isoWeekday(day))) dates.push(day);
-        }
-      }
-    }
-    var existing = isValidYmd(date) ? buildCalendarEvents().filter(function (event) {
+  // The inspector's existing slots and bookings on one day, leaving out the
+  // slot being edited.
+  function inspectorDayItems(date, staffId, excludeSlotId) {
+    if (!isValidYmd(date) || !staffId) return [];
+    return buildCalendarEvents().filter(function (event) {
       if (formatDate(event.start) !== date) return false;
-      if (event.type === 'slot') return (slotById(event.slotId) || {}).assigned_staff_id === staffId;
+      if (event.type === 'slot') return event.slotId !== excludeSlotId && (slotById(event.slotId) || {}).assigned_staff_id === staffId;
       var booking = event.bookingId ? bookingById(event.bookingId) : null;
       return Boolean(booking && booking.assigned_to_staff_id === staffId);
-    }) : [];
-    var overlaps = function (range) {
-      var a = timeToMinutes(range.start), b = timeToMinutes(range.end);
-      return existing.some(function (event) {
-        var x = eventMinutes(event.start), y = eventMinutes(event.end) || 24 * 60;
-        return a < y && x < b;
-      });
-    };
+    });
+  }
+
+  // Every date a weekly pattern lands on, starting with the chosen date.
+  function repeatDates(date, repeat, weekdays, weeks) {
+    if (!isValidYmd(date)) return [];
+    if (!repeat) return [date];
+    var dates = [];
+    for (var offset = 0; offset < weeks * 7; offset += 1) {
+      var day = addDaysYmd(date, offset);
+      if (weekdays.includes(isoWeekday(day))) dates.push(day);
+    }
+    return dates;
+  }
+
+  // One model for both dialogs: the new time ranges, the dates they land
+  // on, and what already sits on the shown day.
+  function previewModel(opts) {
+    var existing = inspectorDayItems(opts.date, opts.staffId, opts.excludeSlotId);
+    var dates = repeatDates(opts.date, opts.repeat, opts.weekdays, opts.weeks);
     return {
-      date: date, staffId: staffId, ranges: ranges, repeat: repeat, weekdays: weekdays, weeks: weeks,
-      dates: dates, existing: existing, overlaps: overlaps,
-      total: dates.length * ranges.length
+      date: opts.date,
+      staffId: opts.staffId,
+      ranges: opts.ranges,
+      repeat: opts.repeat,
+      weekdays: opts.weekdays,
+      weeks: opts.weeks,
+      dates: dates,
+      existing: existing,
+      overlaps: function (range) {
+        var a = timeToMinutes(range.start), b = timeToMinutes(range.end);
+        return existing.some(function (event) {
+          var x = eventMinutes(event.start), y = eventMinutes(event.end) || 24 * 60;
+          return a < y && x < b;
+        });
+      },
+      total: dates.length * opts.ranges.length
     };
   }
 
-  // The chosen day as a small calendar: the inspector's existing slots and
-  // bookings, and the new slots on top (red where they overlap).
-  function dayScheduleDayHtml(model) {
+  function repeatChoice(form) {
+    return {
+      repeat: Boolean(form.elements.repeat && form.elements.repeat.value === 'weekly'),
+      weekdays: $all('input[name="weekday"]:checked', form).map(function (input) { return Number(input.value); }),
+      weeks: Number((form.elements.repeatWeeks || {}).value) || 4
+    };
+  }
+
+  function dayScheduleModel(form) {
+    var value = function (selector) { return String(($(selector, form) || {}).value || ''); };
+    var staffSelect = $('[data-admin-day-schedule-staff]', form);
+    var choice = repeatChoice(form);
+    return previewModel({
+      date: value('[data-admin-day-schedule-date]'),
+      staffId: staffSelect && !staffSelect.disabled ? staffSelect.value : String(state.staff && state.staff.id || ''),
+      ranges: dayScheduleRanges(value('[data-admin-day-schedule-start]'), value('[data-admin-day-schedule-end]'), Number(value('[data-admin-day-schedule-duration]')), Number(value('[data-admin-day-schedule-buffer]'))),
+      repeat: choice.repeat,
+      weekdays: choice.weekdays,
+      weeks: choice.weeks
+    });
+  }
+
+  function slotFormModel(form) {
+    var value = function (selector) { return String(($(selector, form) || {}).value || ''); };
+    var start = value('[data-admin-slot-start]');
+    var end = value('[data-admin-slot-end]');
+    var slotId = value('[data-admin-slot-id]').trim();
+    var choice = repeatChoice(form);
+    var valid = isValidHm(start) && isValidHm(end) && timeToMinutes(end) > timeToMinutes(start);
+    var model = previewModel({
+      date: value('[data-admin-slot-date]'),
+      staffId: value('[data-admin-slot-staff]'),
+      ranges: valid ? [{ start: start, end: end }] : [],
+      repeat: !slotId && choice.repeat,
+      weekdays: choice.weekdays,
+      weeks: choice.weeks,
+      excludeSlotId: slotId || null
+    });
+    model.editingSlotId = slotId || null;
+    return model;
+  }
+
+  // "on weekdays", "on weekends and Mon", "every day", or the days listed.
+  function weekdayPhrase(days) {
+    var names = function (list) {
+      return WEEKDAY_LABELS.filter(function (item) { return list.includes(Number(item[0])); }).map(function (item) { return item[1]; }).join(', ');
+    };
+    var has = function (list) { return list.every(function (day) { return days.includes(day); }); };
+    if (days.length === 7) return 'every day';
+    if (has([1, 2, 3, 4, 5])) {
+      var extra = days.filter(function (day) { return day > 5; });
+      return 'on weekdays' + (extra.length ? ' and ' + names(extra) : '');
+    }
+    if (has([6, 7])) {
+      var others = days.filter(function (day) { return day < 6; });
+      return 'on weekends' + (others.length ? ' and ' + names(others) : '');
+    }
+    return 'on ' + names(days);
+  }
+
+  function repeatSummary(perDay, days, weeks) {
+    var phrase = weekdayPhrase(days);
+    var slots = perDay + (perDay === 1 ? ' slot' : ' slots');
+    return (phrase === 'every day' ? slots + ' every day' : slots + ' a day ' + phrase) + ' for ' + weeks + ' weeks';
+  }
+
+  // The chosen day as a small calendar. Hour labels sit on their lines and
+  // every block keeps a 1px gap from the lines above and below it.
+  function dayScheduleDayHtml(model, newLabel) {
     var HOUR = 30;
     var minutes = [];
     model.ranges.forEach(function (range) { minutes.push(timeToMinutes(range.start), timeToMinutes(range.end)); });
@@ -7894,23 +7966,43 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var first = minutes.length ? Math.max(0, Math.floor(Math.min.apply(null, minutes) / 60) - 1) : 8;
     var last = minutes.length ? Math.min(24, Math.ceil(Math.max.apply(null, minutes) / 60) + 1) : 18;
     if (last - first < 8) last = Math.min(24, first + 8);
-    var top = function (m) { return (m / 60 - first) * HOUR; };
     var rows = '';
-    for (var hour = first; hour < last; hour += 1) {
-      rows += '<div class="admin-schedule-hour" style="height:' + HOUR + 'px"><span>' + pad2(hour) + ':00</span></div>';
+    for (var hour = first; hour <= last; hour += 1) {
+      rows += '<div class="admin-schedule-hour" style="top:' + ((hour - first) * HOUR) + 'px"><span>' + pad2(hour % 24) + ':00</span></div>';
     }
     var block = function (startMin, endMin, cls, label) {
-      return '<div class="admin-schedule-block ' + cls + '" style="top:' + top(startMin) + 'px;height:' + Math.max(16, (endMin - startMin) / 60 * HOUR - 2) + 'px">' + label + '</div>';
+      var top = (startMin / 60 - first) * HOUR + 2;
+      var height = Math.max(12, (endMin - startMin) / 60 * HOUR - 3);
+      return '<div class="admin-schedule-block ' + cls + '" style="top:' + top + 'px;height:' + height + 'px">' + label + '</div>';
     };
     var existing = model.existing.map(function (event) {
-      var label = event.type === 'slot' ? formatTime(event.start) + '–' + formatTime(event.end) + ' · Open' : formatTime(event.start) + '–' + formatTime(event.end) + ' · ' + (event.customerName || event.title || 'Booking');
+      var label = formatTime(event.start) + '–' + formatTime(event.end) + ' · ' + (event.type === 'slot' ? 'Open' : (event.customerName || event.title || 'Booking'));
       return block(eventMinutes(event.start), eventMinutes(event.end) || 24 * 60, event.type === 'slot' ? 'is-existing' : 'is-booking', escapeHtml(label));
     }).join('');
     var added = model.ranges.map(function (range) {
       var clash = model.overlaps(range);
-      return block(timeToMinutes(range.start), timeToMinutes(range.end), clash ? 'is-new is-clash' : 'is-new', escapeHtml(range.start + '–' + range.end + (clash ? ' · Overlaps' : ' · New')));
+      return block(timeToMinutes(range.start), timeToMinutes(range.end), clash ? 'is-new is-clash' : 'is-new', escapeHtml(range.start + '–' + range.end + ' · ' + (clash ? 'Overlaps' : newLabel)));
     }).join('');
     return '<div class="admin-schedule-day" style="height:' + ((last - first) * HOUR) + 'px">' + rows + '<div class="admin-schedule-blocks">' + existing + added + '</div></div>';
+  }
+
+  function dayPreviewHtml(model, opts) {
+    var staff = staffById(model.staffId);
+    var head = '<header class="admin-schedule-preview-head"><strong>' + escapeHtml(isValidYmd(model.date) ? dayLabel(model.date) : 'Choose a date') + '</strong>' +
+      '<span>' + escapeHtml(staff ? staff.display_name : (opts.noStaffLabel || '')) + '</span></header>';
+    if (!model.ranges.length) return head + '<p class="admin-schedule-note is-warning">' + escapeHtml(opts.emptyText) + '</p>';
+    var clashes = model.ranges.filter(model.overlaps).length;
+    var summary = model.repeat
+      ? (model.weekdays.length ? repeatSummary(model.ranges.length, model.weekdays, model.weeks) : 'Choose the days it repeats on')
+      : opts.singleSummary;
+    return head + dayScheduleDayHtml(model, opts.newLabel || 'New') +
+      (summary ? '<p class="admin-schedule-note">' + escapeHtml(summary) + '</p>' : '') +
+      (clashes ? '<p class="admin-schedule-note is-warning">' + escapeHtml(opts.clashText(clashes)) + '</p>' : '') +
+      (model.total > SCHEDULE_MAX_SLOTS ? '<p class="admin-schedule-note is-warning">Up to ' + SCHEDULE_MAX_SLOTS + ' slots at once.</p>' : '');
+  }
+
+  function addSlotsLabel(count) {
+    return count === 1 ? 'Add 1 slot' : 'Add ' + count + ' slots';
   }
 
   // Preview beside the form; the button names how many slots it adds.
@@ -7921,33 +8013,41 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var submit = $('[data-admin-day-schedule-submit]', form);
     var repeatFields = $('[data-schedule-repeat]', form);
     if (repeatFields) repeatFields.hidden = !model.repeat;
-    if (!preview) return;
-    var staff = staffById(model.staffId);
-    var head = '<header class="admin-schedule-preview-head"><strong>' + escapeHtml(isValidYmd(model.date) ? dayLabel(model.date) : 'Choose a date') + '</strong>' +
-      (staff ? '<span>' + escapeHtml(staff.display_name) + '</span>' : '') + '</header>';
-    if (!model.ranges.length) {
-      preview.innerHTML = head + '<p class="admin-schedule-note is-warning">No slot fits between these times.</p>';
-      if (submit) { submit.textContent = 'Add slots'; submit.disabled = true; }
-      return;
+    if (preview) {
+      preview.innerHTML = dayPreviewHtml(model, {
+        emptyText: 'No slot fits between these times.',
+        singleSummary: model.ranges.length + (model.ranges.length === 1 ? ' slot' : ' slots'),
+        clashText: function (count) { return count === 1 ? '1 overlaps and will be skipped.' : count + ' overlap and will be skipped.'; }
+      });
     }
-    var clashes = model.ranges.filter(model.overlaps).length;
-    var summary;
-    if (model.repeat) {
-      var days = WEEKDAY_LABELS.filter(function (item) { return model.weekdays.includes(Number(item[0])); }).map(function (item) { return item[1]; });
-      summary = days.length
-        ? model.ranges.length + (model.ranges.length === 1 ? ' slot' : ' slots') + ' a day on ' + days.join(', ') + ' for ' + model.weeks + ' weeks'
-        : 'Choose the days it repeats on';
-    } else {
-      summary = model.ranges.length + (model.ranges.length === 1 ? ' slot' : ' slots');
-    }
-    preview.innerHTML = head + dayScheduleDayHtml(model) +
-      '<p class="admin-schedule-note">' + escapeHtml(summary) + '</p>' +
-      (clashes ? '<p class="admin-schedule-note is-warning">' + escapeHtml(clashes === 1 ? '1 overlaps and will be skipped.' : clashes + ' overlap and will be skipped.') + '</p>' : '') +
-      (model.total > SCHEDULE_MAX_SLOTS ? '<p class="admin-schedule-note is-warning">Up to ' + SCHEDULE_MAX_SLOTS + ' slots at once.</p>' : '');
     if (submit) {
-      var count = model.total;
-      submit.disabled = !count || count > SCHEDULE_MAX_SLOTS;
-      submit.textContent = count === 1 ? 'Add 1 slot' : 'Add ' + count + ' slots';
+      submit.disabled = !model.total || model.total > SCHEDULE_MAX_SLOTS;
+      submit.textContent = model.ranges.length ? addSlotsLabel(model.total) : 'Add slots';
+    }
+  }
+
+  // The slot editor uses the same day preview and weekly repeat.
+  function updateSlotPreview() {
+    var form = $('[data-admin-slot-form]');
+    if (!form) return;
+    var model = slotFormModel(form);
+    var editing = Boolean(model.editingSlotId);
+    var repeatFields = $('[data-schedule-repeat]', form);
+    if (repeatFields) repeatFields.hidden = editing || !model.repeat;
+    var preview = $('[data-admin-slot-preview]', form);
+    if (preview) {
+      preview.innerHTML = dayPreviewHtml(model, {
+        emptyText: 'Until must be after From.',
+        noStaffLabel: 'Unassigned',
+        newLabel: editing ? 'This slot' : 'New',
+        singleSummary: '',
+        clashText: function () { return model.repeat ? 'Times that overlap are skipped.' : 'Overlaps another slot or booking.'; }
+      });
+    }
+    var submit = $('[data-admin-slot-submit]', form);
+    if (submit && !editing && form.getAttribute('aria-busy') !== 'true') {
+      submit.textContent = model.repeat ? addSlotsLabel(model.total) : 'Add slot';
+      submit.disabled = model.repeat && (!model.total || model.total > SCHEDULE_MAX_SLOTS);
     }
   }
 
@@ -8115,6 +8215,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
+    updateSlotPreview();
   }
 
   function selectedSlotHasActiveBooking(slotId) {
@@ -8123,18 +8224,26 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     });
   }
 
+  // An existing slot can't become a series, so editing hides Repeat.
   function setRepeatControlsEnabled(enabled) {
     var form = $('[data-admin-slot-form]');
     if (!form) return;
-    var repeatToggle = $('[data-admin-repeat-toggle]', form);
-    var repeatWeeks = $('[data-admin-repeat-weeks]', form);
-    var repeatWrap = $('[data-admin-repeat-weeks-wrap]', form);
-    if (repeatWeeks) repeatWeeks.disabled = !enabled || !(repeatToggle && repeatToggle.checked);
-    if (repeatWrap) repeatWrap.hidden = !enabled || !(repeatToggle && repeatToggle.checked);
-    if (repeatToggle) repeatToggle.disabled = !enabled;
-    // An existing slot can't become a series, so the option isn't shown.
-    var repeatGroup = repeatToggle ? repeatToggle.closest('.admin-repeat') : null;
+    var repeatGroup = $('[data-admin-slot-repeat]', form);
     if (repeatGroup) repeatGroup.hidden = !enabled;
+    updateSlotPreview();
+  }
+
+  // A new slot starts as "Doesn't repeat", with its date's weekday ready
+  // in case it becomes weekly.
+  function resetSlotRepeat(form) {
+    var none = $('input[name="repeat"][value="none"]', form);
+    if (none) none.checked = true;
+    var date = String(($('[data-admin-slot-date]', form) || {}).value || '');
+    $all('input[name="weekday"]', form).forEach(function (input) {
+      input.checked = isValidYmd(date) && Number(input.value) === isoWeekday(date);
+    });
+    var weeks = $('[data-schedule-weeks]', form);
+    if (weeks) weeks.value = '4';
   }
 
   function resetSlotForm(options) {
@@ -8151,6 +8260,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var startSelect = $('[data-admin-slot-start]', form);
     if (dateInput) dateInput.value = defaults.date;
     if (startSelect) startSelect.dataset.pendingDefault = defaults.time;
+    resetSlotRepeat(form);
     renderAvailabilityOptions();
     syncSlotFormFromSelection();
     renderCalendar();
@@ -8190,7 +8300,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var endSelect = $('[data-admin-slot-end]', form);
     var submit = $('[data-admin-slot-submit]', form);
     var del = $('[data-admin-slot-delete]', form);
-    var repeatToggle = $('[data-admin-repeat-toggle]', form);
 
     if (slot) {
       var service = serviceById(slot.service_id);
@@ -8208,7 +8317,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       if (del) del.hidden = false;
       var seriesNote = $('[data-admin-slot-series]', form);
       if (seriesNote) seriesNote.hidden = !slotRepeats(slot);
-      if (repeatToggle) repeatToggle.checked = false;
+      resetSlotRepeat(form);
       setRepeatControlsEnabled(false);
       refreshCustomControls(form);
       captureSlotEditorBaseline();
@@ -8216,12 +8325,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
+    // A refresh while adding a slot keeps the repeat choice; leaving an
+    // edit starts it fresh.
+    var wasEditing = Boolean(slotId && slotId.value);
     if (title) title.textContent = 'New slot';
     if (slotId) slotId.value = '';
     var newSeriesNote = $('[data-admin-slot-series]', form);
     if (newSeriesNote) newSeriesNote.hidden = true;
     if (submit) submit.textContent = 'Add slot';
     if (del) del.hidden = true;
+    if (wasEditing) resetSlotRepeat(form);
     setRepeatControlsEnabled(true);
     refreshCustomControls(form);
     captureSlotEditorBaseline();
@@ -8325,27 +8438,60 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       return;
     }
 
-    var weeks = data.get('repeatWeekly') === 'on' ? Number(data.get('repeatWeeks')) || 1 : 1;
-    var occurrences = [];
-    for (var i=0;i<weeks;i++) {
-      var occurrenceDate = addDaysYmd(dateValue,i*7);
-      var occurrence = validateDateTimePair(occurrenceDate,startTime,endTime,data.get('dstFold'));
-      if (occurrence.error) { showFieldError(errorEl,occurrenceDate+': '+occurrence.error); return; }
-      occurrences.push({date:occurrenceDate,startTime:startTime,endTime:endTime,startAt:occurrence.startAt,endAt:occurrence.endAt,fold:data.get('dstFold') || null});
+    var model = slotFormModel(form);
+    if (model.repeat && !model.weekdays.length) {
+      showFieldError(errorEl, 'Choose the days it repeats on.', $('input[name="weekday"]', form));
+      return;
     }
-    setFormBusy(form,true,'Adding…'); setSyncState('Saving','loading');
+    if (model.total > SCHEDULE_MAX_SLOTS) {
+      showFieldError(errorEl, 'Up to ' + SCHEDULE_MAX_SLOTS + ' slots at once. Repeat for fewer weeks.', $('[data-schedule-weeks]', form));
+      return;
+    }
+    // Dates whose time has passed or doesn't exist (a DST change) are left out.
+    var occurrences = [];
+    var unplaceable = 0;
+    model.dates.forEach(function (day) {
+      var startAt = isoFromVilniusInput(day, startTime, data.get('dstFold'));
+      var endAt = isoFromVilniusInput(day, endTime, data.get('dstFold'));
+      if (!startAt || !endAt || new Date(startAt) <= new Date()) { unplaceable += 1; return; }
+      occurrences.push({ date: day, startTime: startTime, endTime: endTime, startAt: startAt, endAt: endAt, fold: data.get('dstFold') || null });
+    });
+    if (!occurrences.length) {
+      showFieldError(errorEl, 'None of these times are still ahead.', $('[data-admin-slot-date]', form));
+      return;
+    }
+    var assignedStaffId = data.get('assignedStaffId') || null;
+    if (model.repeat && !assignedStaffId && occurrences.length > 52) {
+      showFieldError(errorEl, 'Choose an inspector to repeat it more than 52 times.', $('[data-admin-slot-staff]', form));
+      return;
+    }
+    // Repeating slots for an inspector go through the schedule action,
+    // which skips times that overlap instead of failing them all.
+    var payload = model.repeat && assignedStaffId
+      ? { action: 'createSlotSchedule', serviceCode: data.get('serviceCode') || 'all', assignedStaffId: assignedStaffId, repeat: true, occurrences: occurrences }
+      : { action: 'createSlotSeries', serviceCode: data.get('serviceCode') || 'all', assignedStaffId: assignedStaffId, occurrences: occurrences };
+    setFormBusy(form, true, 'Adding…'); setSyncState('Saving', 'loading');
     try {
-      var response = await adminAction({action:'createSlotSeries',serviceCode:data.get('serviceCode') || 'all',assignedStaffId:data.get('assignedStaffId') || null,occurrences:occurrences});
-      state.selectedSlotId=null; slotEditorBaseline='';
-      history.replaceState(modalHistoryState(null,0),'',PATHS.availability);
-      setSlotEditorOpen(false,{restoreFocus:true});
-      await refresh({preserveScroll:true,force:true}).catch(function(){showToast('Saved. Refresh to see the updated calendar.','info');});
-      var added = Number(response.result && response.result.created) || weeks;
-      showToast(added === 1 ? '1 slot added.' : added + ' slots added.','success');
-    } catch(error) {
-      setSyncState('Action failed','error');
-      showFieldError(errorEl,error instanceof Error ? error.message : 'No slots were added. Try again.');
-    } finally { if(document.body.contains(form)) setFormBusy(form,false); }
+      var response = await adminAction(payload);
+      // A series is all or nothing, so it may not report a count.
+      var added = payload.action === 'createSlotSchedule'
+        ? Number(response.result && response.result.created) || 0
+        : Number(response.result && response.result.created) || occurrences.length;
+      var skipped = (response.result && Array.isArray(response.result.skipped) ? response.result.skipped.length : 0) + unplaceable;
+      if (!added) {
+        setSyncState('Saved', 'success');
+        showFieldError(errorEl, 'No slots were added: they all overlap existing slots or bookings, or have passed.');
+        return;
+      }
+      state.selectedSlotId = null; slotEditorBaseline = '';
+      history.replaceState(modalHistoryState(null, 0), '', PATHS.availability);
+      setSlotEditorOpen(false, { restoreFocus: true });
+      await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. Refresh to see the updated calendar.', 'info'); });
+      showToast((added === 1 ? '1 slot added.' : added + ' slots added.') + (skipped ? ' ' + skipped + (skipped === 1 ? ' was skipped: it overlaps or has passed.' : ' were skipped: they overlap or have passed.') : ''), 'success');
+    } catch (error) {
+      setSyncState('Action failed', 'error');
+      showFieldError(errorEl, error instanceof Error ? error.message : 'No slots were added. Try again.');
+    } finally { if (document.body.contains(form)) setFormBusy(form, false); }
   }
 
   function initCustomControls(root) {
@@ -9782,8 +9928,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var editor = $('[data-admin-slot-editor]');
     var openButton = $('[data-admin-slot-open]');
     var dayScheduleButton = $('[data-admin-day-schedule-open]');
-    var repeatToggle = $('[data-admin-repeat-toggle]', form);
-    var repeatWeeks = $('[data-admin-repeat-weeks]', form);
     var serviceSelect = $('[data-admin-slot-service]', form);
     var dateInput = $('[data-admin-slot-date]', form);
     var startSelect = $('[data-admin-slot-start]', form);
@@ -9821,11 +9965,16 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       });
     }
 
-    if (repeatToggle && repeatWeeks) {
-      repeatToggle.addEventListener('change', function () {
-        setRepeatControlsEnabled(!String(($('[data-admin-slot-id]', form) || {}).value || '').trim());
-      });
-    }
+    // Any change redraws the day preview; a new date preselects its weekday
+    // when no day is chosen yet.
+    form.addEventListener('input', function () { updateSlotPreview(); });
+    form.addEventListener('change', function (event) {
+      if (event.target && event.target.matches && event.target.matches('[data-admin-slot-date]') && isValidYmd(event.target.value) && !$all('input[name="weekday"]:checked', form).length) {
+        var box = $('input[name="weekday"][value="' + isoWeekday(event.target.value) + '"]', form);
+        if (box) box.checked = true;
+      }
+      updateSlotPreview();
+    });
 
     [serviceSelect, dateInput].forEach(function (input) {
       if (!input) return;

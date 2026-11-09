@@ -1,6 +1,6 @@
 import { esc } from './reliability-ui.js?v=20261106-7';
 import { PATHS } from './routes.js?v=20261105-7';
-import { ICONS } from './icons.js?v=20261109-1';
+import { ICONS } from './icons.js?v=20261109-3';
 import { formatMoney, formatDateTime, formatDay, relativeDateTime } from './formatting.js?v=20261105-3';
 
 // Each notification is a link to the record it is about. Decisions and

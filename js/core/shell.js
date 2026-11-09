@@ -1,16 +1,16 @@
 import { PATHS } from './routes.js?v=20261105-7';
-import { ICONS } from './icons.js?v=20261109-1';
+import { ICONS } from './icons.js?v=20261109-3';
 
 const groups = [
   {
     label: 'Workspace',
     items: [
-      { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard },
-      { page: 'bookings', label: 'Bookings', href: PATHS.bookings },
-      { page: 'availability', label: 'Availability', href: PATHS.availability },
-      { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access' },
-      { page: 'invoices', label: 'Billing', href: PATHS.invoices, accessRight: 'sensitive_data.access' },
-      { page: 'marketing', label: 'Marketing', href: PATHS.marketing, accessRight: 'sensitive_data.access' }
+      { page: 'dashboard', label: 'Dashboard', href: PATHS.dashboard, icon: ICONS.navDashboard },
+      { page: 'bookings', label: 'Bookings', href: PATHS.bookings, icon: ICONS.navBookings },
+      { page: 'availability', label: 'Availability', href: PATHS.availability, icon: ICONS.navAvailability },
+      { page: 'customers', label: 'Customers', href: PATHS.customers, accessRight: 'sensitive_data.access', icon: ICONS.navCustomers },
+      { page: 'invoices', label: 'Billing', href: PATHS.invoices, accessRight: 'sensitive_data.access', icon: ICONS.navBilling },
+      { page: 'marketing', label: 'Marketing', href: PATHS.marketing, accessRight: 'sensitive_data.access', icon: ICONS.navMarketing }
     ]
   }
 ];
@@ -55,7 +55,7 @@ export function renderShell(page) {
             <p class="admin-nav-group-label">${group.label}</p>
             ${group.items.map((item) => item.page === 'marketing' ? `
               <div class="admin-nav-unavailable" data-admin-access="${item.accessRight}" hidden>
-                <button class="admin-nav-unavailable-label" type="button" disabled>Marketing</button>
+                <button class="admin-nav-unavailable-label" type="button" disabled>${item.icon}<span>Marketing</span></button>
                 <span class="admin-nav-info-wrap">
                   <button class="admin-nav-info" type="button" aria-label="Marketing is coming soon" aria-describedby="admin-marketing-coming-soon">${ICONS.info}</button>
                   <span class="admin-nav-info-tip" id="admin-marketing-coming-soon" role="tooltip">Coming soon</span>
@@ -67,7 +67,7 @@ export function renderShell(page) {
                 data-admin-nav="${item.page}"
                 ${item.accessRight ? `data-admin-access="${item.accessRight}" hidden` : ''}
                 ${item.page === page ? 'class="is-active" aria-current="page"' : ''}
-              ><span>${item.label}</span></a>
+              >${item.icon}<span>${item.label}</span></a>
             `).join('')}
           </section>
         `;
@@ -242,10 +242,10 @@ export function syncStaffNavigation(staff, page) {
   label.textContent = 'Settings';
   organizationLink.href = PATHS.organization;
   organizationLink.dataset.adminNav = 'organization';
-  organizationLink.textContent = 'Organization';
+  organizationLink.innerHTML = `${ICONS.navOrganization}<span>Organization</span>`;
   usersLink.href = PATHS.users;
   usersLink.dataset.adminNav = 'users';
-  usersLink.textContent = 'Users';
+  usersLink.innerHTML = `${ICONS.navUsers}<span>Users</span>`;
   if (page === 'organization') {
     organizationLink.className = 'is-active';
     organizationLink.setAttribute('aria-current', 'page');

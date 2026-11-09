@@ -1,4 +1,4 @@
-import { ICONS } from '../core/icons.js?v=20261109-1';
+import { ICONS } from '../core/icons.js?v=20261109-3';
 import { skeletons } from '../core/skeletons.js?v=20261106-4';
 
 export const page = 'availability';
@@ -98,26 +98,47 @@ export function renderStaticPage(root) {
         <form class="admin-slot-form admin-form-plain" data-admin-slot-form novalidate>
           <input type="hidden" name="slotId" data-admin-slot-id>
           <input type="hidden" name="serviceCode" value="all" data-admin-slot-service>
-          <div class="admin-slot-form-time-grid">
-            <label><span class="admin-field-label">Date <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="date" type="date" required data-admin-slot-date></label>
-            <label><span class="admin-field-label">From <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
-            <label><span class="admin-field-label">Until <span class="admin-required-marker" aria-hidden="true">*</span></span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
+          <div class="admin-schedule-layout">
+            <div class="admin-schedule-fields">
+              <div class="admin-form-row admin-form-row-time">
+                <label><span class="admin-field-label">Date</span><input name="date" type="date" required data-admin-slot-date></label>
+                <label><span class="admin-field-label">From</span><input name="startTime" type="time" step="900" required data-admin-slot-start></label>
+                <label><span class="admin-field-label">Until</span><input name="endTime" type="time" step="900" required data-admin-slot-end></label>
+              </div>
+              <p class="admin-slot-series" data-admin-slot-series hidden>${ICONS.repeat}<span>Repeating slot</span></p>
+              <label><span class="admin-field-label">Inspector</span><span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
+              <div class="admin-field-group" data-admin-slot-repeat>
+                <span class="admin-field-label">Repeat</span>
+                <div class="admin-choice-group" role="radiogroup" aria-label="Repeat">
+                  <label><input type="radio" name="repeat" value="none" checked><span>Doesn’t repeat</span></label>
+                  <label><input type="radio" name="repeat" value="weekly"><span>Weekly</span></label>
+                </div>
+              </div>
+              <div class="admin-schedule-repeat" data-schedule-repeat hidden>
+                <div class="admin-field-group">
+                  <span class="admin-field-label">On</span>
+                  <div class="admin-filter-check-grid admin-weekday-pills" role="group" aria-label="Days of the week">
+                    <label><input type="checkbox" name="weekday" value="1"><span>Mon</span></label>
+                    <label><input type="checkbox" name="weekday" value="2"><span>Tue</span></label>
+                    <label><input type="checkbox" name="weekday" value="3"><span>Wed</span></label>
+                    <label><input type="checkbox" name="weekday" value="4"><span>Thu</span></label>
+                    <label><input type="checkbox" name="weekday" value="5"><span>Fri</span></label>
+                    <label><input type="checkbox" name="weekday" value="6"><span>Sat</span></label>
+                    <label><input type="checkbox" name="weekday" value="7"><span>Sun</span></label>
+                  </div>
+                </div>
+                <label><span class="admin-field-label">For</span><span class="admin-select-wrap"><select name="repeatWeeks" data-schedule-weeks>
+                  <option value="2">2 weeks</option>
+                  <option value="3">3 weeks</option>
+                  <option value="4" selected>4 weeks</option>
+                  <option value="6">6 weeks</option>
+                  <option value="8">8 weeks</option>
+                  <option value="12">12 weeks</option>
+                </select></span></label>
+              </div>
+            </div>
+            <section class="admin-schedule-preview" data-admin-slot-preview aria-label="Day preview" aria-live="polite"></section>
           </div>
-          <p class="admin-slot-series" data-admin-slot-series hidden>${ICONS.repeat}<span>Repeating slot</span></p>
-          <label>Inspector<span class="admin-select-wrap"><select name="assignedStaffId" data-admin-slot-staff></select></span></label>
-          <fieldset class="admin-repeat">
-            <label class="admin-checkbox admin-repeat-toggle">
-              <input type="checkbox" name="repeatWeekly" data-admin-repeat-toggle>
-              <span>Repeat weekly</span>
-            </label>
-            <label data-admin-repeat-weeks-wrap hidden>Weeks<span class="admin-select-wrap"><select name="repeatWeeks" data-admin-repeat-weeks disabled>
-              <option value="2">2 weeks</option>
-              <option value="3">3 weeks</option>
-              <option value="4" selected>4 weeks</option>
-              <option value="6">6 weeks</option>
-              <option value="8">8 weeks</option>
-            </select></span></label>
-          </fieldset>
           <div class="admin-form-error" data-admin-slot-error role="status" aria-live="polite"></div>
           <div class="admin-modal-footer admin-slot-editor-actions">
             <button class="admin-button admin-button-ghost admin-button-quiet-danger" type="button" data-admin-slot-delete hidden>Delete slot</button>
