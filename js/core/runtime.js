@@ -800,6 +800,41 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (selectedModalRecords.booking?.id === id ? selectedModalRecords.booking : null);
   }
 
+  function recordPanelSkeletonHtml(route) {
+    var rows = [['5rem', '9rem'], ['8rem', '12rem'], ['10rem', '7rem'], ['6rem', ''], ['9rem', '11rem']];
+    return '<header class="admin-panel-head" role="status" aria-label="Loading ' + (route.type === 'invoice' ? 'invoice' : 'booking') + '">' +
+        '<div class="admin-panel-heading"><h2><i class="admin-skeleton admin-panel-skeleton-title"></i></h2></div>' +
+        '<p class="admin-panel-meta"><i class="admin-skeleton admin-panel-skeleton-meta"></i></p>' +
+        '<button class="admin-preview-close admin-icon-button" type="button" data-admin-modal-close aria-label="Close" title="Close">' + ICON_CLOSE + '</button>' +
+      '</header>' +
+      '<dl class="admin-facts" aria-hidden="true">' + rows.map(function (widths) {
+        return '<div class="admin-fact"><dt><i class="admin-skeleton admin-panel-skeleton-label"></i></dt><dd>' + factSkeletonHtml(widths.filter(Boolean)) + '</dd></div>';
+      }).join('') + '</dl>';
+  }
+
+  // The record may already be in the loaded lists; if not, its panel shows
+  // a skeleton while the record itself is fetched.
+  async function openRecordPanelWhenReady(route, activityId) {
+    var present = route.type === 'booking' ? bookingById(route.id) : invoiceById(route.id);
+    if (present) {
+      if (!modalIsDirty()) renderModalFromCurrentUrl();
+      return;
+    }
+    openModal(recordPanelSkeletonHtml(route), 'panel');
+    try {
+      if (!(await loadSelectedModalRecord(route, activityId))) return;
+    } catch (error) {
+      var still = modalRouteFromUrl();
+      if (still && still.type === route.type && still.id === route.id) {
+        dropModalRoute();
+        showToast(error instanceof Error ? error.message : 'The record could not be opened.', 'error');
+      }
+      return;
+    }
+    var now = modalRouteFromUrl();
+    if (now && now.type === route.type && now.id === route.id) renderModalFromCurrentUrl();
+  }
+
   async function loadSelectedModalRecord(route, activityId) {
     if (!route || !['booking', 'invoice'].includes(route.type)) return true;
     var view = route.type === 'booking' ? 'bookings_query' : 'invoices_query';
@@ -930,7 +965,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (invoice.invoice_status === 'void') return 'Void';
     if (invoice.invoice_status === 'payment') return 'Payment recorded';
     if (invoice.payment_status === 'paid') return 'Paid';
-    if (Number(invoice.paid_amount_cents)>0 && Number(invoice.paid_amount_cents)<Number(invoice.amount_cents)) return invoice.due_date && compareYmd(invoice.due_date,todayYmd())<0 ? 'Partially paid · overdue' : 'Partially paid';
+    if (Number(invoice.paid_amount_cents)>0 && Number(invoice.paid_amount_cents)<Number(invoice.amount_cents)) return invoice.due_date && compareYmd(invoice.due_date,todayYmd())<0 ? 'Partly paid · overdue' : 'Partly paid';
     if (invoice.due_date && compareYmd(invoice.due_date, todayYmd()) < 0) return 'Overdue';
     return 'Unpaid';
   }
@@ -989,7 +1024,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
   function paymentLabel(status) {
     return {
       unpaid: 'Unpaid',
-      partial: 'Partially paid',
+      partial: 'Partly paid',
       overpaid: 'Overpaid / credit',
       needs_review: 'Balance needs review',
       paid: 'Paid',
@@ -1749,6 +1784,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         customer: booking ? customerForBooking(booking) : (invoice ? customerById(invoice.customer_id) : null),
         assignee: booking ? staffById(booking.assigned_to_staff_id) : null,
         notes: route.type === 'booking' ? state.bookingNotes?.[bookingId]?.notes || null : null,
+        attention: attentionEmails().filter(function (item) { return item.booking_id === bookingId || (invoice && item.invoice_id === invoice.id); }),
+        reconciliation: invoice ? reconciliationCase(invoice.id) : null,
         operations: operations ? {
           quotes: operations.quotes,
           payment_entries: operations.payment_entries,
@@ -1765,6 +1802,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     };
     if (route.type === 'staff') return state.staffUsers?.find(function (user) { return user.id === route.id; }) || null;
     if (route.type === 'campaign') return campaignById(route.id);
+    if (route.type === 'inquiry') return inquiryById(route.id);
+    if (route.type === 'email') return attentionEmailById(route.id);
     if (route.type === 'daySchedule') return { slots: state.slots, staff: state.staffList };
     if (route.type === 'confirmationSchedule') return state.confirmationSettings;
     return null;
@@ -1793,7 +1832,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         payments: operations?.payment_entries || null
       });
     }
-    if (route.type === 'customer' || route.type === 'staff') return JSON.stringify(modalRecordData(route));
+    if (['customer', 'staff', 'inquiry', 'email'].includes(route.type)) return JSON.stringify(modalRecordData(route));
     return '';
   }
 
@@ -1850,12 +1889,14 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (params.get('customer')) return { type: 'customer', id: params.get('customer') };
     if (params.get('campaign')) return { type: 'campaign', id: params.get('campaign') };
     if (params.get('staff')) return { type: 'staff', id: params.get('staff') };
+    if (params.get('inquiry')) return { type: 'inquiry', id: params.get('inquiry') };
+    if (params.get('email')) return { type: 'email', id: params.get('email') };
     return null;
   }
 
   function modalUrl(route) {
     var url = new URL(window.location.href);
-    ['customer', 'booking', 'invoice', 'campaign', 'confirmationSchedule', 'daySchedule', 'staff'].forEach(function (key) {
+    ['customer', 'booking', 'invoice', 'campaign', 'confirmationSchedule', 'daySchedule', 'staff', 'inquiry', 'email'].forEach(function (key) {
       url.searchParams.delete(key);
     });
     if (route && route.type && route.id) {
@@ -1942,6 +1983,18 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (route.type === 'campaign') {
       if (campaignById(route.id)) renderCampaignModal(route.id);
       else closeModal({ restoreFocus: true });
+      return;
+    }
+
+    if (route.type === 'inquiry') {
+      if (inquiryById(route.id)) renderInquiryModal(route.id);
+      else dropModalRoute();
+      return;
+    }
+
+    if (route.type === 'email') {
+      if (attentionEmailById(route.id)) renderEmailModal(route.id);
+      else dropModalRoute();
       return;
     }
 
@@ -3146,19 +3199,37 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
   }
 
-  function renderCalendar() {
+  // While slots load, the calendar is drawn with its real days, hours and
+  // grid, and pulsing blocks where open times usually sit, so the loaded
+  // calendar replaces only the blocks.
+  var CALENDAR_SKELETON_HOURS = [[9, 11, 14, 16], [9, 14], [11, 16], [9, 11, 14], [14, 16], [9, 11], [11, 14, 16]];
+  function calendarSkeletonEvents(range) {
+    var events = [];
+    range.days.forEach(function (day, index) {
+      CALENDAR_SKELETON_HOURS[index % CALENDAR_SKELETON_HOURS.length].forEach(function (hour) {
+        events.push({ id: 'skeleton-' + day + '-' + hour, skeleton: true, start: isoFromVilniusInput(day, pad2(hour) + ':00'), end: isoFromVilniusInput(day, pad2(hour + 1) + ':00') });
+      });
+    });
+    return events;
+  }
+
+  function renderCalendar(options) {
+    var opts = options || {};
     var calendar = $('[data-admin-calendar]');
     if (!calendar) return;
     var previousScroller = $('.admin-calendar-scroll', calendar);
     var previousScrollTop = previousScroller ? previousScroller.scrollTop : null;
     var previousScrollLeft = previousScroller ? previousScroller.scrollLeft : 0;
     $all('[data-calendar-prev], [data-calendar-today], [data-calendar-next], [data-calendar-view] button, [data-calendar-date]').forEach(function (control) {
-      control.disabled = false;
+      control.disabled = Boolean(opts.loading);
     });
     applyCalendarLayout(calendar);
+    calendar.setAttribute('aria-busy', opts.loading ? 'true' : 'false');
 
     var range = calendarRange();
-    var events = buildCalendarEvents().filter(function (event) { return eventIsInRange(event, range); });
+    var events = opts.loading
+      ? calendarSkeletonEvents(range)
+      : buildCalendarEvents().filter(function (event) { return eventIsInRange(event, range); });
     var hours = calendarHours(events);
     var hourCount = hours.end - hours.start;
     var calendarTitle = $('[data-admin-calendar-title]');
@@ -3268,6 +3339,12 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     }
     var renderDay = function (day) {
       var events = byDay[day] || [];
+      if (events.some(function (event) { return event.skeleton; })) {
+        return '<section class="admin-calendar-agenda-day is-skeleton" aria-hidden="true">' +
+          '<div class="admin-calendar-agenda-date"><span>' + escapeHtml(day === today ? 'Today · ' + dayLabel(day) : dayLabel(day)) + '</span><span><i class="admin-skeleton admin-agenda-skeleton-summary"></i></span></div>' +
+          '<div class="admin-calendar-agenda-events"><div class="admin-calendar-agenda-open"><i class="admin-skeleton admin-agenda-skeleton-slot"></i><i class="admin-skeleton admin-agenda-skeleton-slot"></i><i class="admin-skeleton admin-agenda-skeleton-slot"></i></div></div>' +
+        '</section>';
+      }
       var bookings = events.filter(function (event) { return event.type !== 'slot'; });
       var open = events.filter(function (event) { return event.type === 'slot'; });
       var summary = [
@@ -3332,6 +3409,10 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var end = eventMinutes(event.end);
     var top = Math.max(0, start - hours.start * 60) / 60 * HOUR_HEIGHT;
     var height = Math.max(34, (Math.max(end, start + 15) - start) / 60 * HOUR_HEIGHT);
+    if (event.skeleton) {
+      return '<span class="admin-calendar-event is-skeleton" aria-hidden="true" style="top:' + top + 'px;height:' + height + 'px;">' +
+        '<i class="admin-skeleton"></i><i class="admin-skeleton"></i></span>';
+    }
     var tone = statusTone(event.status);
     var isOpen = event.type === 'slot';
     var primary = isOpen ? 'Open' : (event.customerName || event.title);
@@ -3720,18 +3801,116 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return 'the customer';
   }
 
-  function emailLineHtml(kindLabel, status, recipient, extra) {
+  function emailLineHtml(kindLabel, status, recipient, extra, actionHtml) {
     return '<span class="admin-email-line' + (emailIsProblem(status) ? ' is-problem' : '') + '">' +
       '<span>' + escapeHtml(kindLabel) + ' · <strong>' + escapeHtml(EMAIL_STATUS_LABELS[status] || emailStatusLabel(status) || 'Unknown') + '</strong></span>' +
       '<span class="admin-fact-sub">' + escapeHtml(['to ' + recipient].concat(extra || []).join(' · ')) + '</span>' +
+      (actionHtml ? '<span class="admin-fact-links">' + actionHtml + '</span>' : '') +
     '</span>';
   }
 
-  function emailLinesHtml(notifications) {
-    return notifications.map(function (notification) {
-      return emailLineHtml(emailKindLabel(notification.kind), notification.status, emailRecipientLabel(notification));
+  // Booking emails as one summary line; the full log opens on request, or
+  // on its own when an email needs a decision.
+  function bookingEmailLogFact(booking, operations) {
+    if (operations?.detail_pending) return factHtml('Email logs', factSkeletonHtml(['9rem', '12rem']));
+    var emails = (operations?.notifications || []).filter(function (item) { return item.booking_id === booking.id; });
+    attentionEmails().forEach(function (item) {
+      if (item.booking_id === booking.id && !emails.some(function (email) { return sameEmail(email, item); })) emails.push(item);
+    });
+    if (!emails.length) return '';
+    var flagged = emails.filter(function (email) { return attentionEmailMatching(email); });
+    var problems = emails.filter(function (email) { return emailIsProblem(email.status) || attentionEmailMatching(email); });
+    var sending = emails.filter(function (email) { return ['queued', 'processing'].includes(email.status); });
+    var delivered = emails.filter(function (email) { return email.status === 'delivered'; });
+    var summary = emails.length + (emails.length === 1 ? ' email · ' : ' emails · ') + (
+      problems.length ? problems.length + ' not delivered'
+        : sending.length ? sending.length + ' sending'
+        : delivered.length === emails.length ? (emails.length === 1 ? 'delivered' : 'all delivered')
+        : 'sent'
+    );
+    var stored = state.emailLogsOpen && Object.prototype.hasOwnProperty.call(state.emailLogsOpen, booking.id) ? state.emailLogsOpen[booking.id] : null;
+    var open = stored === null ? flagged.length > 0 : stored;
+    var canResolve = canResolveEmails();
+    var lines = emails.map(function (email) {
+      var item = attentionEmailMatching(email);
+      return emailLineHtml(emailKindLabel(email.kind), email.status, emailRecipientLabel(email),
+        email.created_at ? [formatDateTime(email.created_at)] : [],
+        item && canResolve ? resolveEmailLink(item) : '');
     }).join('');
+    return factHtml('Email logs',
+      '<span class="admin-email-log-summary' + (problems.length ? ' is-problem' : '') + '">' + escapeHtml(summary) + '</span>' +
+      '<span class="admin-email-log" data-email-log' + (open ? '' : ' hidden') + '>' + lines + '</span>' +
+      '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-email-log-toggle="' + escapeHtml(booking.id) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Hide log' : 'Show log') + '</button></span>');
   }
+
+  function bindEmailLogToggles(modal) {
+    $all('[data-email-log-toggle]', modal).forEach(function (button) {
+      button.addEventListener('click', function () {
+        var holder = button.closest('dd');
+        var log = holder ? $('[data-email-log]', holder) : null;
+        if (!log) return;
+        var open = log.hidden;
+        log.hidden = !open;
+        button.setAttribute('aria-expanded', open ? 'true' : 'false');
+        button.textContent = open ? 'Hide log' : 'Show log';
+        state.emailLogsOpen = state.emailLogsOpen || {};
+        state.emailLogsOpen[button.dataset.emailLogToggle] = open;
+      });
+    });
+  }
+
+  var RETRYABLE_EMAIL_STATUSES = ['failed', 'bounced', 'needs_review', 'accepted', 'delayed', 'queued', 'processing'];
+
+  function emailFactsHtml(notification) {
+    var problem = emailIsProblem(notification.status) || RETRYABLE_EMAIL_STATUSES.includes(notification.status);
+    var attempts = Number(notification.attempts || 0);
+    return '<dl class="admin-facts admin-step-facts">' +
+      factHtml('Status', '<strong' + (problem ? ' class="admin-fact-problem"' : '') + '>' + escapeHtml(EMAIL_STATUS_LABELS[notification.status] || emailStatusLabel(notification.status) || 'Needs attention') + '</strong>' +
+        (notification.last_error ? '<span class="admin-fact-sub">' + escapeHtml(notification.last_error) + '</span>' : '')) +
+      factHtml('To', escapeHtml(emailRecipientLabel(notification))) +
+      factHtml('First sent', notification.created_at ? escapeHtml(formatDateTime(notification.created_at)) : '') +
+      factHtml('Attempts', attempts ? escapeHtml(String(attempts)) : '') +
+      factHtml('Resend ID', notification.provider_message_id ? '<span class="admin-fact-code">' + escapeHtml(notification.provider_message_id) + '</span>' : '') +
+    '</dl>';
+  }
+
+  // Send the same email again, or note that the customer was reached
+  // another way. Used from the booking, invoice and email panels.
+  function emailResolveStepHtml(notification) {
+    var canRetry = RETRYABLE_EMAIL_STATUSES.includes(notification.status);
+    return panelStepHeaderHtml('Resolve email', { meta: escapeHtml(emailKindLabel(notification.kind) + ' to ' + emailRecipientLabel(notification)) }) +
+      emailFactsHtml(notification) +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="' + (canRetry ? 'retryNotification' : 'acknowledgeContact') + '" data-no-confirm data-email-resolve>' +
+        hiddenInput('notificationId', notification.id) +
+        hiddenInput('bookingId', notification.booking_id || '') +
+        hiddenInput('invoiceId', notification.invoice_id || '') +
+        (canRetry
+          ? '<div class="admin-field-group"><span class="admin-field-label">What do you want to do?</span>' +
+              '<div class="admin-choice-group" role="radiogroup" aria-label="What do you want to do?">' +
+                '<label><input type="radio" name="resolution" value="retryNotification" checked><span>Send it again</span></label>' +
+                '<label><input type="radio" name="resolution" value="acknowledgeContact"><span>I reached them another way</span></label>' +
+              '</div></div>'
+          : '') +
+        '<label><span class="admin-field-label"><span data-email-note-label>' + (canRetry ? 'How you checked it didn’t arrive' : 'How you reached them') + '</span> <span class="admin-required-marker" aria-hidden="true">*</span></span><textarea name="note" maxlength="1000" required></textarea></label>' +
+        stepFooterHtml('Back', canRetry ? 'Send again' : 'Save') +
+      '</form>';
+  }
+
+  function bindEmailResolveForm(modal) {
+    var form = $('form[data-email-resolve]', modal);
+    if (!form || !form.elements.resolution) return;
+    var label = $('[data-email-note-label]', form);
+    var submit = $('[data-step-submit]', form);
+    var sync = function () {
+      var retry = form.elements.resolution.value !== 'acknowledgeContact';
+      form.dataset.action = retry ? 'retryNotification' : 'acknowledgeContact';
+      if (label) label.textContent = retry ? 'How you checked it didn’t arrive' : 'How you reached them';
+      if (submit) submit.textContent = retry ? 'Send again' : 'Save';
+    };
+    form.addEventListener('change', sync);
+    sync();
+  }
+
 
   // Placeholder bars for a fact whose value is still loading, sized like
   // the value that replaces them (a main line and a smaller second line).
@@ -3739,6 +3918,39 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return '<span class="admin-fact-skeleton" role="status" aria-label="Loading">' + widths.map(function (width, index) {
       return '<i class="admin-skeleton' + (index ? ' is-sub' : '') + '" style="width:' + width + '"></i>';
     }).join('') + '</span>';
+  }
+
+  // What the action centre flags (it comes with every page load), so a
+  // record's panel can show and resolve its own problems.
+  function attentionData() { return state.operationsState || {}; }
+  function attentionEmails() { return attentionData().notifications || []; }
+  function attentionEmailById(id) {
+    return attentionEmails().find(function (item) { return String(item.id) === String(id); }) || null;
+  }
+  function sameEmail(a, b) {
+    if (a.id && b.id) return String(a.id) === String(b.id);
+    return a.kind === b.kind && (a.booking_id || null) === (b.booking_id || null) &&
+      (a.invoice_id || null) === (b.invoice_id || null) && (a.recipient_email || '') === (b.recipient_email || '');
+  }
+  function attentionEmailMatching(notification) {
+    return attentionEmails().find(function (item) { return sameEmail(item, notification); }) || null;
+  }
+  function reconciliationCase(invoiceId) {
+    return (attentionData().reconciliation_cases || []).find(function (item) { return item.invoice_id === invoiceId; }) || null;
+  }
+  function inquiryById(id) {
+    return (attentionData().inquiries || []).find(function (item) { return String(item.id) === String(id); }) || null;
+  }
+  function canResolveEmails() {
+    return staffHasAccess(state.staff, 'operations.manage', ['owner', 'admin', 'inspector']);
+  }
+  function resolveEmailLink(notification) {
+    return '<button class="admin-context-action" type="button" data-admin-step="email" data-admin-step-data="' + escapeHtml(notification.id) + '">Resolve…</button>';
+  }
+  function dropModalRoute() {
+    history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
+    syncSelectedModalState(null);
+    closeModal({ restoreFocus: true });
   }
 
   function factHtml(label, value) {
@@ -3901,10 +4113,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       (booking.vehicle_location ? '<span class="admin-fact-sub">' + escapeHtml(booking.vehicle_location) + '</span>' : '') +
       (vehicleLinks ? '<span class="admin-fact-links">' + vehicleLinks + '</span>' : '');
 
-    var emails = (operations?.notifications || []).filter(function (notification) { return notification.booking_id === booking.id; });
-    var emailsHtml = operations?.detail_pending
-      ? factSkeletonHtml(['9rem', '12rem'])
-      : (emails.length ? emailLinesHtml(emails) : '');
 
     return panelHeaderHtml({
         title: booking.customer_name || booking.public_reference,
@@ -3923,7 +4131,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         bookingNotesFact(booking) +
         bookingPriceFact(booking, operations, permissions.manage) +
         (permissions.bill && booking.status === 'completed' ? bookingInvoiceFact(booking) : '') +
-        (emailsHtml ? factHtml('Emails', emailsHtml) : '') +
+        bookingEmailLogFact(booking, operations) +
       '</dl>' +
       bookingFooterHtml(booking, permissions);
   }
@@ -4139,6 +4347,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     else if (step === 'reject' && booking.status === 'pending') html = bookingReasonStepHtml(booking, 'reject');
     else if (step === 'cancel' && booking.status === 'confirmed') html = bookingReasonStepHtml(booking, 'cancel');
     else if (step === 'change' && bookingCanBeChanged(booking, bookingPermissions())) html = bookingChangeStepHtml(booking);
+    else if (step === 'email' && canResolveEmails() && attentionEmailById(currentModalStepData('booking', booking.id))) html = emailResolveStepHtml(attentionEmailById(currentModalStepData('booking', booking.id)));
     else if (step === 'price') html = bookingPriceStepHtml(booking);
     else if (step === 'invoice' && booking.status === 'completed') html = bookingInvoiceStepHtml(booking);
     else {
@@ -4150,6 +4359,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     bindPriceTotals(modal);
     installTimeChoices(modal);
     updateExpiryCountdowns();
+    bindEmailLogToggles(modal);
+    bindEmailResolveForm(modal);
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
@@ -4841,7 +5052,6 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     return panelStepHeaderHtml('Start legal hold', { meta: escapeHtml(customer.display_name || 'Customer') }) +
       '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="setCustomerLegalHold" data-no-confirm>' +
         hiddenInput('customerId', customer.id) +
-        '<p class="admin-step-note">While the hold lasts, this customer’s personal data can’t be erased or deleted.</p>' +
         '<div class="admin-form-row">' +
           '<label>' + requiredLabel('Until') + '<input name="holdUntilDate" type="date" required min="' + escapeHtml(addDaysYmd(todayYmd(), 1)) + '" value="' + escapeHtml(addDaysYmd(todayYmd(), 180)) + '"></label>' +
           '<label>' + requiredLabel('Time') + '<input name="holdUntilTime" type="time" step="60" required value="23:59"></label>' +
@@ -5758,7 +5968,9 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (!status || status === 'not_sent' || status === 'skipped') {
       return factHtml('Email', '<span>' + (recipient ? 'Not emailed' : 'Not emailed · the customer has no email address') + '</span>');
     }
-    var line = emailLineHtml('Invoice', status, recipient || 'the customer', invoice.last_sent_at ? [formatDateTime(invoice.last_sent_at)] : []);
+    var flagged = attentionEmails().find(function (item) { return item.invoice_id === invoice.id; });
+    var line = emailLineHtml('Invoice', status, recipient || 'the customer', invoice.last_sent_at ? [formatDateTime(invoice.last_sent_at)] : [],
+      flagged && canResolveEmails() ? resolveEmailLink(flagged) : '');
     var error = invoice.last_email_error && status !== 'delivered'
       ? '<span class="admin-fact-sub admin-fact-problem">' + escapeHtml(invoice.last_email_error) + '</span>'
       : '';
@@ -5822,7 +6034,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var unpaid = issued && invoice.payment_status !== 'paid';
     var deliveryFailed = issued && invoice.customer_email && !context.delivered && ['failed', 'bounced', 'needs_review', 'suppressed'].includes(invoice.email_status);
     var primary = '';
-    if (unpaid && context.canRecord) primary = '<button class="admin-button admin-button-primary" type="button" data-admin-step="payment">Record payment…</button>';
+    if (reconciliationCase(invoice.id)) primary = '<button class="admin-button admin-button-primary" type="button" data-admin-step="reconcile">Resolve payment…</button>';
+    else if (unpaid && context.canRecord) primary = '<button class="admin-button admin-button-primary" type="button" data-admin-step="payment">Record payment…</button>';
     else if (deliveryFailed) primary = '<button class="admin-button admin-button-primary" type="button" data-resend-invoice="' + escapeHtml(invoice.id) + '">Email invoice again</button>';
     var secondary = invoice.pdf_path ? '<button class="admin-button admin-button-secondary" type="button" data-view-invoice-pdf="' + escapeHtml(invoice.id) + '">View PDF</button>' : '';
     var more = [];
@@ -5853,6 +6066,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       panelNoticeHtml('invoice', invoice.id) +
       invoiceAmountHtml(invoice, context) +
       '<dl class="admin-facts">' +
+        invoiceReconciliationFact(invoice, context) +
         factHtml('Customer', customerHtml) +
         factHtml('Booking', bookingHtml) +
         (invoice.customer_billing_details && invoice.customer_billing_details.notes ? factHtml('Bill to', '<span class="admin-fact-text">' + escapeHtml(invoice.customer_billing_details.notes) + '</span>') : '') +
@@ -5917,6 +6131,46 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       '</form>';
   }
 
+  // A voided invoice that still has money recorded against it: someone has
+  // to say what happened to that money.
+  function invoiceReconciliationFact(invoice, context) {
+    var item = reconciliationCase(invoice.id);
+    if (!item) return '';
+    return factHtml('Payment to review',
+      '<strong class="admin-fact-problem">' + escapeHtml(formatMoney(item.historical_amount_cents, invoice.currency || 'EUR')) + ' recorded</strong>' +
+      (item.historical_paid_at ? '<span class="admin-fact-sub">Received ' + escapeHtml(formatDateTime(item.historical_paid_at)) + '</span>' : '') +
+      (context.canBill ? '<span class="admin-fact-links"><button class="admin-context-action" type="button" data-admin-step="reconcile">Resolve…</button></span>' : ''));
+  }
+
+  function invoiceReconcileStepHtml(invoice, item) {
+    var option = function (value, label) {
+      return '<label class="admin-option"><input type="radio" name="disposition" value="' + value + '" required><span>' + escapeHtml(label) + '</span></label>';
+    };
+    var methods = Object.keys(PAYMENT_METHOD_LABELS).map(function (key) {
+      return '<label><input type="radio" name="refundMethod" value="' + key + '"' + (key === 'bank_transfer' ? ' checked' : '') + '><span>' + escapeHtml(PAYMENT_METHOD_LABELS[key]) + '</span></label>';
+    }).join('');
+    return panelStepHeaderHtml('Resolve payment', { meta: escapeHtml(invoiceTitle(invoice)) }) +
+      '<dl class="admin-facts admin-step-facts">' +
+        factHtml('Recorded', '<strong>' + escapeHtml(formatMoney(item.historical_amount_cents, invoice.currency || 'EUR')) + '</strong>' +
+          (item.historical_paid_at ? '<span class="admin-fact-sub">Received ' + escapeHtml(formatDateTime(item.historical_paid_at)) + '</span>' : '')) +
+      '</dl>' +
+      '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="resolvePaymentReconciliation" data-no-confirm data-reconcile-form>' +
+        hiddenInput('invoiceId', invoice.id) +
+        '<fieldset class="admin-option-list"><legend class="admin-field-label">What happened to the money?</legend>' +
+          option('retained_payment', 'We received it and kept it') +
+          option('already_refunded', 'We received it and refunded it') +
+          option('duplicate_or_incorrect', 'The payment record is wrong') +
+        '</fieldset>' +
+        '<div class="admin-step-section" data-refund-fields hidden>' +
+          '<label>' + requiredLabel('Refunded on') + '<input name="refundOccurredLocal" type="datetime-local" required disabled></label>' +
+          '<label hidden>When clocks go back<span class="admin-select-wrap"><select name="refundFold" disabled><option value="">Choose if a time repeats</option><option value="first">First occurrence (summer time)</option><option value="second">Second occurrence (winter time)</option></select></span></label>' +
+          '<div class="admin-field-group"><span class="admin-field-label">Method</span><div class="admin-choice-group" role="radiogroup" aria-label="Refund method">' + methods + '</div></div>' +
+        '</div>' +
+        '<label>' + requiredLabel('How you checked') + '<textarea name="note" maxlength="1000" required></textarea></label>' +
+        stepFooterHtml('Back', 'Save outcome') +
+      '</form>';
+  }
+
   function invoiceVoidStepHtml(invoice) {
     var paymentOnly = invoice.invoice_status === 'payment';
     return panelStepHeaderHtml(paymentOnly ? 'Void payment record' : 'Void invoice', { meta: escapeHtml(invoiceTitle(invoice)) }) +
@@ -5941,6 +6195,8 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     else if (step === 'refund' && context.canRefund) html = invoiceMoneyStepHtml(invoice, context, 'refund');
     else if (step === 'correct' && context.canBill) html = invoiceCorrectStepHtml(invoice, context, currentModalStepData('invoice', invoice.id));
     else if (step === 'void' && context.canBill && invoice.invoice_status !== 'void') html = invoiceVoidStepHtml(invoice);
+    else if (step === 'reconcile' && context.canBill && reconciliationCase(invoice.id)) html = invoiceReconcileStepHtml(invoice, reconciliationCase(invoice.id));
+    else if (step === 'email' && canResolveEmails() && attentionEmailById(currentModalStepData('invoice', invoice.id))) html = emailResolveStepHtml(attentionEmailById(currentModalStepData('invoice', invoice.id)));
     else {
       if (step) state.modalStep = null;
       html = invoiceOverviewHtml(invoice, context);
@@ -5949,6 +6205,22 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var modal = openModal(html, 'panel');
     renderInvoiceList();
     bindPriceTotals(modal);
+    bindEmailResolveForm(modal);
+
+    var reconcileForm = $('form[data-reconcile-form]', modal);
+    if (reconcileForm) {
+      var refundFields = $('[data-refund-fields]', reconcileForm);
+      var syncReconcile = function () {
+        var refunded = reconcileForm.elements.disposition.value === 'already_refunded';
+        refundFields.hidden = !refunded;
+        $all('input, select', refundFields).forEach(function (field) {
+          if (field.closest('label[hidden]')) return;
+          field.disabled = !refunded;
+        });
+      };
+      reconcileForm.addEventListener('change', syncReconcile);
+      syncReconcile();
+    }
 
     $all('[data-admin-action-form]', modal).forEach(function (form) {
       form.addEventListener('submit', handleActionSubmit);
@@ -6027,6 +6299,71 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         }
       });
     }
+  }
+
+  // A contact-form inquiry, opened from Notifications.
+  function renderInquiryModal(id) {
+    var inquiry = inquiryById(id);
+    if (!inquiry) return;
+    var details = inquiry.details || {};
+    var name = inquiry.customer_name || 'Contact inquiry';
+    var step = currentModalStep('inquiry', inquiry.id);
+    var html;
+    if (step === 'resolve') {
+      html = panelStepHeaderHtml('Mark resolved', { meta: escapeHtml(name) }) +
+        '<form class="admin-action-form admin-form-plain admin-step-form" data-admin-action-form data-action="resolveInquiry" data-no-confirm>' +
+          hiddenInput('inquiryId', inquiry.id) +
+          '<label>' + requiredLabel('What you told them') + '<textarea name="note" maxlength="1000" rows="5" required></textarea></label>' +
+          stepFooterHtml('Back', 'Mark resolved') +
+        '</form>';
+    } else {
+      if (step) state.modalStep = null;
+      var contact =
+        (inquiry.customer_phone ? '<a class="admin-context-action" href="tel:' + escapeHtml(inquiry.customer_phone) + '">' + ICON_PHONE + '<span>' + escapeHtml(inquiry.customer_phone) + '</span></a>' : '') +
+        (inquiry.customer_email ? '<a class="admin-context-action" href="mailto:' + escapeHtml(inquiry.customer_email) + '">' + ICON_EMAIL + '<span>' + escapeHtml(inquiry.customer_email) + '</span></a>' : '');
+      html = panelHeaderHtml({
+          title: name,
+          chips: '<span class="admin-status-pill" data-status="pending">Waiting for reply</span>',
+          meta: escapeHtml(['Contact inquiry', inquiry.created_at ? formatDateTime(inquiry.created_at) : ''].filter(Boolean).join(' · ')),
+          closeLabel: 'Close inquiry'
+        }) +
+        panelNoticeHtml('inquiry', inquiry.id) +
+        '<dl class="admin-facts">' +
+          factHtml('Contact', contact ? '<span class="admin-fact-links admin-fact-links-stacked">' + contact + '</span>' : '<span>No contact details</span>') +
+          factHtml('Message', '<span class="admin-fact-text">' + escapeHtml(details.message || 'No message.') + '</span>') +
+          factHtml('Inspection', escapeHtml(details.inspectionLabel || details.inspectionType || '')) +
+          factHtml('Vehicle', escapeHtml(details.vehicle || '')) +
+          factHtml('Location', escapeHtml(details.vehicleLocation || '')) +
+          factHtml('Preferred time', escapeHtml(details.preferredTime || '')) +
+        '</dl>' +
+        '<div class="admin-modal-footer admin-panel-footer"><button class="admin-button admin-button-primary" type="button" data-admin-step="resolve">Mark resolved…</button></div>';
+    }
+    var modal = openModal(html, 'panel');
+    $all('[data-admin-action-form]', modal).forEach(function (form) { form.addEventListener('submit', handleActionSubmit); });
+  }
+
+  // An email that isn't tied to a booking or invoice, opened from Notifications.
+  function renderEmailModal(id) {
+    var notification = attentionEmailById(id);
+    if (!notification) return;
+    var step = currentModalStep('email', notification.id);
+    var html;
+    if (step === 'email' && canResolveEmails()) {
+      html = emailResolveStepHtml(notification);
+    } else {
+      if (step) state.modalStep = null;
+      html = panelHeaderHtml({
+          title: emailKindLabel(notification.kind) + ' email',
+          chips: '<span class="admin-status-pill" data-status="cancelled">' + escapeHtml(EMAIL_STATUS_LABELS[notification.status] || 'Needs attention') + '</span>',
+          meta: escapeHtml('To ' + emailRecipientLabel(notification)),
+          closeLabel: 'Close email'
+        }) +
+        emailFactsHtml(notification) +
+        (canResolveEmails() ? '<div class="admin-modal-footer admin-panel-footer"><button class="admin-button admin-button-primary" type="button" data-admin-step="email" data-admin-step-data="' + escapeHtml(notification.id) + '">Resolve…</button></div>' : '');
+    }
+    var modal = openModal(html, 'panel');
+    bindEmailResolveForm(modal);
+    $all('[data-admin-action-form]', modal).forEach(function (form) { form.addEventListener('submit', handleActionSubmit); });
   }
 
   function recipientStatusText(recipient) {
@@ -6762,6 +7099,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         history.replaceState(modalHistoryState(null, 0), '', modalUrl(null));
       }
       await refresh({ preserveScroll: true, force: true }).catch(function () { showToast('Saved. The view is stale; refresh to see the latest records.', 'info'); });
+      var resolvedRoute = modalRouteFromUrl();
+      if (fromPanel && resolvedRoute && ['inquiry', 'email'].includes(resolvedRoute.type)) {
+        state.modalStep = null;
+        dropModalRoute();
+        showToast(successMessageForAction(action), 'success');
+        return;
+      }
       if(state.page==='notifications') { showToast(successMessageForAction(action),'success');return; }
       var message = actionSuccessMessage(action, response.result);
       if (action === 'deleteCustomerProfile') {
@@ -8143,6 +8487,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       setSyncState('Updating', 'loading');
     } else {
       setSyncState('Loading', 'loading');
+      if (page === 'availability') renderCalendar({ loading: true });
     }
 
     startRealtime();
@@ -9374,6 +9719,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     var initialModalRoute = modalRouteFromUrl();
     state.isRefreshing = true;
     if (!hadLoadedView) clearPageLoadError();
+    if (!hadLoadedView && state.page === 'availability' && !$('[data-admin-calendar] .admin-calendar-scroll')) renderCalendar({ loading: true });
     setPageBusy(true, opts.background ? 'Refreshing admin data' : 'Loading admin data');
     setSyncState(opts.background ? 'Updating' : 'Loading', 'loading');
     // Bookings and Billing rows come from their own query. Ask for them at
@@ -9423,7 +9769,13 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       }
       restoreSlotEditorDraft(slotEditorDraft);
       var currentModalRoute = modalRouteFromUrl();
-      if (currentModalRoute && (currentModalRoute.type === 'booking' || currentModalRoute.type === 'invoice')) {
+      var deferredModal = false;
+      // Opening a link to a record: show the page now and let the panel
+      // fill in (skeletons first) instead of holding the startup screen.
+      if (currentModalRoute && (currentModalRoute.type === 'booking' || currentModalRoute.type === 'invoice') && (!state.hasRendered || !modalIsOpen())) {
+        deferredModal = true;
+        openRecordPanelWhenReady(currentModalRoute, activityId);
+      } else if (currentModalRoute && (currentModalRoute.type === 'booking' || currentModalRoute.type === 'invoice')) {
         if (!(await loadSelectedModalRecord(currentModalRoute, activityId))) return false;
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
         var detailBookingId = currentModalRoute.type === 'booking' ? currentModalRoute.id : invoiceById(currentModalRoute.id)?.booking_id;
@@ -9433,7 +9785,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         if (activityId !== refreshActivityId || adminViewForPage(state.page) !== requestedView) return false;
       }
       currentModalRoute = modalRouteFromUrl();
-      if ((initialModalRoute && currentModalRoute && initialModalRoute.type === currentModalRoute.type && initialModalRoute.id === currentModalRoute.id) || (!initialModalRoute && !currentModalRoute)) {
+      if (!deferredModal && ((initialModalRoute && currentModalRoute && initialModalRoute.type === currentModalRoute.type && initialModalRoute.id === currentModalRoute.id) || (!initialModalRoute && !currentModalRoute))) {
         if (currentModalRoute && modalIsOpen()) reconcileOpenModal();
         else if (!opts.background && !modalIsDirty()) renderModalFromCurrentUrl();
       }
@@ -9485,14 +9837,11 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if(label) label.textContent=(data.action_count || 0)===1 ? '1 action needs attention' : (data.action_count || 0)+' actions need attention';
     if(!state.notificationActionSaved && (actionCenterHasDraft(content) || content.contains(document.activeElement))) return;
     state.notificationActionSaved=false;
-    var openIds=$all('[data-review-id][open]',content).map(function(el){return el.dataset.reviewId;});
     var filter=state.notificationFilter || 'all';
     if(filter!=='all' && !(data.counts && data.counts[filter]>0)) filter=state.notificationFilter='all';
     content.innerHTML=renderActionCenter(data,filter);content.removeAttribute('aria-busy');
-    bindActionCenter(content,function(value){state.notificationFilter=value;});
+    bindActionCenter(content,function(value){state.notificationFilter=value;},function(type,id){navigateToModal(type,id);});
     applyActionFilter(content,filter);
-    $all('[data-review-id]',content).forEach(function(el){el.open=openIds.includes(el.dataset.reviewId);});
-    $all('[data-admin-action-form]',content).forEach(function(form){form.addEventListener('submit',handleActionSubmit);});
   }
 
   function renderPage() {

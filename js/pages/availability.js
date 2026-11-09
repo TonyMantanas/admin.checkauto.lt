@@ -65,7 +65,7 @@ export function renderStaticPage(root) {
           data-admin-calendar
           role="region"
           aria-label="Availability calendar"
-        >${skeletons.calendar()}</div>
+         aria-busy="true"></div>
       </section>
     </div>
 

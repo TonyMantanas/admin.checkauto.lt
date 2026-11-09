@@ -224,7 +224,6 @@ function renderUsersPage(state) {
   const content = target('[data-admin-users-content]');
   const count = target('[data-admin-user-count]');
   const addButton = target('[data-user-create-header]');
-  const refreshButton = target('[data-users-refresh]');
   if (!content) return;
 
   const denied = state.staffUsersAccessDenied === true || (state.staff && !isOwner(state.staff));
@@ -232,7 +231,6 @@ function renderUsersPage(state) {
     content.innerHTML = unauthorizedHtml();
     if (count) count.textContent = '';
     if (addButton) addButton.hidden = true;
-    if (refreshButton) refreshButton.hidden = true;
     return;
   }
 
@@ -240,18 +238,10 @@ function renderUsersPage(state) {
     content.innerHTML = userListSkeleton();
     if (count) count.innerHTML = '<span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span>';
     if (addButton) addButton.hidden = true;
-    if (refreshButton) refreshButton.hidden = true;
     return;
   }
 
   if (addButton) addButton.hidden = false;
-  if (refreshButton) {
-    const loading = state.staffUsersLoadState === 'loading';
-    refreshButton.hidden = false;
-    refreshButton.disabled = loading;
-    refreshButton.classList.toggle('is-loading', loading);
-    refreshButton.setAttribute('aria-busy', loading ? 'true' : 'false');
-  }
 
   if (state.staffUsersLoadState === 'error' && !state.staffUsersLoadedAt) {
     content.innerHTML = listErrorHtml(state.staffUsersError);
@@ -868,7 +858,6 @@ export function renderStaticPage(root) {
           <p class="admin-page-meta" data-admin-user-count role="status" aria-live="polite"><span class="admin-skeleton admin-skeleton-line admin-skeleton-count" aria-hidden="true"></span></p>
         </div>
         <div class="admin-page-actions">
-          <button class="admin-button admin-button-ghost admin-icon-button" type="button" data-users-refresh aria-label="Refresh users" title="Refresh" hidden>${ICONS.refresh}</button>
           <button class="admin-button admin-button-primary" type="button" data-user-create-header hidden>${ICONS.add} Add user</button>
         </div>
       </header>
@@ -903,7 +892,7 @@ export function afterEvents({ state }) {
       modals.navigate('staff', editButton.dataset.userEdit);
       return;
     }
-    const retryButton = event.target.closest('[data-users-retry], [data-users-refresh]');
+    const retryButton = event.target.closest('[data-users-retry]');
     if (retryButton) {
       loadUsers(state, { force: true });
     }

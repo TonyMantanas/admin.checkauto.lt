@@ -23,7 +23,6 @@ export function renderStaticPage(root) {
           <header class="admin-card-head">
             <div>
               <h2 id="organization-invoice-title">Invoice details</h2>
-              <p>Shown on every invoice.</p>
             </div>
             <span class="admin-chip" data-tone="warning" data-organization-readiness hidden></span>
           </header>
@@ -61,7 +60,6 @@ export function renderStaticPage(root) {
           <header class="admin-card-head">
             <div>
               <h2 id="organization-booking-requests-title">Booking requests</h2>
-              <p>How long you have to accept a new request, and when that time counts.</p>
             </div>
           </header>
           <div data-organization-schedule-loading>
