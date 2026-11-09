@@ -2352,16 +2352,16 @@ fieldset {
 
 .admin-filter-menu > summary {
   min-height: var(--admin-control-height);
-  padding: 0 var(--admin-space-3);
+  padding: 0 0.875rem;
   display: inline-flex;
   align-items: center;
   gap: var(--admin-space-2);
   border: 1px solid var(--admin-border-strong);
-  border-radius: var(--admin-control-radius);
+  border-radius: 999px;
   color: var(--admin-text);
   background: var(--admin-surface);
   font-size: var(--admin-text-sm);
-  font-weight: 700;
+  font-weight: 600;
   list-style: none;
   cursor: pointer;
 }
@@ -2382,7 +2382,6 @@ fieldset {
 
 .admin-filter-menu[open] > summary,
 .admin-filter-menu > summary:hover {
-  border-color: color-mix(in srgb, var(--admin-accent) 40%, var(--admin-border));
   background: var(--admin-surface-hover);
 }
 
@@ -2414,25 +2413,26 @@ fieldset {
   padding: 0;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--admin-border-strong);
-  border-radius: var(--admin-panel-radius);
+  border: 1px solid var(--admin-border);
+  border-radius: 1rem;
   background: var(--admin-surface);
-  box-shadow: var(--admin-shadow-popover);
+  box-shadow: var(--admin-shadow-modal);
 }
 
 .admin-filter-popover-header {
-  min-height: 2.875rem;
-  padding: 0.35rem var(--admin-space-3);
+  min-height: 3rem;
+  padding: 0.5rem 0.75rem 0 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--admin-space-3);
   flex: 0 0 auto;
-  border-block-end: 1px solid var(--admin-border);
 }
 
 .admin-filter-popover-header strong {
-  font-size: var(--admin-text-sm);
+  color: var(--admin-text);
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .admin-filter-header-actions {
@@ -2443,24 +2443,23 @@ fieldset {
 
 .admin-filter-reset {
   min-height: 2rem;
-  padding-inline: var(--admin-space-2);
-  border-radius: var(--admin-control-radius);
-  color: var(--admin-text-secondary);
+  padding-inline: 0.25rem;
+  border: 0;
+  color: var(--admin-link);
   background: transparent;
-  font-size: var(--admin-text-xs);
-  font-weight: 600;
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 .admin-filter-reset:hover {
-  color: var(--admin-text);
-  background: var(--admin-surface-hover);
+  text-decoration: underline;
 }
 
 .admin-filter-close {
   width: 2rem;
   min-width: 2rem;
   min-height: 2rem;
-  border-radius: var(--admin-control-radius);
+  border-radius: 999px;
   color: var(--admin-text-secondary);
   background: transparent;
 }
@@ -2472,10 +2471,10 @@ fieldset {
 
 .admin-filter-popover-body {
   min-height: 0;
-  padding: var(--admin-space-3);
+  padding: 0.5rem 1rem 1rem;
   display: grid;
   align-content: start;
-  gap: var(--admin-space-3);
+  gap: 1rem;
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-width: thin;
@@ -2490,15 +2489,16 @@ fieldset {
 }
 
 .admin-filter-statuses legend {
-  margin-block-end: var(--admin-space-2);
-  color: var(--admin-text-secondary);
+  margin-block-end: 0.5rem;
+  padding: 0;
+  color: var(--admin-text);
   font-size: var(--admin-text-xs);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .admin-filter-date-grid,
 .admin-filter-amount-grid {
-  padding-block-start: var(--admin-space-3);
+  padding-block-start: 1rem;
   border-block-start: 1px solid var(--admin-border);
 }
 
@@ -2512,32 +2512,32 @@ fieldset {
   gap: 0.375rem;
 }
 
+/* Options are toggle pills, like the Notifications category filters. */
 .admin-filter-check-grid label {
+  position: relative;
   min-height: 2rem;
-  padding: 0.3rem 0.55rem;
-  display: flex;
+  padding: 0.3rem 0.875rem;
+  display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-control-radius);
+  border: 0;
+  border-radius: 999px;
   color: var(--admin-text-secondary);
-  background: var(--admin-surface);
-  font-size: var(--admin-text-xs);
-  font-weight: 550;
+  background: var(--admin-field);
+  font-size: 0.8125rem;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, color 140ms ease;
 }
 
 .admin-filter-check-grid label:hover {
-  border-color: var(--admin-border-strong);
   color: var(--admin-text);
-  background: var(--admin-surface-hover);
+  background: var(--admin-field-hover);
 }
 
 .admin-filter-check-grid label:has(input:checked) {
-  border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border));
-  color: var(--admin-text);
+  color: var(--admin-link);
   background: var(--admin-accent-soft);
+  font-weight: 600;
 }
 
 .admin-filter-check-grid label:has(input:focus-visible) {
@@ -2546,11 +2546,9 @@ fieldset {
 }
 
 .admin-filter-check-grid input {
-  margin: 0;
-  width: 0.95rem;
-  height: 0.95rem;
-  flex: 0 0 auto;
-  accent-color: var(--admin-accent);
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
 .admin-filter-date-grid,
@@ -2569,24 +2567,30 @@ fieldset {
   min-width: 0;
   display: grid;
   align-content: start;
-  gap: 0.3rem;
-  color: var(--admin-text-secondary);
+  gap: 0.35rem;
+  color: var(--admin-text);
   font-size: var(--admin-text-xs);
   font-weight: 600;
 }
 
+/* The same filled fields as every form. */
 .admin-filter-date-grid :is(input, select),
 .admin-filter-amount-grid input {
   width: 100%;
   min-width: 0;
-  min-height: 2.25rem;
-  padding: 0.4rem 0.55rem;
-  border: 1px solid var(--admin-border-strong);
-  border-radius: var(--admin-control-radius);
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: 0.625rem;
   color: var(--admin-text);
-  background: var(--admin-surface);
-  font-size: var(--admin-text-xs);
-  font-weight: 550;
+  background-color: var(--admin-field);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.admin-filter-date-grid :is(input, select):hover,
+.admin-filter-amount-grid input:hover {
+  background-color: var(--admin-field-hover);
 }
 
 .admin-filter-shortcuts,
@@ -2599,27 +2603,35 @@ fieldset {
 
 .admin-filter-shortcuts .admin-button {
   min-height: 2rem;
-  padding: 0.3rem 0.55rem;
-  font-size: var(--admin-text-xs);
+  padding: 0.3rem 0.875rem;
+  border: 0;
+  color: var(--admin-text);
+  background: var(--admin-field);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+.admin-filter-shortcuts .admin-button:hover {
+  background: var(--admin-field-hover);
 }
 
 .admin-filter-more {
   min-width: 0;
-  padding-block-start: var(--admin-space-2);
+  padding-block-start: 0.5rem;
   border-block-start: 1px solid var(--admin-border);
 }
 
 .admin-filter-more > summary {
   min-height: 2rem;
-  padding: 0.2rem var(--admin-space-2);
+  padding: 0.2rem 0;
   display: flex;
   align-items: center;
   gap: var(--admin-space-2);
-  border-radius: var(--admin-control-radius);
-  color: var(--admin-text-secondary);
+  color: var(--admin-text);
   font-size: var(--admin-text-xs);
-  font-weight: 700;
+  font-weight: 600;
   list-style: none;
+  cursor: pointer;
 }
 
 .admin-filter-more > summary::-webkit-details-marker {
@@ -2641,8 +2653,7 @@ fieldset {
 }
 
 .admin-filter-more > summary:hover {
-  color: var(--admin-text);
-  background: var(--admin-surface-hover);
+  color: var(--admin-link);
 }
 
 .admin-filter-more-count {

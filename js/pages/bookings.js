@@ -32,7 +32,7 @@ export function renderStaticPage(root) {
                 <fieldset class="admin-filter-statuses">
                   <legend>Status</legend>
                   <div class="admin-filter-check-grid">
-                    <label><input type="checkbox" value="pending" data-booking-status><span>Pending review</span></label>
+                    <label><input type="checkbox" value="pending" data-booking-status><span>Needs review</span></label>
                     <label><input type="checkbox" value="confirmed" data-booking-status><span>Confirmed</span></label>
                     <label><input type="checkbox" value="completed" data-booking-status><span>Completed</span></label>
                     <label><input type="checkbox" value="rejected" data-booking-status><span>Rejected</span></label>

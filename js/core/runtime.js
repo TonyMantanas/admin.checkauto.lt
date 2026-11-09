@@ -2944,7 +2944,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
 
     els.stats.innerHTML =
       '<a class="admin-stat admin-stat-link" data-tone="' + (pending ? 'urgent' : 'neutral') + '" href="' + PATHS.bookings + '?filter=pending">' +
-        '<span>Pending review</span><strong>' + pending + '</strong>' +
+        '<span>Needs review</span><strong>' + pending + '</strong>' +
       '</a>' +
       '<a class="admin-stat admin-stat-link" data-tone="' + (confirmedToday ? 'active' : 'neutral') + '" href="' + PATHS.bookings + '?filter=confirmed">' +
         '<span>Confirmed today</span><strong>' + confirmedToday + '</strong>' +
