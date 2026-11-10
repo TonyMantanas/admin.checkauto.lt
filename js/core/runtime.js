@@ -355,7 +355,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       );
       pdfWindow.document.close();
     } catch (error) {
-      // The signed PDF navigation can still continue if the temporary document is unavailable.
+      // The PDF can still open if the loading page can't be drawn.
     }
   }
 
@@ -1529,6 +1529,38 @@ export function initAdminRuntime(initialPageController, routerOptions) {
     if (payload.action !== 'sendMarketingCampaign' && data.ok !== true) throw new Error('The response could not be read. Retry the same action to recover its result.');
     if (payload.action !== 'sendMarketingCampaign' && payload.idempotencyKey) operationStore().complete(payload.idempotencyKey);
     return data;
+  }
+
+  // The invoice PDF comes back as the file itself, after the same sign-in,
+  // MFA and role checks as every action. It is shown from memory through a
+  // blob: address that only this browser tab can open, so no link exists
+  // that someone else could use.
+  async function fetchInvoicePdf(invoiceId) {
+    if (!(await ensureActiveSession())) {
+      throw new Error('This account is not approved for admin access or the session has expired.');
+    }
+    var response = await fetch(CHANGES_ENDPOINT, {
+      method: 'POST',
+      headers: authHeaders(),
+      cache: 'no-store',
+      body: JSON.stringify({ action: 'getInvoicePdf', invoiceId: invoiceId })
+    });
+    if (!response.ok) {
+      var data = await response.json().catch(function () { return {}; });
+      if (isTemporaryPasswordCode(data.code)) {
+        redirectTo(PATHS.login);
+        throw new Error(data.error || 'Change your temporary password before continuing.');
+      }
+      if (response.status === 401 || isSecuritySessionCode(data.code)) {
+        await revokeAndClearSession();
+        redirectTo(PATHS.login);
+      }
+      throw new Error(data.error || 'The invoice PDF couldn’t be opened. Try again.');
+    }
+    if (!/application\/pdf/i.test(response.headers.get('Content-Type') || '')) {
+      throw new Error('The invoice PDF couldn’t be opened. Try again.');
+    }
+    return new Blob([await response.arrayBuffer()], { type: 'application/pdf' });
   }
 
   function ensureToastRoot() {
@@ -6292,16 +6324,19 @@ export function initAdminRuntime(initialPageController, routerOptions) {
         }
 
         try {
-          setButtonBusy(pdfButton, true, busyLabelForAction('getInvoicePdfUrl'));
-          var data = await adminAction({ action: 'getInvoicePdfUrl', invoiceId: pdfButton.dataset.viewInvoicePdf });
-          if (data.result && data.result.url) {
-            if (pdfWindow) {
-              pdfWindow.location.href = data.result.url;
-            } else {
-              window.location.href = data.result.url;
-            }
-          } else if (pdfWindow) {
-            pdfWindow.close();
+          setButtonBusy(pdfButton, true, busyLabelForAction('getInvoicePdf'));
+          var invoiceId = pdfButton.dataset.viewInvoicePdf;
+          var pdfUrl = URL.createObjectURL(await fetchInvoicePdf(invoiceId));
+          if (pdfWindow && !pdfWindow.closed) {
+            pdfWindow.location.href = pdfUrl;
+          } else {
+            // The browser blocked the new tab, so save the file instead.
+            var save = document.createElement('a');
+            save.href = pdfUrl;
+            save.download = String((invoiceById(invoiceId) || {}).invoice_number || 'invoice').replace(/[^A-Za-z0-9._-]/g, '_') + '.pdf';
+            document.body.appendChild(save);
+            save.click();
+            save.remove();
           }
         } catch (error) {
           if (pdfWindow) pdfWindow.close();
@@ -6585,7 +6620,7 @@ export function initAdminRuntime(initialPageController, routerOptions) {
       redactCustomerPii: 'Erasing…',
       deleteCustomerProfile: 'Deleting…',
       sendMarketingCampaign: 'Sending…',
-      getInvoicePdfUrl: 'Opening…'
+      getInvoicePdf: 'Opening…'
     }[action] || 'Working…';
   }
 
